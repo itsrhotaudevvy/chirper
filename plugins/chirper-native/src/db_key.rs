@@ -67,21 +67,32 @@ mod android {
         match fs::read(&path) {
             Ok(bytes) => {
                 let (iv, ciphertext) = keyfile::decode(&bytes)?;
-                let plaintext = native.unwrap_key(&Wrapped {
+                let plaintext = match native.unwrap_key(&Wrapped {
                     iv: iv.to_vec(),
                     ciphertext: ciphertext.to_vec(),
-                })?;
+                }) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        log::warn!("failed to unwrap database key ({e}), creating a fresh key");
+                        let _ = fs::remove_file(&path);
+                        return create_and_store(native, &path);
+                    }
+                };
                 key_from_bytes(&plaintext)
             }
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                let key = random_key()?;
-                let wrapped = native.wrap_key(&key[..])?;
-                let file = keyfile::encode(&wrapped.iv, &wrapped.ciphertext)?;
-                write_private(&path, &file)?;
-                Ok(key)
+                create_and_store(native, &path)
             }
             Err(e) => Err(e.into()),
         }
+    }
+
+    fn create_and_store<R: Runtime>(native: &ChirperNative<R>, path: &Path) -> Result<Key> {
+        let key = random_key()?;
+        let wrapped = native.wrap_key(&key[..])?;
+        let file = keyfile::encode(&wrapped.iv, &wrapped.ciphertext)?;
+        write_private(path, &file)?;
+        Ok(key)
     }
 
     /// Writes through a temporary file with mode 0600, then renames it into place.

@@ -135,19 +135,37 @@ fn set_lock_config(state: &AppState, prefs: &Prefs) {
 
 // ---- core: accounts and login ---------------------------------------------------------------
 
+async fn get_core(state: &AppState) -> CmdResult<chirper_core::Core> {
+    if let Ok(c) = state.ready_core() {
+        return Ok(c);
+    }
+    state.ensure_unlocked()?;
+    for _ in 0..50 {
+        tauri::async_runtime::spawn_blocking(|| {
+            std::thread::sleep(std::time::Duration::from_millis(100))
+        })
+        .await
+        .ok();
+        if let Ok(c) = state.ready_core() {
+            return Ok(c);
+        }
+    }
+    state.ready_core()
+}
+
 #[tauri::command]
 pub async fn start(state: State<'_, AppState>) -> CmdResult<()> {
-    Ok(state.ready_core()?.start().await?)
+    Ok(get_core(&state).await?.start().await?)
 }
 
 #[tauri::command]
 pub async fn networks(state: State<'_, AppState>) -> CmdResult<Vec<Network>> {
-    Ok(state.ready_core()?.networks().await?)
+    Ok(get_core(&state).await?.networks().await?)
 }
 
 #[tauri::command]
 pub async fn accounts(state: State<'_, AppState>) -> CmdResult<Vec<Account>> {
-    Ok(state.ready_core()?.accounts().await?)
+    Ok(get_core(&state).await?.accounts().await?)
 }
 
 #[tauri::command]

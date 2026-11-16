@@ -330,6 +330,21 @@ func (e *Engine) networkRow(spec networkSpec, s Settings) (Network, bool) {
 
 // Accounts lists the logins of every started bridge.
 func (e *Engine) Accounts() ([]Account, error) {
+	s := e.currentSettings()
+	for _, spec := range e.enabledSpecs() {
+		if spec.unavailableReason(s) != "" {
+			continue
+		}
+		if _, err := os.Stat(e.bridgeDBPath(spec.id)); err != nil {
+			continue
+		}
+		if inst, err := e.instance(spec); err == nil && !inst.isStarted() {
+			if has, err := inst.hasLogins(e.ctx); err == nil && has {
+				_ = inst.start(e.ctx)
+			}
+		}
+	}
+
 	e.mu.Lock()
 	all := make([]*bridgeInstance, 0, len(e.instances))
 	for _, inst := range e.instances {

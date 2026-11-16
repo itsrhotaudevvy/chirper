@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { accounts, accountKey, accountRing } from '../../lib/stores/accounts.svelte';
   import type { Account } from '../../lib/core';
   import Icon from '../../lib/components/Icon.svelte';
@@ -11,6 +12,10 @@
   }
 
   let { onopen, onadd }: Props = $props();
+
+  onMount(() => {
+    void accounts.load();
+  });
 
   /** Up to four accounts by default; more collapse into one row, so the default view stays short. */
   const COLLAPSE_ABOVE = 4;

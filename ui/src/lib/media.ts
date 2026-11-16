@@ -6,6 +6,7 @@ import { isTauri } from './core';
  * so it returns null and callers show a placeholder.
  */
 export function mediaUrl(mxc: string): string | null {
+  if (mxc.startsWith('http://') || mxc.startsWith('https://')) return mxc;
   if (!mxc.startsWith('mxc://')) return null;
   if (!isTauri()) return null;
   return `chirper-media://localhost/${encodeURIComponent(mxc)}`;

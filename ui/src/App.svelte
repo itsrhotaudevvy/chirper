@@ -87,13 +87,21 @@
         void core.sendText({ roomId, text, replyTo: '', txnId: crypto.randomUUID() }).catch(() => undefined);
       }),
     );
-    void connectStores().then((dispose) => {
-      disposers.push(dispose);
-      ready = true;
-      if (settings.autoUpdate) {
-        void updater.checkForUpdates({ autoDownload: true, silent: true });
-      }
-    });
+    const initStores = () => {
+      void connectStores()
+        .then((dispose) => {
+          disposers.push(dispose);
+          ready = true;
+          if (settings.autoUpdate) {
+            void updater.checkForUpdates({ autoDownload: true, silent: true });
+          }
+        })
+        .catch((err) => {
+          console.warn('Initial connectStores error, retrying in 500ms:', err);
+          setTimeout(initStores, 500);
+        });
+    };
+    initStores();
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && router.view !== 'inbox') router.back();
     };

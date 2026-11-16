@@ -45,7 +45,6 @@ internal object DbKeyWrap {
             .setUserAuthenticationRequired(false)
             .apply {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    setUnlockedDeviceRequired(true)
                     setIsStrongBoxBacked(strongBox)
                 }
             }
@@ -66,5 +65,12 @@ internal object DbKeyWrap {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, iv))
         return cipher.doFinal(ciphertext)
+    }
+
+    fun deleteKey() {
+        try {
+            val store = KeyStore.getInstance(PROVIDER).apply { load(null) }
+            store.deleteEntry(ALIAS)
+        } catch (_: Exception) {}
     }
 }

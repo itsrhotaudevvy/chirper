@@ -88,7 +88,14 @@ func (b loginBase) finish(ctx context.Context, origin string, ep *fluxerapi.Endp
 	}
 	var avatarURI id.ContentURIString
 	if user.Avatar != nil && *user.Avatar != "" {
-		avatarURI = id.ContentURIString(imageURL(ep.Media, "/avatars/"+user.ID, *user.Avatar))
+		mediaBase := ep.Media
+		if mediaBase == "" {
+			mediaBase = ep.API
+		}
+		if mediaBase == "" {
+			mediaBase = origin
+		}
+		avatarURI = id.ContentURIString(imageURL(mediaBase, "/avatars/"+user.ID, *user.Avatar))
 	}
 	ul, err := b.user.NewLogin(ctx, &database.UserLogin{
 		ID:         makeUserLoginID(user.ID),
@@ -102,6 +109,9 @@ func (b loginBase) finish(ctx context.Context, origin string, ep *fluxerapi.Endp
 	}, &bridgev2.NewLoginParams{DeleteOnConflict: true})
 	if err != nil {
 		return nil, fmt.Errorf("saving login: %w", err)
+	}
+	if client, ok := ul.Client.(*fluxerClient); ok && client != nil {
+		go client.Connect(ul.Log.WithContext(context.Background()))
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,

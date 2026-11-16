@@ -42,6 +42,7 @@
   const accountCount = $derived(accounts.list.length);
 
   onMount(() => {
+    void accounts.load();
     core
       .appInfo()
       .then((value) => (info = value))

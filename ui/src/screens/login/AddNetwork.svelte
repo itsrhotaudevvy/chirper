@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import { core, type LoginState } from '../../lib/core';
   import { accounts } from '../../lib/stores';
   import { haptic } from '../../lib/haptics';
@@ -47,6 +47,12 @@
   let doneTimer: ReturnType<typeof setTimeout> | undefined;
 
   const tiles = $derived(networkTiles(accounts.networks));
+
+  onMount(() => {
+    if (accounts.networks.length === 0) {
+      void accounts.load();
+    }
+  });
 
   let autoStarted = false;
   $effect(() => {
@@ -208,7 +214,11 @@
     finished = true;
     pulse = true;
     haptic('success');
-    doneTimer = setTimeout(onclose, 900);
+    void accounts.load();
+    doneTimer = setTimeout(() => {
+      void accounts.load();
+      onclose();
+    }, 900);
   }
 
   function fail(): void {
@@ -255,6 +265,7 @@
     attempt++;
     if (doneTimer !== undefined) clearTimeout(doneTimer);
     dropProcess();
+    void accounts.load();
   });
 </script>
 

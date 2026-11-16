@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 
 	"chirper.dev/core/store"
 )
@@ -159,6 +160,9 @@ func (lp *loginProcess) execute(done chan struct{}, fn stepFunc) {
 		lp.close(true)
 	case step.Type == bridgev2.LoginStepTypeComplete:
 		lp.close(false)
+		if step.CompleteParams != nil && step.CompleteParams.UserLoginID != "" {
+			lp.e.queueAccount(networkid.BridgeID(lp.network), string(step.CompleteParams.UserLoginID))
+		}
 		// Pull in the history of every chat of this network so the inbox is not empty after signing in.
 		lp.e.goSafe(func() { _ = lp.e.SyncHistory(lp.network) })
 	}

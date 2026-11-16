@@ -39,8 +39,23 @@ fn open(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let key = crate::platform::load_db_key(app)?;
     let (backend, backend_name) = backend()?;
-    let (core, events) = Core::open(backend, state.core_dir(), key.as_ref())
-        .map_err(|e| format!("cannot open the core: {e}"))?;
+    let (core, events) = match Core::open(backend.clone(), state.core_dir(), key.as_ref()) {
+        Ok(res) => res,
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("file is not a database")
+                || msg.contains("database disk image is malformed")
+                || msg.contains("not a database")
+            {
+                log::warn!("database unreadable or key mismatched ({msg}), recreating data directory");
+                let _ = std::fs::remove_dir_all(state.core_dir());
+                Core::open(backend, state.core_dir(), key.as_ref())
+                    .map_err(|e2| format!("cannot open the core after reset: {e2}"))?
+            } else {
+                return Err(format!("cannot open the core: {e}"));
+            }
+        }
+    };
     log::info!("core opened with the {backend_name} backend");
 
     crate::events::spawn_pump(app.clone(), events);
