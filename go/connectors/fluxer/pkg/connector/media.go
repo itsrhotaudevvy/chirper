@@ -38,13 +38,16 @@ func (c *fluxerClient) avatar(path string, hash *string) *bridgev2.Avatar {
 			if c.meta.Bot && token != "" {
 				token = "Bot " + token
 			}
-			data, err := downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, token)
-			if err != nil && token != "" {
-				if unauthData, unauthErr := downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, ""); unauthErr == nil {
-					return unauthData, nil
-				}
+			// CDNs like Cloudflare / S3 reject unexpected Authorization headers.
+			// Try unauthenticated first; if that fails and we have a token, retry with auth.
+			data, err := downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, "")
+			if err == nil {
+				return data, nil
 			}
-			return data, err
+			if token != "" {
+				return downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, token)
+			}
+			return nil, err
 		},
 	}
 }

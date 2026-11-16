@@ -19,6 +19,10 @@
   let { name, id, src, network, size = 48 }: Props = $props();
 
   const url = $derived(src ? mediaUrl(src) : null);
+  let failed = $state(false);
+  $effect(() => {
+    if (url) failed = false;
+  });
   const hue = $derived(personHue(id ?? name));
   const initials = $derived(
     name
@@ -44,8 +48,8 @@
   style:--ring-c={ringColour}
   style:--font={fontSize}
 >
-  {#if url}
-    <img src={url} alt="" loading="lazy" decoding="async" />
+  {#if url && !failed}
+    <img src={url} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />
   {:else}
     <span class="initials" aria-hidden="true">{initials}</span>
   {/if}

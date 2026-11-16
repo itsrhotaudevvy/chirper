@@ -14,6 +14,8 @@ import (
 
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+
+	"chirper.dev/core/store"
 )
 
 // SyncHistory queues a backfill of past messages for every chat of network (all networks when the
@@ -57,12 +59,23 @@ func (e *Engine) backfillInstance(inst *bridgeInstance) {
 		if stored == nil || stored.MXID == "" || stored.RoomType == database.RoomTypeSpace {
 			continue
 		}
-		login, err := inst.br.GetExistingUserLoginByID(ctx, stored.Receiver)
-		if err != nil || login == nil {
-			continue
+		var login *bridgev2.UserLogin
+		if stored.Receiver != "" {
+			login, _ = inst.br.GetExistingUserLoginByID(ctx, stored.Receiver)
 		}
 		portal, err := inst.br.GetPortalByKey(ctx, stored.PortalKey)
 		if err != nil || portal == nil {
+			continue
+		}
+		if login == nil {
+			if user, err := inst.br.GetUserByMXID(ctx, store.SelfUserID); err == nil && user != nil {
+				login, _, _ = portal.FindPreferredLogin(ctx, user, true)
+				if login == nil {
+					login = user.GetDefaultLogin()
+				}
+			}
+		}
+		if login == nil {
 			continue
 		}
 		inst.br.WakeupBackfillQueue(&bridgev2.ManualBackfill{Source: login, Portal: portal})

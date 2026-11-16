@@ -54,7 +54,24 @@ async fn serve(
     range: Option<&str>,
 ) -> Result<Response<Vec<u8>>, ServeError> {
     let state = app.state::<AppState>();
-    let core = state.ready_core().map_err(|_| ServeError)?;
+    let core = match state.ready_core() {
+        Ok(c) => c,
+        Err(_) => {
+            let mut found = None;
+            for _ in 0..20 {
+                tauri::async_runtime::spawn_blocking(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(100))
+                })
+                .await
+                .ok();
+                if let Ok(c) = state.ready_core() {
+                    found = Some(c);
+                    break;
+                }
+            }
+            found.ok_or(ServeError)?
+        }
+    };
     let path = core.media_file(mxc).await.map_err(|_| ServeError)?;
     let root = state.core_dir().to_path_buf();
     let range = range.map(str::to_owned);

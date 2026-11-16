@@ -83,7 +83,7 @@ export class MessagesStore {
       if (fresh.length > 0) {
         room.items = [...fresh, ...room.items].sort((a, b) => a.order - b.order);
       }
-      room.hasMore = hasMore && (fresh.length > 0 || page.length > 0);
+      room.hasMore = hasMore;
     } finally {
       room.loading = false;
     }

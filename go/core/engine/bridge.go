@@ -89,8 +89,8 @@ func bridgeConfigFor(spec networkSpec) *bridgeconfig.BridgeConfig {
 				Enabled:    true,
 				Manual:     true,
 				BatchSize:  100,
-				BatchDelay: 20,
-				MaxBatches: 10,
+				BatchDelay: 0,
+				MaxBatches: -1,
 			},
 		},
 	}

@@ -237,12 +237,12 @@ pub async fn logout(
 
 #[tauri::command]
 pub async fn list_chats(state: State<'_, AppState>, filter: ChatFilter) -> CmdResult<Vec<Chat>> {
-    Ok(state.ready_core()?.list_chats(&filter).await?)
+    Ok(get_core(&state).await?.list_chats(&filter).await?)
 }
 
 #[tauri::command]
 pub async fn get_chat(state: State<'_, AppState>, room_id: String) -> CmdResult<Option<Chat>> {
-    Ok(state.ready_core()?.get_chat(&room_id).await?)
+    Ok(get_core(&state).await?.get_chat(&room_id).await?)
 }
 
 #[tauri::command]
@@ -252,21 +252,21 @@ pub async fn list_messages(
     before_order: i64,
     limit: u32,
 ) -> CmdResult<Vec<Message>> {
-    Ok(state
-        .ready_core()?
+    Ok(get_core(&state)
+        .await?
         .list_messages(&room_id, before_order, limit)
         .await?)
 }
 
 #[tauri::command]
 pub async fn load_older(state: State<'_, AppState>, room_id: String) -> CmdResult<HasMore> {
-    let has_more = state.ready_core()?.load_older(&room_id).await?;
+    let has_more = get_core(&state).await?.load_older(&room_id).await?;
     Ok(HasMore { has_more })
 }
 
 #[tauri::command]
 pub async fn sync_history(state: State<'_, AppState>, network: String) -> CmdResult<()> {
-    Ok(state.ready_core()?.sync_history(&network).await?)
+    Ok(get_core(&state).await?.sync_history(&network).await?)
 }
 
 #[tauri::command]
@@ -398,7 +398,7 @@ pub async fn set_chat_flags(
 
 #[tauri::command]
 pub async fn media_file(state: State<'_, AppState>, url: String) -> CmdResult<PathOut> {
-    let path = state.ready_core()?.media_file(&url).await?;
+    let path = get_core(&state).await?.media_file(&url).await?;
     let path = path
         .to_str()
         .ok_or_else(|| CmdError::new(code::CORE, "the media path is not UTF-8"))?
@@ -412,7 +412,7 @@ pub async fn search(
     query: String,
     limit: u32,
 ) -> CmdResult<Vec<Message>> {
-    Ok(state.ready_core()?.search(&query, limit).await?)
+    Ok(get_core(&state).await?.search(&query, limit).await?)
 }
 
 #[tauri::command]
