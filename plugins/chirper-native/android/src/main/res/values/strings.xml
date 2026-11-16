@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connection_channel_name">Connection</string>
+    <string name="connection_channel_description">Keeps your accounts connected while Chirper is in the background</string>
+    <string name="messages_channel_name">Messages</string>
+    <string name="messages_channel_description">New messages from your chats</string>
+    <string name="connection_title">Chirper is connected</string>
+    <string name="connection_text">Your accounts stay connected in the background.</string>
+    <string name="reply_action">Reply</string>
+    <string name="reply_hint">Reply</string>
+    <string name="generic_message_text">New message</string>
+    <string name="app_name_short">Chirper</string>
+</resources>

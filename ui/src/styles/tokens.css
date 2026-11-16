@@ -1,0 +1,332 @@
+/*
+ * Chirper design tokens. Source of truth: docs/DESIGN.md.
+ *
+ * Theme selection:
+ *   - no data-theme attribute: follows the OS (prefers-color-scheme), dark or light
+ *   - data-theme="dark" | "light" | "amoled" forces a theme
+ * Light values are the :root base; dark values are repeated under the media query guarded by
+ * :root:not([data-theme="light"]) and under :root[data-theme="dark"]; amoled overrides the dark ones.
+ *
+ * Banners (DESIGN 3.3 v2) are solid, bright and the same in every theme: they use the --banner-*
+ * tokens (the dark column of the rainbow) with --on-banner ink. --spectrum-N is the theme column,
+ * used only for small marks on the page (rings, dots, pills, coloured text).
+ */
+
+:root {
+  /* ---- 3.1 Surfaces (light is the base) ---- */
+  --bg: #F6F8F9;
+  --surface: #FFFFFF;
+  --surface-high: #EEF2F3;
+  --on: #10181A;
+  --on-muted: #5A6A6D;
+  --outline: #DCE3E5;
+  --warn: #B7791F;
+  --danger: #C8323A;
+  --on-banner: #0B0F10;
+  --on-accent: #FFFFFF;
+
+  /* ---- 3.2 Rainbow (light values) ---- */
+  --spectrum-0: #C43E49;
+  --spectrum-1: #BB4F08;
+  --spectrum-2: #9F6601;
+  --spectrum-3: #887402;
+  --spectrum-4: #668007;
+  --spectrum-5: #0F8C3B;
+  --spectrum-6: #068870;
+  --spectrum-7: #01858A;
+  --spectrum-8: #0980A3;
+  --spectrum-9: #0D76CE;
+  --spectrum-10: #5F65D5;
+  --spectrum-11: #8955C5;
+  --spectrum-12: #A748A5;
+  --spectrum-13: #BB3E7B;
+
+  /* ---- 3.3 Banner colours: the bright column, identical in every theme (contrast with --on-banner >= 7:1) ---- */
+  --banner-spectrum-0: #FD7277;
+  --banner-spectrum-1: #F87C3C;
+  --banner-spectrum-2: #DE9216;
+  --banner-spectrum-3: #BEA412;
+  --banner-spectrum-4: #91B519;
+  --banner-spectrum-5: #46C165;
+  --banner-spectrum-6: #0DBF9F;
+  --banner-spectrum-7: #14BBC2;
+  --banner-spectrum-8: #11B5E4;
+  --banner-spectrum-9: #56A9FF;
+  --banner-spectrum-10: #8F9AFE;
+  --banner-spectrum-11: #BA87FB;
+  --banner-spectrum-12: #DD7AD9;
+  --banner-spectrum-13: #F372AB;
+  --banner-instagram: var(--banner-spectrum-0);
+  --banner-fluxer: var(--banner-spectrum-1);
+  --banner-slack: var(--banner-spectrum-2);
+  --banner-twitter: var(--banner-spectrum-3);
+  --banner-gvoice: var(--banner-spectrum-4);
+  --banner-whatsapp: var(--banner-spectrum-5);
+  --banner-gmessages: var(--banner-spectrum-6);
+  --banner-telegram: var(--banner-spectrum-7);
+  --banner-bluesky: var(--banner-spectrum-8);
+  --banner-linkedin: var(--banner-spectrum-9);
+  --banner-signal: var(--banner-spectrum-10);
+  --banner-discord: var(--banner-spectrum-11);
+  --banner-demo: var(--banner-spectrum-12);
+  --banner-messenger: var(--banner-spectrum-13);
+  --banner-neutral: #9AA9AC;
+  --banner-warn: #F5B93B;
+  --banner-danger: #FF7A7E;
+  --banner-radius: 28px;
+
+  /* Network -> slot (DESIGN 3.2). Resolves through the spectrum of the active theme. */
+  --net-instagram: var(--spectrum-0);
+  --net-fluxer: var(--spectrum-1);
+  --net-slack: var(--spectrum-2);
+  --net-twitter: var(--spectrum-3);
+  --net-gvoice: var(--spectrum-4);
+  --net-whatsapp: var(--spectrum-5);
+  --net-gmessages: var(--spectrum-6);
+  --net-telegram: var(--spectrum-7);
+  --net-bluesky: var(--spectrum-8);
+  --net-linkedin: var(--spectrum-9);
+  --net-signal: var(--spectrum-10);
+  --net-discord: var(--spectrum-11);
+  --net-demo: var(--spectrum-12);
+  --net-messenger: var(--spectrum-13);
+
+  /* Settings categories (DESIGN 3.2): solid banners, so they use the theme-independent bright slots. */
+  --cat-accounts: var(--banner-spectrum-7);
+  --cat-notifications: var(--banner-spectrum-1);
+  --cat-privacy: var(--banner-spectrum-10);
+  --cat-appearance: var(--banner-spectrum-12);
+  --cat-chats: var(--banner-spectrum-5);
+  --cat-about: var(--banner-neutral);
+
+  /* ---- 3.4 Accent presets (chrome only). Default: Aurora. Override with data-accent. ---- */
+  --accent-1: #6D5EF8;
+  --accent-2: #8B5CF6;
+  --accent-3: #4F8DF7;
+  --accent-4: #35C7C0;
+  --accent: var(--accent-2);
+
+  /* ---- 2. Type ---- */
+  --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-features: 'cv11', 'ss01';
+  --t-display-size: 1.875rem;
+  --t-display-line: 2.125rem;
+  --t-display-weight: 700;
+  --t-display-track: -0.5px;
+  --t-title-size: 1.375rem;
+  --t-title-line: 1.625rem;
+  --t-title-weight: 650;
+  --t-headline-size: 1.0625rem;
+  --t-headline-line: 1.375rem;
+  --t-headline-weight: 600;
+  --t-body-size: 0.96875rem;
+  --t-body-line: 1.3125rem;
+  --t-body-weight: 400;
+  --t-label-size: 0.78125rem;
+  --t-label-line: 1rem;
+  --t-label-weight: 550;
+  --t-brand-track: -0.02em;
+  /* Hero wordmark on the brand screens (onboarding, lock): the only size above display. */
+  --t-hero-size: 3.5rem;
+  --t-hero-line: 1;
+
+  /* ---- Spacing scale ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --gutter: 16px;
+
+  /* ---- Radii ---- */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+
+  /* ---- Sizes ---- */
+  --hit: 44px;
+  --avatar-s: 28px;
+  --avatar-m: 36px;
+  --avatar-l: 48px;
+  --avatar-xl: 88px;
+  --ring: 2px;
+  --row-h: 68px;
+  --band-h: 32px;
+  --banner-h: 168px;
+  --banner-h-desktop: 120px;
+  --send-size: 44px;
+  --unread-h: 20px;
+  --sidebar-w: 360px;
+  --sidebar-min: 300px;
+  --sidebar-max: 480px;
+  --sheet-max: 640px;
+  --elev-1: 0 1px 2px rgb(0 0 0 / 0.12), 0 6px 20px rgb(0 0 0 / 0.10);
+  --elev-2: 0 12px 40px rgb(0 0 0 / 0.28);
+
+  /* ---- Safe areas ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --titlebar-inset: 0px;
+
+  /* ---- 5. Motion ---- */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring: linear(0, 0.0305 3.1%, 0.1056 6.3%, 0.2056 9.4%, 0.3163 12.5%, 0.4276 15.6%, 0.5330 18.8%, 0.6286 21.9%, 0.7123 25%, 0.7834 28.1%, 0.8423 31.3%, 0.8898 34.4%, 0.9271 37.5%, 0.9557 40.6%, 0.9770 43.8%, 0.9922 46.9%, 1.0026 50%, 1.0092 53.1%, 1.0131 56.3%, 1.0148 59.4%, 1.0151 62.5%, 1.0145 65.6%, 1.0132 68.8%, 1.0117 71.9%, 1.0100 75%, 1.0083 78.1%, 1.0067 81.3%, 1.0053 84.4%, 1.0041 87.5%, 1.0031 90.6%, 1.0022 93.8%, 1.0015 96.9%, 1);
+  --spring-bounce: linear(0, 0.0668 3.1%, 0.2265 6.3%, 0.4263 9.4%, 0.6273 12.5%, 0.8040 15.6%, 0.9429 18.8%, 1.04 21.9%, 1.098 25%, 1.1233 28.1%, 1.1243 31.3%, 1.1095 34.4%, 1.0863 37.5%, 1.0605 40.6%, 1.0362 43.8%, 1.0160 46.9%, 1.0009 50%, 0.9910 53.1%, 0.9857 56.3%, 0.9840 59.4%, 0.9850 62.5%, 0.9874 65.6%, 0.9906 68.8%, 0.9938 71.9%, 0.9967 75%, 0.9990 78.1%, 1.0006 81.3%, 1.0015 84.4%, 1.0020 87.5%, 1.0020 90.6%, 1.0018 93.8%, 1.0014 96.9%, 1);
+  /* Spring curves are sampled over their settle time; use these durations with them. */
+  --spring-dur: 440ms;
+  --spring-bounce-dur: 620ms;
+  --dur-quick: 120ms;
+  --dur-base: 220ms;
+  --dur-page: 280ms;
+  --dur-instant: 80ms;
+}
+
+/* ---- Gutter: 16 phone, 24 tablet, 32 desktop (the layout modes of ui/src/lib/stores/ui.svelte.ts) ---- */
+@media (min-width: 600px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (min-width: 900px) {
+  :root {
+    --gutter: 32px;
+    --banner-radius: 24px;
+  }
+}
+
+/* ---- Dark (OS dark, unless a theme is forced) ---- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1517;
+    --surface: #131B1D;
+    --surface-high: #1A2427;
+    --on: #E9EFF0;
+    --on-muted: #9AA9AC;
+    --outline: #253235;
+    --warn: #F5B93B;
+    --danger: #F2555A;
+    --on-banner: #0B0F10;
+    --on-accent: #08110F;
+    --spectrum-0: #FD7277;
+    --spectrum-1: #F87C3C;
+    --spectrum-2: #DE9216;
+    --spectrum-3: #BEA412;
+    --spectrum-4: #91B519;
+    --spectrum-5: #46C165;
+    --spectrum-6: #0DBF9F;
+    --spectrum-7: #14BBC2;
+    --spectrum-8: #11B5E4;
+    --spectrum-9: #56A9FF;
+    --spectrum-10: #8F9AFE;
+    --spectrum-11: #BA87FB;
+    --spectrum-12: #DD7AD9;
+    --spectrum-13: #F372AB;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0E1517;
+  --surface: #131B1D;
+  --surface-high: #1A2427;
+  --on: #E9EFF0;
+  --on-muted: #9AA9AC;
+  --outline: #253235;
+  --warn: #F5B93B;
+  --danger: #F2555A;
+  --on-banner: #0B0F10;
+  --on-accent: #08110F;
+  --spectrum-0: #FD7277;
+  --spectrum-1: #F87C3C;
+  --spectrum-2: #DE9216;
+  --spectrum-3: #BEA412;
+  --spectrum-4: #91B519;
+  --spectrum-5: #46C165;
+  --spectrum-6: #0DBF9F;
+  --spectrum-7: #14BBC2;
+  --spectrum-8: #11B5E4;
+  --spectrum-9: #56A9FF;
+  --spectrum-10: #8F9AFE;
+  --spectrum-11: #BA87FB;
+  --spectrum-12: #DD7AD9;
+  --spectrum-13: #F372AB;
+}
+
+/* ---- AMOLED: pure black surfaces, dark spectrum ---- */
+:root[data-theme="amoled"] {
+  --bg: #000000;
+  --surface: #050505;
+  --surface-high: #0B0B0B;
+  --on: #F2F6F7;
+  --on-muted: #9AA9AC;
+  --outline: #1A1A1A;
+  --warn: #F5B93B;
+  --danger: #F2555A;
+  --on-banner: #0B0F10;
+  --on-accent: #08110F;
+  --spectrum-0: #FD7277;
+  --spectrum-1: #F87C3C;
+  --spectrum-2: #DE9216;
+  --spectrum-3: #BEA412;
+  --spectrum-4: #91B519;
+  --spectrum-5: #46C165;
+  --spectrum-6: #0DBF9F;
+  --spectrum-7: #14BBC2;
+  --spectrum-8: #11B5E4;
+  --spectrum-9: #56A9FF;
+  --spectrum-10: #8F9AFE;
+  --spectrum-11: #BA87FB;
+  --spectrum-12: #DD7AD9;
+  --spectrum-13: #F372AB;
+}
+
+:root[data-theme="light"] {
+  --bg: #F6F8F9;
+  --surface: #FFFFFF;
+  --surface-high: #EEF2F3;
+  --on: #10181A;
+  --on-muted: #5A6A6D;
+  --outline: #DCE3E5;
+  --warn: #B7791F;
+  --danger: #C8323A;
+  --on-banner: #0B0F10;
+  --on-accent: #FFFFFF;
+  --spectrum-0: #C43E49;
+  --spectrum-1: #BB4F08;
+  --spectrum-2: #9F6601;
+  --spectrum-3: #887402;
+  --spectrum-4: #668007;
+  --spectrum-5: #0F8C3B;
+  --spectrum-6: #068870;
+  --spectrum-7: #01858A;
+  --spectrum-8: #0980A3;
+  --spectrum-9: #0D76CE;
+  --spectrum-10: #5F65D5;
+  --spectrum-11: #8955C5;
+  --spectrum-12: #A748A5;
+  --spectrum-13: #BB3E7B;
+}
+
+/* ---- Accent presets (DESIGN 3.4). Stops are the dark stops of the Openchirp spec. ---- */
+:root[data-accent="ember"] { --accent-1: #FF7A59; --accent-2: #F65C7A; --accent-3: #B94BA8; --accent-4: #B94BA8; }
+:root[data-accent="tide"] { --accent-1: #0E7C86; --accent-2: #1D9BB5; --accent-3: #2FA8B8; --accent-4: #2FA8B8; }
+:root[data-accent="nebula"] { --accent-1: #B44BEA; --accent-2: #7B5CF6; --accent-3: #2A1B4A; --accent-4: #2A1B4A; }
+:root[data-accent="citrus"] { --accent-1: #F5B93B; --accent-2: #F07A3C; --accent-3: #D9523C; --accent-4: #D9523C; }
+:root[data-accent="coral"] { --accent-1: #FF8A7A; --accent-2: #FF5F8A; --accent-3: #C7467E; --accent-4: #C7467E; }
+:root[data-accent="moss"] { --accent-1: #3F8F6B; --accent-2: #2E7D6B; --accent-3: #1F5F58; --accent-4: #1F5F58; }
+:root[data-accent="dusk"] { --accent-1: #7A5AD6; --accent-2: #C05A9E; --accent-3: #5A3B7A; --accent-4: #5A3B7A; }
+:root[data-accent="ice"] { --accent-1: #7FD3E8; --accent-2: #57A8F0; --accent-3: #6C7BF5; --accent-4: #6C7BF5; }
+:root[data-accent="sakura"] { --accent-1: #F7A8C4; --accent-2: #E87AA8; --accent-3: #B85C8A; --accent-4: #B85C8A; }
+:root[data-accent="graphite"] { --accent-1: #5A6A6D; --accent-2: #46545A; --accent-3: #2E3A3D; --accent-4: #2E3A3D; }
+:root[data-accent="mono"] { --accent-1: #E9EFF0; --accent-2: #C3CDD0; --accent-3: #9AA9AC; --accent-4: #9AA9AC; }
+:root[data-accent="aurora"] { --accent-1: #6D5EF8; --accent-2: #8B5CF6; --accent-3: #4F8DF7; --accent-4: #35C7C0; }

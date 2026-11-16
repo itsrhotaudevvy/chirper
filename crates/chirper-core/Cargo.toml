@@ -1,0 +1,32 @@
+[package]
+name = "chirper-core"
+description = "Safe Rust wrapper over the Chirper Go core C ABI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[features]
+default = []
+# Link the Go core as a static archive (macOS, iOS).
+static-link = []
+# Load the Go core as a shared library at runtime (Windows, Linux, Android).
+dynamic-link = ["dep:libloading"]
+# In-memory fake backend for tests and UI development.
+mock = []
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.154", features = ["raw_value"] }
+thiserror = "=2.0.21"
+tokio = { version = "=1.54.1", features = ["rt", "sync"] }
+zeroize = "=1.9.1"
+getrandom = "=0.4.3"
+libloading = { version = "=0.9.1", optional = true }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+keyring = { version = "=4.2.0", default-features = false, features = ["v1"] }
+
+[dev-dependencies]
+tokio = { version = "=1.54.1", features = ["macros", "rt-multi-thread"] }

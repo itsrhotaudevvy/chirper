@@ -1,0 +1,6 @@
+# Placeholder ownership: replace @chirper-app/maintainers with the real team before enabling
+# branch protection that requires code owner review.
+*                         @chirper-app/maintainers
+/.github/                 @chirper-app/maintainers
+/PRIVACY.md               @chirper-app/maintainers
+/SECURITY.md              @chirper-app/maintainers

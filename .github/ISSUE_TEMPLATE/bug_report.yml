@@ -1,0 +1,91 @@
+name: Bug report
+description: Something does not work the way the docs or the design say it should.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Never paste message content, phone numbers, tokens, cookies or keys**
+        into this form. Redact them from logs and screenshots. Security issues go through the
+        private advisory form instead (see the link on the issue chooser).
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: One or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - macOS
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Chirper version
+      placeholder: "0.1.0 or commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network involved (if any)
+      options:
+        - Not network-related
+        - Instagram
+        - Fluxer
+        - Slack
+        - X (Twitter)
+        - Google Voice
+        - WhatsApp
+        - Google Messages
+        - Telegram
+        - Bluesky
+        - LinkedIn
+        - Signal
+        - Discord
+        - Messenger
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Only paste log lines you have checked for message content, tokens and identifiers.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and found no duplicate.
+          required: true
+        - label: My logs and screenshots contain no message content, tokens, cookies, phone numbers or keys.
+          required: true

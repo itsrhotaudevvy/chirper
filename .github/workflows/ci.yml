@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  go:
+    name: Go core and connectors
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.27"
+          cache-dependency-path: |
+            go/core/go.sum
+            go/connectors/discord/go.sum
+            go/connectors/fluxer/go.sum
+
+      - name: Fetch pinned third-party sources
+        run: scripts/fetch-third-party.sh
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+
+      - name: go core
+        working-directory: go/core
+        run: |
+          go vet ./...
+          go test -race ./...
+          govulncheck ./...
+
+      - name: go connector discord
+        working-directory: go/connectors/discord
+        run: |
+          go vet ./...
+          go test -race ./...
+          govulncheck ./...
+
+      - name: go connector fluxer
+        working-directory: go/connectors/fluxer
+        run: |
+          go vet ./...
+          go test -race ./...
+          govulncheck ./...
+
+  rust:
+    name: Rust workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl file patchelf \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev libsecret-1-dev
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --features chirper-core/mock -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --features chirper-core/mock
+
+      - name: Dependency policy (cargo-deny)
+        uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9 # v2.1.2
+        with:
+          command: check
+          log-level: warn
+
+  ui:
+    name: UI (Svelte)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm -C ui install --frozen-lockfile
+
+      - name: Check
+        run: pnpm -C ui check
+
+      - name: Test
+        run: pnpm -C ui test
+
+      - name: Build
+        run: pnpm -C ui build

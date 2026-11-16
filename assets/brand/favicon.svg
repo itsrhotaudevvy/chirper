@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<defs><radialGradient id="f0"><stop offset="0" stop-color="#F372AB"/><stop offset="1" stop-color="#F372AB" stop-opacity="0"/></radialGradient><radialGradient id="f1"><stop offset="0" stop-color="#F87C3C"/><stop offset="1" stop-color="#F87C3C" stop-opacity="0"/></radialGradient><radialGradient id="f2"><stop offset="0" stop-color="#46C165"/><stop offset="1" stop-color="#46C165" stop-opacity="0"/></radialGradient><radialGradient id="f3"><stop offset="0" stop-color="#11B5E4"/><stop offset="1" stop-color="#11B5E4" stop-opacity="0"/></radialGradient></defs>
+<rect width="64" height="64" fill="#1A1430"/>
+<circle cx="18" cy="16" r="36" fill="url(#f0)"/>
+<circle cx="50" cy="14" r="36" fill="url(#f1)"/>
+<circle cx="14" cy="50" r="36" fill="url(#f2)"/>
+<circle cx="50" cy="50" r="36" fill="url(#f3)"/>
+<rect width="64" height="64" fill="#070B14" opacity=".28"/>
+<path transform="translate(32 32) scale(0.92) translate(-54 -54)" fill="#FFFFFF" d="M42 28H66A16 16 0 0 1 82 44V54A16 16 0 0 1 66 70H60L46 80V70H42A16 16 0 0 1 26 54V44A16 16 0 0 1 42 28Z"/>
+</svg>

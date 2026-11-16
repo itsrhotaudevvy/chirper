@@ -1,0 +1,76 @@
+[package]
+name = "chirper-app"
+description = "Chirper Tauri application shell"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.90"
+publish = false
+build = "build.rs"
+
+[lib]
+name = "chirper_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+default = []
+# Serves a fake core (chirper-core MockBackend) for development and tests.
+mock = ["chirper-core/mock"]
+
+[dependencies]
+tauri = { version = "=2.12.5", features = ["tray-icon", "image-png"] }
+tauri-plugin-deep-link = "=2.4.10"
+tauri-plugin-dialog = "=2.8.4"
+tauri-plugin-notification = "=2.4.0"
+tauri-plugin-opener = "=2.7.3"
+tauri-plugin-os = "=2.4.0"
+log = "=0.4.35"
+percent-encoding = "=2.3.2"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.154", features = ["raw_value"] }
+zeroize = "=1.9.1"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = { version = "=2.4.5", features = ["deep-link"] }
+tauri-plugin-window-state = "=2.4.1"
+tauri-plugin-autostart = "=2.5.1"
+
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-haptics = "=2.4.2"
+tauri-plugin-biometric = "=2.5.0"
+tauri-plugin-chirper-native = { path = "../plugins/chirper-native" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "=0.6.2"
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSHapticFeedback"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSError", "NSString"] }
+objc2-local-authentication = { version = "=0.3.2", default-features = false, features = ["std", "LAContext", "LAPublicDefines", "block2"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-future = "=0.3.2"
+windows = { version = "=0.62.2", features = [
+    "Security_Credentials_UI",
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_WinRT",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "=5.13.2"
+
+# The Go core is linked statically on Apple targets and loaded at runtime elsewhere.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.chirper-core]
+path = "../crates/chirper-core"
+features = ["static-link"]
+
+[target.'cfg(not(any(target_os = "macos", target_os = "ios")))'.dependencies.chirper-core]
+path = "../crates/chirper-core"
+features = ["dynamic-link"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }

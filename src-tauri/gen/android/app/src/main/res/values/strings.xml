@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">"Chirper"</string>
+    <string name="main_activity_title">"Chirper"</string>
+</resources>

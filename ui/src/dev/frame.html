@@ -1,0 +1,11 @@
+<!doctype html>
+<!-- Dev-only screenshot harness: /src/dev/frame.html?w=390&h=844&src=<encoded app url> -->
+<html><body style="margin:0;background:#000">
+<script type="module">
+  const p = new URLSearchParams(location.search);
+  const f = document.createElement('iframe');
+  f.style.cssText = `border:0;display:block;width:${p.get('w') ?? 390}px;height:${p.get('h') ?? 844}px`;
+  f.src = p.get('src') ?? '/';
+  document.body.appendChild(f);
+</script>
+</body></html>

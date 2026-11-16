@@ -1,0 +1,339 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  TAURI_CLI_VERSION: "2.12.4"
+
+jobs:
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-universal
+            os: macos-latest
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            go-triples: aarch64-apple-darwin x86_64-apple-darwin
+            tauri-triple: universal-apple-darwin
+          - name: windows-x64
+            os: windows-latest
+            rust-targets: x86_64-pc-windows-msvc
+            go-triples: x86_64-pc-windows-msvc
+            tauri-triple: x86_64-pc-windows-msvc
+          - name: linux-x64
+            os: ubuntu-22.04
+            rust-targets: x86_64-unknown-linux-gnu
+            go-triples: x86_64-unknown-linux-gnu
+            tauri-triple: x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Install Tauri Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl file patchelf \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libxdo-dev libsecret-1-dev
+
+      - name: Install MinGW for cgo
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
+        with:
+          toolchain: stable
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: release-${{ matrix.name }}
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install UI dependencies and Tauri CLI
+        shell: bash
+        run: |
+          pnpm -C ui install --frozen-lockfile
+          npm install -g "@tauri-apps/cli@${TAURI_CLI_VERSION}"
+
+      - name: Fetch pinned third-party sources
+        shell: bash
+        run: scripts/fetch-third-party.sh
+
+      - name: Build Go core
+        shell: bash
+        env:
+          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
+          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
+        run: |
+          for triple in ${{ matrix.go-triples }}; do
+            scripts/build-sqlcipher.sh "$triple"
+            scripts/build-go.sh "$triple" --release
+          done
+
+      - name: Build app
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        with:
+          projectPath: .
+          tauriScript: tauri
+          args: --target ${{ matrix.tauri-triple }}
+
+      - name: Upload bundles
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chirper-desktop-${{ matrix.name }}
+          if-no-files-found: error
+          path: target/${{ matrix.tauri-triple }}/release/bundle/**/*.{dmg,exe,msi,AppImage,deb,rpm}
+
+  android:
+    name: Android (APK + AAB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NDK_VERSION: "28.2.13676358"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager --install "ndk;${NDK_VERSION}"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: release-android
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install UI dependencies and Tauri CLI
+        run: |
+          pnpm -C ui install --frozen-lockfile
+          npm install -g "@tauri-apps/cli@${TAURI_CLI_VERSION}"
+
+      - name: Fetch pinned third-party sources
+        run: scripts/fetch-third-party.sh
+
+      - name: Build Go core
+        env:
+          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
+          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
+        run: |
+          for triple in aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
+            scripts/build-sqlcipher.sh "$triple"
+            scripts/build-go.sh "$triple" --release
+          done
+
+      - name: Decode Android signing keystore
+        id: signing
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_B64" ]; then
+            echo "Android signing secrets not set; building unsigned."
+            exit 0
+          fi
+          keystore="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > "$keystore"
+          {
+            echo "storeFile=$keystore"
+            echo "storePassword=$ANDROID_KEY_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > src-tauri/gen/android/keystore.properties
+
+      - name: Build APK and AAB
+        run: cargo tauri android build --apk --aab
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chirper-android
+          if-no-files-found: error
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+
+  ios:
+    name: iOS
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      HAS_IOS_SIGNING: ${{ secrets.IOS_CERTIFICATE_P12_B64 != '' && secrets.IOS_PROVISIONING_PROFILE_B64 != '' }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: release-ios
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: Install UI dependencies and Tauri CLI
+        run: |
+          pnpm -C ui install --frozen-lockfile
+          npm install -g "@tauri-apps/cli@${TAURI_CLI_VERSION}"
+
+      - name: Fetch pinned third-party sources
+        run: scripts/fetch-third-party.sh
+
+      - name: Build Go core (device)
+        if: env.HAS_IOS_SIGNING == 'true'
+        env:
+          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
+          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
+        run: scripts/build-sqlcipher.sh aarch64-apple-ios && scripts/build-go.sh aarch64-apple-ios --release
+
+      - name: Build Go core (simulator)
+        if: env.HAS_IOS_SIGNING != 'true'
+        env:
+          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
+          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
+        run: scripts/build-sqlcipher.sh aarch64-apple-ios-sim && scripts/build-go.sh aarch64-apple-ios-sim --release
+
+      - name: Import iOS signing certificate and profile
+        if: env.HAS_IOS_SIGNING == 'true'
+        env:
+          P12_B64: ${{ secrets.IOS_CERTIFICATE_P12_B64 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_P12_PASSWORD }}
+          PROFILE_B64: ${{ secrets.IOS_PROVISIONING_PROFILE_B64 }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          printf '%s' "$P12_B64" | base64 -d > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain"
+          profiles="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$profiles"
+          printf '%s' "$PROFILE_B64" | base64 -d > "$profiles/chirper.mobileprovision"
+
+      # src-tauri/gen/apple is generated here (needs full Xcode), not committed. The chirper-native
+      # plugin's Swift package and src-tauri/Info.ios.plist are merged in by the Tauri CLI.
+      - name: Generate the Xcode project
+        if: hashFiles('src-tauri/gen/apple/project.yml') == ''
+        run: cargo tauri ios init --ci
+
+      - name: Build iOS app (signed, App Store Connect)
+        if: env.HAS_IOS_SIGNING == 'true'
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+        run: cargo tauri ios build --export-method app-store-connect
+
+      - name: Build iOS app (simulator, unsigned)
+        if: env.HAS_IOS_SIGNING != 'true'
+        run: cargo tauri ios build --target aarch64-sim
+
+      - name: Upload signed IPA
+        if: env.HAS_IOS_SIGNING == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chirper-ios
+          if-no-files-found: error
+          path: src-tauri/gen/apple/build/**/*.ipa
+
+      - name: Package and upload simulator build
+        if: env.HAS_IOS_SIGNING != 'true'
+        run: |
+          app="$(find src-tauri/gen/apple -name '*.app' -type d | head -n 1)"
+          test -n "$app"
+          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/chirper-ios-simulator.zip"
+      - name: Upload simulator build
+        if: env.HAS_IOS_SIGNING != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: chirper-ios
+          if-no-files-found: error
+          path: ${{ runner.temp }}/chirper-ios-simulator.zip
+
+  release:
+    name: Draft GitHub release
+    needs: [desktop, android, ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: chirper-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create draft release with artifacts
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --draft \
+            --verify-tag \
+            --title "Chirper $GITHUB_REF_NAME" \
+            --generate-notes

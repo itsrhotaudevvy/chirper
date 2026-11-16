@@ -1,0 +1,13 @@
+{
+  "name": "chirper",
+  "private": true,
+  "description": "Repository entry scripts. The web UI lives in ui/; this file also pins Tauri's frontend directory to the repo root so build hooks resolve the same way from any working directory.",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "dev": "cargo tauri dev",
+    "build": "cargo tauri build",
+    "ui:dev": "pnpm --dir ui dev",
+    "ui:build": "pnpm --dir ui build",
+    "check": "pnpm --dir ui check && pnpm --dir ui test && cargo clippy --workspace --all-targets --features chirper-core/mock -- -D warnings"
+  }
+}

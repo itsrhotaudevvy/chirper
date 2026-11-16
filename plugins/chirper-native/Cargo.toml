@@ -1,0 +1,23 @@
+[package]
+name = "tauri-plugin-chirper-native"
+description = "Chirper's Android and iOS integration: key storage, screen privacy, notifications, background service and badge"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.90"
+publish = false
+build = "build.rs"
+links = "tauri-plugin-chirper-native"
+
+[dependencies]
+tauri = "=2.12.5"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+base64 = "=0.23.1"
+getrandom = "=0.4.3"
+log = "=0.4.35"
+thiserror = "=2.0.21"
+zeroize = "=1.9.1"
+
+[build-dependencies]
+tauri-plugin = { version = "=2.7.3", features = ["build"] }
