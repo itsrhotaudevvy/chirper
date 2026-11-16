@@ -294,7 +294,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--s-1);
-    max-width: min(78%, 520px);
+    max-width: min(84%, 560px);
     min-width: 0;
     touch-action: pan-y;
     transition: transform var(--dur-base) var(--ease-out);

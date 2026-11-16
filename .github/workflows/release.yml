@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: false
+        default: 'v0.1.0'
 
 permissions:
   contents: read
@@ -24,16 +30,47 @@ jobs:
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
             go-triples: aarch64-apple-darwin x86_64-apple-darwin
             tauri-triple: universal-apple-darwin
+          - name: macos-arm64
+            os: macos-latest
+            rust-targets: aarch64-apple-darwin
+            go-triples: aarch64-apple-darwin
+            tauri-triple: aarch64-apple-darwin
+          - name: macos-x64
+            os: macos-latest
+            rust-targets: x86_64-apple-darwin
+            go-triples: x86_64-apple-darwin
+            tauri-triple: x86_64-apple-darwin
           - name: windows-x64
             os: windows-latest
             rust-targets: x86_64-pc-windows-msvc
             go-triples: x86_64-pc-windows-msvc
             tauri-triple: x86_64-pc-windows-msvc
+            msystem: MINGW64
+            mingw-package: mingw-w64-x86_64-gcc
+          - name: windows-x86
+            os: windows-latest
+            rust-targets: i686-pc-windows-msvc
+            go-triples: i686-pc-windows-msvc
+            tauri-triple: i686-pc-windows-msvc
+            msystem: MINGW32
+            mingw-package: mingw-w64-i686-gcc
+          - name: windows-arm64
+            os: windows-latest
+            rust-targets: aarch64-pc-windows-msvc
+            go-triples: aarch64-pc-windows-msvc
+            tauri-triple: aarch64-pc-windows-msvc
+            msystem: CLANGARM64
+            mingw-package: mingw-w64-clang-aarch64-toolchain
           - name: linux-x64
             os: ubuntu-22.04
             rust-targets: x86_64-unknown-linux-gnu
             go-triples: x86_64-unknown-linux-gnu
             tauri-triple: x86_64-unknown-linux-gnu
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            rust-targets: aarch64-unknown-linux-gnu
+            go-triples: aarch64-unknown-linux-gnu
+            tauri-triple: aarch64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -52,9 +89,9 @@ jobs:
         if: runner.os == 'Windows'
         uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.msystem || 'MINGW64' }}
           update: false
-          install: mingw-w64-x86_64-gcc
+          install: ${{ matrix.mingw-package || 'mingw-w64-x86_64-gcc' }}
           path-type: inherit
 
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
@@ -192,7 +229,9 @@ jobs:
           } > src-tauri/gen/android/keystore.properties
 
       - name: Build APK and AAB
-        run: cargo tauri android build --apk --aab
+        run: |
+          cargo tauri android build --apk --aab
+          cargo tauri android build --apk --split-per-abi
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -217,7 +256,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
         with:
           toolchain: stable
-          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
@@ -253,7 +292,9 @@ jobs:
         env:
           CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
           CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
-        run: scripts/build-sqlcipher.sh aarch64-apple-ios-sim && scripts/build-go.sh aarch64-apple-ios-sim --release
+        run: |
+          scripts/build-sqlcipher.sh aarch64-apple-ios-sim && scripts/build-go.sh aarch64-apple-ios-sim --release
+          scripts/build-sqlcipher.sh x86_64-apple-ios && scripts/build-go.sh x86_64-apple-ios --release
 
       - name: Import iOS signing certificate and profile
         if: env.HAS_IOS_SIGNING == 'true'
@@ -290,7 +331,9 @@ jobs:
 
       - name: Build iOS app (simulator, unsigned)
         if: env.HAS_IOS_SIGNING != 'true'
-        run: cargo tauri ios build --target aarch64-sim
+        run: |
+          cargo tauri ios build --target aarch64-sim
+          cargo tauri ios build --target x86_64
 
       - name: Upload signed IPA
         if: env.HAS_IOS_SIGNING == 'true'
@@ -303,16 +346,17 @@ jobs:
       - name: Package and upload simulator build
         if: env.HAS_IOS_SIGNING != 'true'
         run: |
-          app="$(find src-tauri/gen/apple -name '*.app' -type d | head -n 1)"
-          test -n "$app"
-          ditto -c -k --keepParent "$app" "$RUNNER_TEMP/chirper-ios-simulator.zip"
+          find src-tauri/gen/apple/build -name '*.app' -type d | while read -r app; do
+            arch_name="$(basename "$(dirname "$app")")"
+            ditto -c -k --keepParent "$app" "$RUNNER_TEMP/chirper-ios-${arch_name}.zip"
+          done
       - name: Upload simulator build
         if: env.HAS_IOS_SIGNING != 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: chirper-ios
           if-no-files-found: error
-          path: ${{ runner.temp }}/chirper-ios-simulator.zip
+          path: ${{ runner.temp }}/chirper-ios-*.zip
 
   release:
     name: Draft GitHub release
@@ -332,8 +376,11 @@ jobs:
 
       - name: Create draft release with artifacts
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$tag" == "" || "$tag" == "main" ]]; then
+            tag="${{ inputs.tag || 'v0.1.0' }}"
+          fi
+          gh release create "$tag" dist/* \
             --draft \
-            --verify-tag \
-            --title "Chirper $GITHUB_REF_NAME" \
+            --title "Chirper $tag" \
             --generate-notes

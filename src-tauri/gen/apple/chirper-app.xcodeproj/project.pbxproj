@@ -1,0 +1,504 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01E72B2189A556BFEE76A322 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4EC49632E33DEF840049F847 /* WebKit.framework */; };
+		16E0D753E9500A1255CBC1DD /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC22644181CAE0D4DDEF04C5 /* UIKit.framework */; };
+		1B0F4B2B107C7F15F39DD95B /* libapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 52B4EEB269B81CE1C7A48990 /* libapp.a */; };
+		708E42BD7EFE758CB6F2EC33 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12E7F057FD208DCD7CA8A2ED /* Assets.xcassets */; };
+		9FE83B3C312C2D00295E3366 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 73D175D35CCF130613FBEE47 /* QuartzCore.framework */; };
+		B08E77F2328051CC5A71929A /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 05866306F0EFB156472DCF52 /* Security.framework */; };
+		B0A28E0B3BB5B00B9F730AD8 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 10BC17C1E535E2094B9C1B2E /* MetalKit.framework */; };
+		B4EDC67AD16EDC7934DD62C6 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C6A18A598C73246DCCE749C5 /* LaunchScreen.storyboard */; };
+		D0261F55147337F6D102D0FF /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1DA19724836D0DB1DF64859 /* main.mm */; };
+		D3584CDB4BD52F615D71C003 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D2090D8EFE4F12552EFA48DD /* CoreGraphics.framework */; };
+		F5BA72821725555B36743FE1 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E576695D0F3358E56E55210 /* Metal.framework */; };
+		F6908A8F872F05B96A59A7A0 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 6180A8E9ECF344DD350827BB /* assets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		00001BCAA075FEA43D941FD1 /* startup.rs */ = {isa = PBXFileReference; path = startup.rs; sourceTree = "<group>"; };
+		05866306F0EFB156472DCF52 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		10BC17C1E535E2094B9C1B2E /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		12E7F057FD208DCD7CA8A2ED /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1E316E98C152D1971458EECC /* lock.rs */ = {isa = PBXFileReference; path = lock.rs; sourceTree = "<group>"; };
+		1ECC755B8CECD733E0D680C6 /* linux.rs */ = {isa = PBXFileReference; path = linux.rs; sourceTree = "<group>"; };
+		261A5F0B906FC508E914F9FA /* logging.rs */ = {isa = PBXFileReference; path = logging.rs; sourceTree = "<group>"; };
+		2AE740D2C1C753E228AB528A /* state.rs */ = {isa = PBXFileReference; path = state.rs; sourceTree = "<group>"; };
+		3E4D8A2B2B07E28D5EDC6B1F /* macos.rs */ = {isa = PBXFileReference; path = macos.rs; sourceTree = "<group>"; };
+		3E576695D0F3358E56E55210 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		4EC49632E33DEF840049F847 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		52B4EEB269B81CE1C7A48990 /* libapp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libapp.a; sourceTree = "<group>"; };
+		5E5A57F52976EF695A7F73E0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6180A8E9ECF344DD350827BB /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
+		67CED0415B5A5743BEE30F8A /* main.rs */ = {isa = PBXFileReference; path = main.rs; sourceTree = "<group>"; };
+		69AE9105DD8911545A156518 /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
+		69F69D167B12C130ACC22CE2 /* commands.rs */ = {isa = PBXFileReference; path = commands.rs; sourceTree = "<group>"; };
+		7045B4E07EB867071B10D389 /* deep_link.rs */ = {isa = PBXFileReference; path = deep_link.rs; sourceTree = "<group>"; };
+		73D175D35CCF130613FBEE47 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		76390FB660A81316AF66ACFB /* ios.rs */ = {isa = PBXFileReference; path = ios.rs; sourceTree = "<group>"; };
+		92B80DBCDB8370F65548A926 /* media.rs */ = {isa = PBXFileReference; path = media.rs; sourceTree = "<group>"; };
+		92F11E2C853F092201C27A76 /* tray.rs */ = {isa = PBXFileReference; path = tray.rs; sourceTree = "<group>"; };
+		B1DA19724836D0DB1DF64859 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		B6993E53C08B420B9EA44B58 /* chirper-app_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "chirper-app_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		B99D030F33C4671FAF7ACBD3 /* prefs.rs */ = {isa = PBXFileReference; path = prefs.rs; sourceTree = "<group>"; };
+		BC22644181CAE0D4DDEF04C5 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		C245BE30FA64C513DF46B172 /* error.rs */ = {isa = PBXFileReference; path = error.rs; sourceTree = "<group>"; };
+		C46940C2D4ACC8A6A1B6EC79 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
+		C62ABBAAE6432D848A1BF81B /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
+		C6A18A598C73246DCCE749C5 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		C6DFECF5132EE69B61694243 /* events.rs */ = {isa = PBXFileReference; path = events.rs; sourceTree = "<group>"; };
+		D2090D8EFE4F12552EFA48DD /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		D9316219DD72AD19A625A57F /* windows.rs */ = {isa = PBXFileReference; path = windows.rs; sourceTree = "<group>"; };
+		DB0C56B15C54B1A8E2EBD0D4 /* chirper-app_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "chirper-app_iOS.entitlements"; sourceTree = "<group>"; };
+		E581CBB62D4CC9B94978A72D /* android.rs */ = {isa = PBXFileReference; path = android.rs; sourceTree = "<group>"; };
+		F7EE624746217719E03B7643 /* mobile.rs */ = {isa = PBXFileReference; path = mobile.rs; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		898D85544B615AE956E66206 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1B0F4B2B107C7F15F39DD95B /* libapp.a in Frameworks */,
+				D3584CDB4BD52F615D71C003 /* CoreGraphics.framework in Frameworks */,
+				F5BA72821725555B36743FE1 /* Metal.framework in Frameworks */,
+				B0A28E0B3BB5B00B9F730AD8 /* MetalKit.framework in Frameworks */,
+				9FE83B3C312C2D00295E3366 /* QuartzCore.framework in Frameworks */,
+				B08E77F2328051CC5A71929A /* Security.framework in Frameworks */,
+				16E0D753E9500A1255CBC1DD /* UIKit.framework in Frameworks */,
+				01E72B2189A556BFEE76A322 /* WebKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		490EC7F4F553A4282CEC51AF /* Externals */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Externals;
+			sourceTree = "<group>";
+		};
+		4C2F4C6673C996FA60C289BA = {
+			isa = PBXGroup;
+			children = (
+				6180A8E9ECF344DD350827BB /* assets */,
+				12E7F057FD208DCD7CA8A2ED /* Assets.xcassets */,
+				C6A18A598C73246DCCE749C5 /* LaunchScreen.storyboard */,
+				B80CA812D96CADB69BCDEDED /* chirper-app_iOS */,
+				490EC7F4F553A4282CEC51AF /* Externals */,
+				9E58CFAA25B235D024E04A66 /* Sources */,
+				CB4F52DECB224A8E99428215 /* src */,
+				F2D9F01F27873F8D4FD0C85A /* Frameworks */,
+				581EAF4105AFBB2A9E38F694 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		581EAF4105AFBB2A9E38F694 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B6993E53C08B420B9EA44B58 /* chirper-app_iOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		699C52500727DED4F2490080 /* platform */ = {
+			isa = PBXGroup;
+			children = (
+				E581CBB62D4CC9B94978A72D /* android.rs */,
+				76390FB660A81316AF66ACFB /* ios.rs */,
+				1ECC755B8CECD733E0D680C6 /* linux.rs */,
+				3E4D8A2B2B07E28D5EDC6B1F /* macos.rs */,
+				F7EE624746217719E03B7643 /* mobile.rs */,
+				C62ABBAAE6432D848A1BF81B /* mod.rs */,
+				D9316219DD72AD19A625A57F /* windows.rs */,
+			);
+			path = platform;
+			sourceTree = "<group>";
+		};
+		9E58CFAA25B235D024E04A66 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				D38E2E2DF7F2BFFF2FDC0126 /* chirper-app */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		B80CA812D96CADB69BCDEDED /* chirper-app_iOS */ = {
+			isa = PBXGroup;
+			children = (
+				DB0C56B15C54B1A8E2EBD0D4 /* chirper-app_iOS.entitlements */,
+				5E5A57F52976EF695A7F73E0 /* Info.plist */,
+			);
+			path = "chirper-app_iOS";
+			sourceTree = "<group>";
+		};
+		B92753C76650F26768FB46C7 /* bindings */ = {
+			isa = PBXGroup;
+			children = (
+				C46940C2D4ACC8A6A1B6EC79 /* bindings.h */,
+			);
+			path = bindings;
+			sourceTree = "<group>";
+		};
+		CB4F52DECB224A8E99428215 /* src */ = {
+			isa = PBXGroup;
+			children = (
+				69F69D167B12C130ACC22CE2 /* commands.rs */,
+				7045B4E07EB867071B10D389 /* deep_link.rs */,
+				C245BE30FA64C513DF46B172 /* error.rs */,
+				C6DFECF5132EE69B61694243 /* events.rs */,
+				69AE9105DD8911545A156518 /* lib.rs */,
+				1E316E98C152D1971458EECC /* lock.rs */,
+				261A5F0B906FC508E914F9FA /* logging.rs */,
+				67CED0415B5A5743BEE30F8A /* main.rs */,
+				92B80DBCDB8370F65548A926 /* media.rs */,
+				B99D030F33C4671FAF7ACBD3 /* prefs.rs */,
+				00001BCAA075FEA43D941FD1 /* startup.rs */,
+				2AE740D2C1C753E228AB528A /* state.rs */,
+				92F11E2C853F092201C27A76 /* tray.rs */,
+				699C52500727DED4F2490080 /* platform */,
+			);
+			name = src;
+			path = ../../src;
+			sourceTree = "<group>";
+		};
+		D38E2E2DF7F2BFFF2FDC0126 /* chirper-app */ = {
+			isa = PBXGroup;
+			children = (
+				B1DA19724836D0DB1DF64859 /* main.mm */,
+				B92753C76650F26768FB46C7 /* bindings */,
+			);
+			path = "chirper-app";
+			sourceTree = "<group>";
+		};
+		F2D9F01F27873F8D4FD0C85A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				D2090D8EFE4F12552EFA48DD /* CoreGraphics.framework */,
+				52B4EEB269B81CE1C7A48990 /* libapp.a */,
+				3E576695D0F3358E56E55210 /* Metal.framework */,
+				10BC17C1E535E2094B9C1B2E /* MetalKit.framework */,
+				73D175D35CCF130613FBEE47 /* QuartzCore.framework */,
+				05866306F0EFB156472DCF52 /* Security.framework */,
+				BC22644181CAE0D4DDEF04C5 /* UIKit.framework */,
+				4EC49632E33DEF840049F847 /* WebKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		64B4AFC7D0413500FC826D12 /* chirper-app_iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 86DDB3965FC6CDFB007E5DEB /* Build configuration list for PBXNativeTarget "chirper-app_iOS" */;
+			buildPhases = (
+				0F5B581FED75EFCBBB1A6593 /* Build Rust Code */,
+				EB167D86A02B37B4C17312E6 /* Sources */,
+				AC78720A4306BC3C5B2F5A95 /* Resources */,
+				898D85544B615AE956E66206 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "chirper-app_iOS";
+			packageProductDependencies = (
+			);
+			productName = "chirper-app_iOS";
+			productReference = B6993E53C08B420B9EA44B58 /* chirper-app_iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		590CD6F0DF7376D02C5B3BA0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 0D424C365C88B6BFA2BC954D /* Build configuration list for PBXProject "chirper-app" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4C2F4C6673C996FA60C289BA;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 581EAF4105AFBB2A9E38F694 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				64B4AFC7D0413500FC826D12 /* chirper-app_iOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AC78720A4306BC3C5B2F5A95 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				708E42BD7EFE758CB6F2EC33 /* Assets.xcassets in Resources */,
+				B4EDC67AD16EDC7934DD62C6 /* LaunchScreen.storyboard in Resources */,
+				F6908A8F872F05B96A59A7A0 /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		0F5B581FED75EFCBBB1A6593 /* Build Rust Code */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Rust Code";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a",
+				"$(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "cargo tauri ios xcode-script -v --platform \"${PLATFORM_DISPLAY_NAME:?}\" --sdk-root \"${SDKROOT:?}\" --framework-search-paths \"${FRAMEWORK_SEARCH_PATHS:?}\" --header-search-paths \"${HEADER_SEARCH_PATHS:?}\" --gcc-preprocessor-definitions \"${GCC_PREPROCESSOR_DEFINITIONS:-}\" --configuration \"${CONFIGURATION:?}\" ${FORCE_COLOR} ${ARCHS:?}\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		EB167D86A02B37B4C17312E6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D0261F55147337F6D102D0FF /* main.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		36A302F69DFBB7FE02EFC73E /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = release;
+		};
+		5AE93FB9FA4E7F8E3AE0B51E /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "chirper-app_iOS/chirper-app_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "chirper-app_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = app.chirper;
+				PRODUCT_NAME = Chirper;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = debug;
+		};
+		66C5DD964A944EA252C8E09C /* debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = debug;
+		};
+		ED17CFFDEFF15B58AD9237BC /* release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				ARCHS = (
+					arm64,
+				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "chirper-app_iOS/chirper-app_iOS.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\".\"",
+				);
+				INFOPLIST_FILE = "chirper-app_iOS/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"LIBRARY_SEARCH_PATHS[arch=arm64]" = "$(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				"LIBRARY_SEARCH_PATHS[arch=x86_64]" = "$(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = app.chirper;
+				PRODUCT_NAME = Chirper;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALID_ARCHS = arm64;
+			};
+			name = release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0D424C365C88B6BFA2BC954D /* Build configuration list for PBXProject "chirper-app" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				66C5DD964A944EA252C8E09C /* debug */,
+				36A302F69DFBB7FE02EFC73E /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+		86DDB3965FC6CDFB007E5DEB /* Build configuration list for PBXNativeTarget "chirper-app_iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5AE93FB9FA4E7F8E3AE0B51E /* debug */,
+				ED17CFFDEFF15B58AD9237BC /* release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 590CD6F0DF7376D02C5B3BA0 /* Project object */;
+}

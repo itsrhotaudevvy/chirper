@@ -77,7 +77,9 @@
 
   .text {
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    word-break: normal;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
   }
 
   .text.caption {
@@ -140,7 +142,9 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
     color: var(--on-muted);
-    overflow-wrap: anywhere;
+    word-break: normal;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
   }
 
   .file {

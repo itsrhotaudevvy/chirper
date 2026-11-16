@@ -73,7 +73,7 @@
   --banner-neutral: #9AA9AC;
   --banner-warn: #F5B93B;
   --banner-danger: #FF7A7E;
-  --banner-radius: 28px;
+  --banner-radius: 20px;
 
   /* Network -> slot (DESIGN 3.2). Resolves through the spectrum of the active theme. */
   --net-instagram: var(--spectrum-0);
@@ -141,7 +141,7 @@
   --s-10: 40px;
   --s-12: 48px;
   --s-16: 64px;
-  --gutter: 16px;
+  --gutter: 18px;
 
   /* ---- Radii ---- */
   --r-xs: 6px;
@@ -160,8 +160,8 @@
   --ring: 2px;
   --row-h: 68px;
   --band-h: 32px;
-  --banner-h: 168px;
-  --banner-h-desktop: 120px;
+  --banner-h: 96px;
+  --banner-h-desktop: 78px;
   --send-size: 44px;
   --unread-h: 20px;
   --sidebar-w: 360px;

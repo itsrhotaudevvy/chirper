@@ -71,7 +71,9 @@
     gap: var(--s-3);
     overflow-x: auto;
     scroll-snap-type: x proximity;
-    padding: var(--s-1) 2px var(--s-2);
+    scroll-padding: 0 var(--gutter);
+    padding: var(--s-2) var(--gutter) var(--s-3);
+    margin: 0 calc(-1 * var(--gutter));
     scrollbar-width: none;
   }
 
@@ -85,14 +87,15 @@
     height: var(--hit);
     border-radius: 50%;
     background: var(--swatch);
-    scroll-snap-align: center;
-    box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.12);
-    transition: transform var(--dur-quick) var(--ease-out);
+    scroll-snap-align: start;
+    box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.15);
+    transition: transform var(--dur-quick) var(--ease-out), outline-color var(--dur-quick) var(--ease-out);
   }
 
   .swatch.selected {
     outline: 3px solid var(--on);
     outline-offset: 2px;
+    transform: scale(1.05);
   }
 
   .swatch:active {

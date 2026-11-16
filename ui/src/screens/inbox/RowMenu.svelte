@@ -71,6 +71,7 @@
     inset: 0;
     z-index: 60;
     background: transparent;
+    transition: background var(--dur-quick) var(--ease-out);
   }
 
   .menu {
@@ -103,6 +104,11 @@
     padding: 0 var(--s-4);
     text-align: start;
     color: var(--on);
+    transition: background var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out);
+  }
+
+  .item:active {
+    transform: scale(0.98);
   }
 
   .item:focus-visible {
@@ -120,6 +126,62 @@
     from {
       opacity: 0;
       transform: scale(0.96);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .scrim {
+      background: rgb(0 0 0 / 0.45);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      animation: scrim-in var(--dur-base) var(--ease-out) both;
+    }
+
+    .menu {
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      top: auto !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      border-radius: var(--banner-radius) var(--banner-radius) 0 0;
+      padding-bottom: calc(var(--s-4) + var(--safe-bottom));
+      box-shadow: var(--elev-2);
+      animation: menu-slide-up var(--dur-base) var(--ease-out) both;
+    }
+
+    .head {
+      margin: 0 0 var(--s-2);
+      padding: var(--s-3) var(--gutter);
+      font-size: 1.15rem;
+      border-radius: var(--banner-radius) var(--banner-radius) 0 0;
+    }
+
+    .item {
+      padding: 0 var(--gutter);
+      min-height: 52px;
+      font-size: 1.05rem;
+      gap: var(--s-4);
+    }
+  }
+
+  @keyframes scrim-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes menu-slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 </style>

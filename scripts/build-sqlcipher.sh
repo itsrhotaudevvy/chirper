@@ -132,23 +132,34 @@ select_target() {
 		CRYPTO=openssl
 		OPENSSL_FLAGS="-D__ANDROID_API__=26"
 		;;
-	x86_64-unknown-linux-gnu | aarch64-unknown-linux-gnu)
+	x86_64-unknown-linux-gnu | aarch64-unknown-linux-gnu | armv7-unknown-linux-gnueabihf)
 		[[ "$host_os" == Linux || -n "${CC:-}" ]] || die "$triple builds need a Linux host, or CC set to a cross compiler"
 		CC_BIN="${CC:-cc}"
 		AR_BIN="${AR:-ar}"
 		RANLIB_BIN="${RANLIB:-ranlib}"
 		NM_BIN="${NM:-nm}"
-		OPENSSL_TARGET=linux-x86_64
-		[[ "$triple" == aarch64-* ]] && OPENSSL_TARGET=linux-aarch64
+		case "$triple" in
+		x86_64-*) OPENSSL_TARGET=linux-x86_64 ;;
+		aarch64-*) OPENSSL_TARGET=linux-aarch64 ;;
+		armv7-*) OPENSSL_TARGET=linux-armv4 ;;
+		esac
 		CRYPTO=openssl
 		;;
-	x86_64-pc-windows-msvc)
+	x86_64-pc-windows-msvc | i686-pc-windows-msvc)
 		# cgo and SQLCipher need a GNU toolchain. MSVC cannot build this.
-		CC_BIN="${CC:-x86_64-w64-mingw32-gcc}"
-		AR_BIN="${AR:-x86_64-w64-mingw32-ar}"
-		RANLIB_BIN="${RANLIB:-x86_64-w64-mingw32-ranlib}"
-		NM_BIN="${NM:-x86_64-w64-mingw32-nm}"
-		OPENSSL_TARGET=mingw64
+		if [[ "$triple" == i686-* ]]; then
+			CC_BIN="${CC:-i686-w64-mingw32-gcc}"
+			AR_BIN="${AR:-i686-w64-mingw32-ar}"
+			RANLIB_BIN="${RANLIB:-i686-w64-mingw32-ranlib}"
+			NM_BIN="${NM:-i686-w64-mingw32-nm}"
+			OPENSSL_TARGET=mingw
+		else
+			CC_BIN="${CC:-x86_64-w64-mingw32-gcc}"
+			AR_BIN="${AR:-x86_64-w64-mingw32-ar}"
+			RANLIB_BIN="${RANLIB:-x86_64-w64-mingw32-ranlib}"
+			NM_BIN="${NM:-x86_64-w64-mingw32-nm}"
+			OPENSSL_TARGET=mingw64
+		fi
 		CRYPTO=openssl
 		command -v "$CC_BIN" >/dev/null 2>&1 ||
 			die "$triple needs a mingw-w64 gcc (for example: brew install mingw-w64, or set CC) on this host"

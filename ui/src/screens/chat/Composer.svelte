@@ -171,7 +171,7 @@
     </div>
   {/if}
 
-  <div class="capsule">
+  <div class="controls-bar">
     {#if extras}
       <span class="extra">
         <IconButton icon="attach" label="Attach" onclick={attach} size={24} />
@@ -260,14 +260,21 @@
     color: var(--on-banner);
   }
 
-  .capsule {
+  .controls-bar {
     display: flex;
     align-items: flex-end;
     gap: var(--s-1);
-    min-height: var(--hit);
-    padding: 0 var(--s-1) 0 var(--s-1);
-    border-radius: 22px;
+    min-height: calc(var(--hit) + 4px);
+    padding: 3px var(--s-1) 3px var(--s-2);
+    border-radius: var(--r-xl);
     background: var(--surface-high);
+    border: 1px solid var(--outline);
+    transition: border-color var(--dur-quick) var(--ease-out), box-shadow var(--dur-quick) var(--ease-out);
+  }
+
+  .controls-bar:focus-within {
+    border-color: color-mix(in srgb, var(--ctx, var(--on)) 40%, var(--outline));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ctx, var(--on)) 12%, transparent);
   }
 
   .extra {

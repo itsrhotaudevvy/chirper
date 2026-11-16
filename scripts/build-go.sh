@@ -99,16 +99,24 @@ aarch64-linux-android | armv7-linux-androideabi | x86_64-linux-android | i686-li
 	[[ -x "$cc" ]] || die "NDK compiler not found: $cc"
 	extra_ldflags="-extldflags=-Wl,-soname,libchirpercore.so"
 	;;
-x86_64-unknown-linux-gnu | aarch64-unknown-linux-gnu)
+x86_64-unknown-linux-gnu | aarch64-unknown-linux-gnu | armv7-unknown-linux-gnueabihf)
 	goos=linux
-	goarch=$([[ "$triple" == aarch64-* ]] && echo arm64 || echo amd64)
+	case "$triple" in
+	aarch64-*) goarch=arm64 ;;
+	x86_64-*) goarch=amd64 ;;
+	armv7-*) goarch=arm goarm=7 ;;
+	esac
 	mode=c-shared
 	lib=libchirpercore.so
 	[[ "$host_os" == Linux || -n "$cc" ]] || die "linux targets build on a Linux host (or set CC)"
 	;;
-x86_64-pc-windows-msvc | aarch64-pc-windows-msvc)
+x86_64-pc-windows-msvc | aarch64-pc-windows-msvc | i686-pc-windows-msvc)
 	goos=windows
-	goarch=$([[ "$triple" == aarch64-* ]] && echo arm64 || echo amd64)
+	case "$triple" in
+	aarch64-*) goarch=arm64 ;;
+	x86_64-*) goarch=amd64 ;;
+	i686-*) goarch=386 ;;
+	esac
 	mode=c-shared
 	lib=chirpercore.dll
 	# cgo needs a GNU toolchain (mingw gcc), not MSVC. Native Windows CI provides one.

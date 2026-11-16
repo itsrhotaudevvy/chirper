@@ -205,13 +205,17 @@
 </script>
 
 {#snippet trailing()}
-  {#if !archivedView}
-    <IconButton icon="grid" label="Group by network" onclick={toggleGroup} size={24} pressed={grouped} />
+  {#if searching}
+    <IconButton icon="close" label="Close search" onclick={closeSearch} size={24} />
+  {:else}
+    {#if !archivedView}
+      <IconButton icon="grid" label="Group by network" onclick={toggleGroup} size={24} pressed={grouped} />
+    {/if}
+    <IconButton icon="search" label="Search chats" onclick={openSearch} size={24} />
+    <button class="me" type="button" aria-label="Settings" onclick={() => router.go('settings')}>
+      <Avatar name="You" id="me" size={36} />
+    </button>
   {/if}
-  <IconButton icon="search" label="Search chats" onclick={openSearch} size={24} />
-  <button class="me" type="button" aria-label="Settings" onclick={() => router.go('settings')}>
-    <Avatar name="You" id="me" size={36} />
-  </button>
 {/snippet}
 
 <section class="inbox">
@@ -219,6 +223,7 @@
     networks={archivedView ? undefined : bannerNetworks}
     colors={archivedView ? ['var(--banner-neutral)'] : undefined}
     title={archivedView ? 'Archived' : 'Chats'}
+    hideTitle={searching}
     status={searching ? '' : notice || (unread > 0 ? `${unread} unread` : '')}
     action={archivedView ? { label: 'Back', onclick: toggleArchived } : undefined}
     {trailing}
@@ -345,17 +350,30 @@
     display: flex;
     align-items: center;
     gap: var(--s-3);
-    min-height: var(--hit);
-    padding: 0 var(--gutter);
+    min-height: calc(var(--hit) + 6px);
+    margin: var(--s-2) var(--gutter) calc(var(--s-3) + var(--safe-bottom));
+    padding: var(--s-2) var(--s-4);
+    border-radius: var(--r-lg);
+    background: color-mix(in srgb, var(--on) 4%, transparent);
     color: var(--on-muted);
     font-weight: 600;
     text-align: start;
-    border-top: 1px solid var(--outline);
+    border: 1px solid var(--outline);
+    transition:
+      background var(--dur-quick) var(--ease-out),
+      color var(--dur-quick) var(--ease-out),
+      transform var(--dur-quick) var(--ease-out);
+  }
+
+  .archived:active {
+    transform: scale(0.98);
+    background: color-mix(in srgb, var(--on) 8%, transparent);
   }
 
   @media (hover: hover) and (pointer: fine) {
     .archived:hover {
       color: var(--on);
+      background: color-mix(in srgb, var(--on) 7%, transparent);
     }
   }
 

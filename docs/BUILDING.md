@@ -54,13 +54,27 @@ pnpm -C ui install
 The Go core (`go/core`) must be compiled for the target architecture before compiling the Tauri application.
 
 ### Available Target Triples
-- macOS Apple Silicon: `aarch64-apple-darwin`
-- macOS Intel: `x86_64-apple-darwin`
-- Android 64-bit ARM: `aarch64-linux-android`
-- Android 32-bit ARM: `armv7-linux-androideabi`
-- Android x86_64: `x86_64-linux-android`
-- Linux x86_64: `x86_64-unknown-linux-gnu`
-- Windows x86_64: `x86_64-pc-windows-msvc`
+- **macOS**:
+  - `universal-apple-darwin` (Universal binary: Apple Silicon + Intel)
+  - `aarch64-apple-darwin` (Apple Silicon 64-bit ARM)
+  - `x86_64-apple-darwin` (Intel 64-bit x86_64)
+- **Windows**:
+  - `x86_64-pc-windows-msvc` (Windows 64-bit x86_64)
+  - `aarch64-pc-windows-msvc` (Windows 11 on ARM64)
+  - `i686-pc-windows-msvc` (Windows 32-bit x86)
+- **Linux**:
+  - `x86_64-unknown-linux-gnu` (Linux 64-bit x86_64)
+  - `aarch64-unknown-linux-gnu` (Linux 64-bit ARM64 / aarch64)
+  - `armv7-unknown-linux-gnueabihf` (Linux 32-bit ARMv7)
+- **Android**:
+  - `aarch64-linux-android` (arm64-v8a)
+  - `armv7-linux-androideabi` (armeabi-v7a)
+  - `x86_64-linux-android` (x86_64)
+  - `i686-linux-android` (x86 32-bit)
+- **iOS**:
+  - `aarch64-apple-ios` (Physical iPhone / iPad devices)
+  - `aarch64-apple-ios-sim` (Apple Silicon iOS Simulator)
+  - `x86_64-apple-ios` (Intel iOS Simulator)
 
 ### Build Command:
 ```bash
@@ -98,19 +112,30 @@ Outputs:
 
 #### Linux (`.AppImage` & `.deb`)
 ```bash
+# x86_64
 cargo tauri build --target x86_64-unknown-linux-gnu
+
+# ARM64 (aarch64)
+cargo tauri build --target aarch64-unknown-linux-gnu
 ```
 Outputs:
-- `target/x86_64-unknown-linux-gnu/release/bundle/appimage/chirper_<version>_amd64.AppImage`
-- `target/x86_64-unknown-linux-gnu/release/bundle/deb/chirper_<version>_amd64.deb`
+- `target/<triple>/release/bundle/appimage/chirper_<version>_<arch>.AppImage`
+- `target/<triple>/release/bundle/deb/chirper_<version>_<arch>.deb`
 
 #### Windows (`.msi` & `.exe`)
 ```bash
+# x64 (64-bit Intel/AMD)
 cargo tauri build --target x86_64-pc-windows-msvc
+
+# ARM64 (Windows on ARM)
+cargo tauri build --target aarch64-pc-windows-msvc
+
+# x86 (32-bit)
+cargo tauri build --target i686-pc-windows-msvc
 ```
 Outputs:
-- `target/x86_64-pc-windows-msvc/release/bundle/msi/Chirper_<version>_x64_en-US.msi`
-- `target/x86_64-pc-windows-msvc/release/bundle/nsis/Chirper_<version>_x64-setup.exe`
+- `target/<triple>/release/bundle/msi/Chirper_<version>_<arch>_en-US.msi`
+- `target/<triple>/release/bundle/nsis/Chirper_<version>_<arch>-setup.exe`
 
 ---
 
@@ -125,30 +150,49 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358
 ```
 
-#### Build Release APK:
+#### Build Release APKs:
 ```bash
+# Universal release APK (all architectures bundled into one APK)
+cargo tauri android build --apk
+
+# Split APKs per target architecture (arm64-v8a, armeabi-v7a, x86_64, x86)
+cargo tauri android build --apk --split-per-abi
+
+# Target a specific architecture directly (e.g. aarch64 / arm64-v8a)
 cargo tauri android build --apk --target aarch64
+
+# Play Store App Bundle (AAB)
+cargo tauri android build --aab
 ```
-Artifact location:
-`src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+Artifact locations:
+- Universal: `src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk`
+- Per-ABI: `src-tauri/gen/android/app/build/outputs/apk/<abi>/release/app-<abi>-release-unsigned.apk`
+- Bundle: `src-tauri/gen/android/app/build/outputs/bundle/release/app-release.aab`
 
 #### Push directly to connected Android device:
 ```bash
-adb devices
-adb install -r src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
+# Sign the APK with debug keystore (or release keystore)
+apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android \
+  --out app-release-signed.apk app-universal-release-unsigned.apk
+
+# Install to connected device
+adb install -r app-release-signed.apk
 ```
 
-### iOS (`.ipa`)
-*iOS release builds require a full Xcode installation and Apple Developer Provisioning Profiles, typically executed on macOS GitHub Actions runners.*
+### iOS (`.ipa` & `.app`)
+*iOS release builds require a full Xcode installation and Apple Developer Provisioning Profiles, executed on macOS or in GitHub Actions.*
 ```bash
 # Generate Xcode project (first time)
 cargo tauri ios init --ci
 
-# Build unsigned simulator bundle
+# Build unsigned ARM64 simulator bundle
 cargo tauri ios build --target aarch64-sim
 
-# Build signed App Store distribution package
-cargo tauri ios build --export-method app-store-connect
+# Build unsigned x86_64 simulator bundle
+cargo tauri ios build --target x86_64
+
+# Build signed App Store distribution package (physical devices)
+cargo tauri ios build --target aarch64 --export-method app-store-connect
 ```
 
 ---

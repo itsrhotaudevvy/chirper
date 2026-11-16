@@ -244,6 +244,11 @@
     background: var(--surface-high);
   }
 
+  .face:active:not(.dragging) {
+    transform: scale(0.985);
+    background: var(--surface-high);
+  }
+
   @media (hover: hover) and (pointer: fine) {
     .row:hover .face {
       background: var(--surface-high);
