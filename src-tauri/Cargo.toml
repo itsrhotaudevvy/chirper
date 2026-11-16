@@ -61,7 +61,7 @@ windows = { version = "=0.62.2", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus = "=5.13.2"
+zbus = "=5.19.0"
 
 # The Go core is linked statically on Apple targets and loaded at runtime elsewhere.
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.chirper-core]
