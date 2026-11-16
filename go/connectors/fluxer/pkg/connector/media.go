@@ -26,11 +26,19 @@ func (c *fluxerClient) avatar(path string, hash *string) *bridgev2.Avatar {
 	if hash == nil || *hash == "" {
 		return &bridgev2.Avatar{Remove: true}
 	}
-	src := imageURL(c.meta.MediaBase, path, *hash)
+	mediaBase := c.meta.MediaBase
+	if mediaBase == "" {
+		mediaBase = c.meta.APIBase
+	}
+	src := imageURL(mediaBase, path, *hash)
 	return &bridgev2.Avatar{
-		ID: networkid.AvatarID(*hash),
+		ID: networkid.AvatarID(fmt.Sprintf("%s/%s", path, *hash)),
 		Get: func(ctx context.Context) ([]byte, error) {
-			return downloadBytes(ctx, c.main.HTTP, src, maxMediaBytes)
+			token := c.meta.Token
+			if c.meta.Bot && token != "" {
+				token = "Bot " + token
+			}
+			return downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, token)
 		},
 	}
 }
@@ -41,16 +49,25 @@ func imageURL(mediaBase, path, hash string) string {
 	if strings.HasPrefix(hash, "a_") {
 		ext = "gif"
 	}
+	mediaBase = strings.TrimRight(mediaBase, "/")
+	path = "/" + strings.Trim(path, "/")
 	return fmt.Sprintf("%s%s/%s.%s", mediaBase, path, hash, ext)
 }
 
 // downloadBytes fetches a URL and fails when the body is larger than limit.
 func downloadBytes(ctx context.Context, hc *http.Client, target string, limit int64) ([]byte, error) {
+	return downloadBytesWithAuth(ctx, hc, target, limit, "")
+}
+
+func downloadBytesWithAuth(ctx context.Context, hc *http.Client, target string, limit int64, auth string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", fluxerapi.UserAgent)
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
 	resp, err := hc.Do(req)
 	if err != nil {
 		// The transport error repeats the URL, which carries a signature; keep only the cause.

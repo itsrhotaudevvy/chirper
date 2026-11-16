@@ -5,6 +5,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
@@ -46,9 +47,26 @@ func (c *fluxerClient) channelChatInfo(ch fluxerapi.Channel, guildID string) *br
 	}
 	if ch.Type == fluxerapi.ChannelGroupDM {
 		info.Type = ptr.Ptr(database.RoomTypeGroupDM)
-		info.Name = ch.Name
+		if ch.Name != nil && *ch.Name != "" {
+			info.Name = ch.Name
+		} else if len(ch.Recipients) > 0 {
+			names := make([]string, 0, len(ch.Recipients))
+			for _, r := range ch.Recipients {
+				names = append(names, r.DisplayName())
+			}
+			info.Name = ptr.Ptr(strings.Join(names, ", "))
+		}
+		if ch.Icon != nil {
+			info.Avatar = c.avatar("/channel-icons/"+ch.ID, ch.Icon)
+		}
 	} else {
 		info.Type = ptr.Ptr(database.RoomTypeDM)
+		if len(ch.Recipients) == 1 {
+			if ch.Name == nil || *ch.Name == "" {
+				info.Name = ptr.Ptr(ch.Recipients[0].DisplayName())
+			}
+			info.Avatar = c.avatar("/avatars/"+ch.Recipients[0].ID, ch.Recipients[0].Avatar)
+		}
 	}
 	info.Members = c.directMembers(ch)
 	return info

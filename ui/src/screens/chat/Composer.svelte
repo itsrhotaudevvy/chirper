@@ -217,16 +217,15 @@
     flex: none;
     padding: var(--s-2) calc(var(--gutter) + var(--safe-right)) calc(var(--s-2) + var(--safe-bottom))
       calc(var(--gutter) + var(--safe-left));
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    border-top: 1px solid var(--outline);
+    background: transparent;
+    pointer-events: none;
   }
 
   /* The 760 px reading column, shared with the timeline. */
   .column {
     max-width: 760px;
     margin: 0 auto;
+    pointer-events: auto;
   }
 
   /* A reply or edit is a solid strip in the chat colour, with banner ink (DESIGN 6.4). */
@@ -236,9 +235,10 @@
     gap: var(--s-2);
     margin-bottom: var(--s-2);
     padding: var(--s-1) var(--s-1) var(--s-1) var(--s-3);
-    border-radius: var(--r-md);
+    border-radius: var(--r-lg);
     background: var(--strip);
     color: var(--on-banner);
+    box-shadow: var(--elev-1);
   }
 
   .context-text {
@@ -266,15 +266,20 @@
     gap: var(--s-1);
     min-height: calc(var(--hit) + 4px);
     padding: 3px var(--s-1) 3px var(--s-2);
-    border-radius: var(--r-xl);
-    background: var(--surface-high);
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
     border: 1px solid var(--outline);
-    transition: border-color var(--dur-quick) var(--ease-out), box-shadow var(--dur-quick) var(--ease-out);
+    box-shadow: var(--elev-1);
+    transition:
+      border-color var(--dur-quick) var(--ease-out),
+      box-shadow var(--dur-quick) var(--ease-out);
   }
 
   .controls-bar:focus-within {
-    border-color: color-mix(in srgb, var(--ctx, var(--on)) 40%, var(--outline));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--ctx, var(--on)) 12%, transparent);
+    border-color: color-mix(in srgb, var(--ctx, var(--on)) 45%, var(--outline));
+    box-shadow: var(--elev-2), 0 0 0 2px color-mix(in srgb, var(--ctx, var(--on)) 14%, transparent);
   }
 
   .extra {

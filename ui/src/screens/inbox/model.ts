@@ -10,6 +10,7 @@ export function visibleChats(chats: readonly Chat[], network: string | null, que
   const needle = query.trim().toLocaleLowerCase();
   return chats.filter(
     (chat) =>
+      !chat.isSpace &&
       (network === null || chat.network === network) &&
       (needle === '' || chat.name.toLocaleLowerCase().includes(needle)),
   );

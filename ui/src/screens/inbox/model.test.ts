@@ -47,6 +47,11 @@ describe('visibleChats', () => {
     expect(visibleChats(list, null, '  ALICE ').map((c) => c.roomId)).toEqual(['Alice', 'alice work']);
     expect(visibleChats(list, 'telegram', 'alice')).toEqual([]);
   });
+
+  it('filters out servers/spaces from the inbox', () => {
+    const withSpace = [...list, chat('Discord Server', 'discord', { isSpace: true })];
+    expect(visibleChats(withSpace, null, '').map((c) => c.roomId)).toEqual(['Alice', 'Telegram team', 'alice work']);
+  });
 });
 
 describe('networksOf and groupByNetwork', () => {

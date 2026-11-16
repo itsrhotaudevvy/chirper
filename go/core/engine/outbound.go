@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"go.mau.fi/util/variationselector"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -354,9 +355,20 @@ func (e *Engine) LoadOlder(roomID id.RoomID) (bool, error) {
 	if portal == nil {
 		return false, errors.New("chat has no portal")
 	}
-	pending, err := e.backfillPending(rf, portal)
-	if err != nil || !pending {
-		return false, err
+	taskAll, err := rf.inst.br.DB.BackfillTask.GetNextForPortal(e.ctx, portal.PortalKey, true)
+	if err != nil {
+		return false, fmt.Errorf("failed to read backfill state: %w", err)
+	}
+	if taskAll == nil {
+		if portal.RoomType != database.RoomTypeSpace {
+			if err := rf.inst.br.DB.BackfillTask.EnsureExists(e.ctx, portal.PortalKey, rf.login.ID); err != nil {
+				return false, fmt.Errorf("failed to ensure backfill task: %w", err)
+			}
+		} else {
+			return false, nil
+		}
+	} else if taskAll.IsDone {
+		return false, nil
 	}
 	if err := e.waitBackfill(rf, portal); err != nil {
 		return true, err

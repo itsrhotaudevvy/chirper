@@ -57,7 +57,7 @@ export class MessagesStore {
     try {
       const page = await this.api.listMessages({ roomId, beforeOrder: 0, limit: PAGE_SIZE });
       room.items = page;
-      room.hasMore = page.length === PAGE_SIZE;
+      room.hasMore = true;
       room.loaded = true;
     } finally {
       room.loading = false;
@@ -71,12 +71,19 @@ export class MessagesStore {
     room.loading = true;
     try {
       const oldest = room.items[0]?.order ?? 0;
-      const { hasMore } = await this.api.loadOlder({ roomId });
-      const page = await this.api.listMessages({ roomId, beforeOrder: oldest, limit: PAGE_SIZE });
+      let page = await this.api.listMessages({ roomId, beforeOrder: oldest, limit: PAGE_SIZE });
+      let hasMore = true;
+      if (page.length === 0) {
+        const res = await this.api.loadOlder({ roomId });
+        hasMore = res.hasMore;
+        page = await this.api.listMessages({ roomId, beforeOrder: oldest, limit: PAGE_SIZE });
+      }
       const known = new Set(room.items.map((m) => m.eventId));
       const fresh = page.filter((m) => !known.has(m.eventId));
-      room.items = [...fresh, ...room.items].sort((a, b) => a.order - b.order);
-      room.hasMore = hasMore && page.length > 0;
+      if (fresh.length > 0) {
+        room.items = [...fresh, ...room.items].sort((a, b) => a.order - b.order);
+      }
+      room.hasMore = hasMore && (fresh.length > 0 || page.length > 0);
     } finally {
       room.loading = false;
     }

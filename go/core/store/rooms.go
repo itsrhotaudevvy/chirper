@@ -292,7 +292,7 @@ func (s *Store) GetChat(ctx context.Context, roomID id.RoomID) (*Chat, error) {
 
 // ListChats returns the chats matching filter, pinned first, then most recently active.
 func (s *Store) ListChats(ctx context.Context, filter ChatFilter) ([]Chat, error) {
-	query := chatSelect + ` WHERE room.deleted = false AND room.archived = $1`
+	query := chatSelect + ` WHERE room.deleted = false AND room.is_space = false AND room.archived = $1`
 	args := []any{filter.Archived}
 	if filter.Network != "" {
 		args = append(args, filter.Network)

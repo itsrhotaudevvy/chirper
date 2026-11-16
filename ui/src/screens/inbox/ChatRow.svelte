@@ -160,7 +160,7 @@
     onpointerup={onpointerup}
     onpointercancel={reset}
   >
-    <Avatar name={chat.name} id={chat.roomId} network={chat.network} size={48} />
+    <Avatar name={chat.name} id={chat.roomId} src={chat.avatarUrl} network={chat.network} size={48} />
     <span class="text">
       <span class="line">
         {#if chat.pinned}<span class="pinned" aria-hidden="true"><Icon name="pin" size={20} /></span>{/if}

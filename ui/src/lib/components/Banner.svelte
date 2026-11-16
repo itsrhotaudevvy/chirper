@@ -80,23 +80,22 @@
   {#key fill}
     <div class="fill fresh" aria-hidden="true" style:background={fill} onanimationend={() => (previous = null)}></div>
   {/key}
-  <div class="row">
-    <div class="text">
-      <div class="title-wrap" class:hidden-title={hideTitle}>
-        {#if backHandler}
-          <button class="title-action" type="button" onclick={backHandler} aria-label={action?.label ?? 'Go back'}>
-            <span class="back-icon"><Icon name="back" size={24} /></span>
-            <h1 class="title t-title">{title}</h1>
-          </button>
-        {:else}
+  <div class="main-row">
+    <div class="title-wrap" class:hidden-title={hideTitle}>
+      {#if backHandler}
+        <button class="title-action" type="button" onclick={backHandler} aria-label={action?.label ?? 'Go back'}>
+          <span class="back-icon"><Icon name="back" size={24} /></span>
           <h1 class="title t-title">{title}</h1>
-        {/if}
-      </div>
-      {#if status && !hideTitle}
-        <p class="status t-label" aria-live="polite">{status}</p>
+        </button>
+      {:else}
+        <h1 class="title t-title">{title}</h1>
       {/if}
-      {@render children?.()}
     </div>
+    {#if hideTitle && children}
+      <div class="search-wrap">
+        {@render children()}
+      </div>
+    {/if}
     {#if trailing || (action && !isBackAction)}
       <div class="trailing">
         {@render trailing?.()}
@@ -106,6 +105,12 @@
       </div>
     {/if}
   </div>
+  {#if !hideTitle}
+    {#if status}
+      <p class="status t-label" aria-live="polite">{status}</p>
+    {/if}
+    {@render children?.()}
+  {/if}
 </header>
 
 <style>
@@ -154,45 +159,42 @@
     background: radial-gradient(80% 120% at 85% 0%, rgb(255 255 255 / 0.22), transparent 70%);
   }
 
-  .row {
+  .main-row {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     gap: var(--s-3);
     min-width: 0;
-  }
-
-  .text {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--s-1);
-    min-width: 0;
-    flex: 1;
+    min-height: var(--hit);
   }
 
   .title-wrap {
     display: flex;
     align-items: center;
     min-width: 0;
-    max-height: 48px;
+    flex: 1 1 auto;
     transition:
       opacity var(--dur-base) var(--ease-out),
-      transform var(--dur-base) var(--ease-out),
-      max-height var(--dur-base) var(--ease-out);
+      transform var(--dur-base) var(--ease-out);
   }
 
   .title-wrap.hidden-title {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.96);
-    max-height: 0;
-    margin: 0;
-    pointer-events: none;
-    overflow: hidden;
+    display: none;
+  }
+
+  .search-wrap {
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .title {
     margin: 0;
     font-weight: 700;
+    line-height: 1.1;
+    display: flex;
+    align-items: center;
     overflow-wrap: anywhere;
     color: var(--on-banner);
     letter-spacing: -0.01em;
@@ -228,7 +230,7 @@
 
   .status {
     font-weight: 650;
-    margin: 0;
+    margin: var(--s-1) 0 0;
   }
 
   .trailing {

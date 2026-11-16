@@ -10,6 +10,7 @@
   import { statusWord, viewForStep, type LoginView } from './loginView';
   import LoginDisplay from './LoginDisplay.svelte';
   import FlowForm from './FlowForm.svelte';
+  import TextField from '../../lib/components/TextField.svelte';
 
   interface Props {
     /** Opens the flow of this network straight away (deep link or from an account). */
@@ -31,6 +32,8 @@
   let busy = $state(false);
   let failed = $state(false);
   let cookieRefused = $state(false);
+  let cookieError = $state('');
+  let cookieToken = $state('');
   let finished = $state(false);
   let pulse = $state(false);
   let hint = $state('');
@@ -119,14 +122,25 @@
     }
   }
 
-  async function continueCookies(): Promise<void> {
+  async function continueCookies(token?: string): Promise<void> {
     const current = attempt;
     busy = true;
     cookieRefused = false;
+    cookieError = '';
     try {
-      await present(await core.submitLoginCookies({ processId, cookies: {} }), current);
-    } catch {
-      if (current === attempt) cookieRefused = true;
+      const cookies: Record<string, string> = {};
+      if (token) cookies['token'] = token;
+      await present(await core.submitLoginCookies({ processId, cookies }), current);
+    } catch (err: unknown) {
+      if (current === attempt) {
+        cookieRefused = true;
+        cookieError =
+          err instanceof Error
+            ? err.message
+            : err && typeof err === 'object' && 'message' in err && typeof err.message === 'string'
+              ? err.message
+              : 'Failed to sign in';
+      }
     } finally {
       if (current === attempt) busy = false;
     }
@@ -252,11 +266,26 @@
       {:else if view?.kind === 'waiting'}
         <p class="t-body">{view.instructions}</p>
       {:else if view?.kind === 'cookies'}
-        <p class="t-body">Signing in needs a browser window.</p>
+        {@const cookiesView = view}
+        <p class="t-body">{cookiesView.instructions || 'Signing in needs a browser window.'}</p>
+        {#if cookiesView.url}
+          <div class="browser-actions">
+            <Button variant="quiet" onclick={() => void core.openExternal({ url: cookiesView.url })}>Open Discord in browser</Button>
+          </div>
+        {/if}
+        <TextField
+          label="Discord token"
+          type="password"
+          placeholder="Paste Discord token"
+          bind:value={cookieToken}
+          disabled={busy}
+          onsubmit={() => void continueCookies(cookieToken.trim())}
+        />
+        <p class="t-label t-muted">In browser: open Developer Tools (Network or Storage) to find your token.</p>
         <div class="actions">
-          <Button color={net.id} disabled={busy} onclick={() => void continueCookies()}>Continue</Button>
+          <Button color={net.id} disabled={busy || !cookieToken.trim()} onclick={() => void continueCookies(cookieToken.trim())}>Continue</Button>
         </div>
-        {#if cookieRefused}<StatusStrip tone="warn" message={NOT_SUPPORTED} />{/if}
+        {#if cookieRefused}<StatusStrip tone="warn" message={cookieError || NOT_SUPPORTED} />{/if}
       {:else if view?.kind === 'unsupported'}
         <StatusStrip tone="warn" message={NOT_SUPPORTED} />
       {/if}
@@ -325,6 +354,10 @@
     width: 100%;
     min-height: 56px;
     font-size: var(--t-headline-size);
+  }
+
+  .browser-actions {
+    display: flex;
   }
 
   .actions {

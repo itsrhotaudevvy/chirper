@@ -31,9 +31,23 @@ export class ChatsStore {
   #order = $state<string[]>([]);
 
   /** Non-archived chats in display order. */
-  readonly active = $derived(this.#order.filter((id) => !this.#byId.get(id)?.archived).map((id) => this.#byId.get(id) as Chat));
+  readonly active = $derived(
+    this.#order
+      .filter((id) => {
+        const c = this.#byId.get(id);
+        return c && !c.archived && !c.isSpace;
+      })
+      .map((id) => this.#byId.get(id) as Chat),
+  );
   /** Archived chats, same order. */
-  readonly archived = $derived(this.#order.filter((id) => this.#byId.get(id)?.archived).map((id) => this.#byId.get(id) as Chat));
+  readonly archived = $derived(
+    this.#order
+      .filter((id) => {
+        const c = this.#byId.get(id);
+        return c && c.archived && !c.isSpace;
+      })
+      .map((id) => this.#byId.get(id) as Chat),
+  );
   readonly unreadTotal = $derived(this.active.reduce((sum, c) => sum + c.unreadCount, 0));
 
   constructor(private readonly api: CoreApi = defaultCore) {}

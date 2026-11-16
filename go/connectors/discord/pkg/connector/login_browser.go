@@ -70,7 +70,10 @@ func (b *browserLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 func (b *browserLogin) SubmitCookies(ctx context.Context, cookies map[string]string) (*bridgev2.LoginStep, error) {
 	token := strings.Trim(strings.TrimSpace(cookies[loginTokenField]), `"`)
 	if token == "" {
-		return nil, errors.New("the Discord page did not hand out a token; try signing in again")
+		token = strings.Trim(strings.TrimSpace(cookies["authorization"]), `"`)
+	}
+	if token == "" {
+		return nil, errors.New("please provide a valid Discord token to complete sign-in")
 	}
 	return b.connector.finishLogin(ctx, b.user, token, false)
 }
