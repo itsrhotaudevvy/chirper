@@ -23,6 +23,7 @@ import type {
   NotificationReply,
   PickedFile,
   PickKind,
+  LoginWebviewResult,
 } from './types';
 
 /** Turns whatever Tauri rejected with into a CoreError. Rust rejects with { code, message }. */
@@ -168,6 +169,15 @@ export class TauriCore implements CoreApi {
   }
   openExternal(args: { url: string }): Promise<void> {
     return call('open_external', { ...args });
+  }
+  openLoginWebview(args: {
+    url: string;
+    extractJs?: string;
+    waitForPattern?: string;
+    userAgent?: string;
+    title?: string;
+  }): Promise<LoginWebviewResult> {
+    return call('open_login_webview', { ...args });
   }
   getAppPrefs(): Promise<AppPrefs> {
     return call('get_app_prefs');

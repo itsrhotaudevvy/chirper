@@ -34,6 +34,7 @@ import type {
   NotificationReply,
   PickedFile,
   PickKind,
+  LoginWebviewResult,
 } from './types';
 
 const TIMING = {
@@ -397,6 +398,17 @@ export class FakeCore implements CoreApi {
   async openExternal(args: { url: string }): Promise<void> {
     if (!/^https?:\/\//.test(args.url)) throw new CoreError('invalid_url', 'only http(s) links can be opened');
     globalThis.open?.(args.url, '_blank', 'noopener');
+  }
+
+  async openLoginWebview(args: {
+    url: string;
+    extractJs?: string;
+    waitForPattern?: string;
+    userAgent?: string;
+    title?: string;
+  }): Promise<LoginWebviewResult> {
+    void args;
+    return { token: 'mock-discord-token-demo', cancelled: false };
   }
 
   async getAppPrefs(): Promise<AppPrefs> {

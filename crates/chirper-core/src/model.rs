@@ -134,6 +134,7 @@ pub struct CookiesStep {
     pub user_agent: String,
     pub fields: Vec<CookieField>,
     pub extract_js: String,
+    pub wait_for_url_pattern: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

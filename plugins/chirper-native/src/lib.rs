@@ -18,7 +18,8 @@ pub use db_key::{DB_KEY_LEN, load_or_create_db_key};
 pub use mobile::CopiedFile;
 #[cfg(any(target_os = "android", target_os = "ios"))]
 pub use mobile::{
-    ChirperNative, ChirperNativeExt, FormFactor, MessageNotice, MessageOutcome, ReplyEvent, init,
+    ChirperNative, ChirperNativeExt, FormFactor, LoginWebviewAnswer, LoginWebviewArg,
+    MessageNotice, MessageOutcome, ReplyEvent, init,
 };
 
 /// Errors of the native calls. Messages never contain message bodies, keys or user data.

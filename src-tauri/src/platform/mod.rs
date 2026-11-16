@@ -168,6 +168,22 @@ pub fn connect_replies(_app: &AppHandle) -> CmdResult<()> {
     Ok(())
 }
 
+#[cfg(target_os = "android")]
+pub use imp::open_login_webview;
+
+#[cfg(not(target_os = "android"))]
+#[allow(dead_code)]
+pub async fn open_login_webview(
+    _app: &AppHandle,
+    _url: &str,
+    _extract_js: &str,
+    _wait_for_pattern: &str,
+    _user_agent: &str,
+    _title: &str,
+) -> CmdResult<crate::commands::LoginWebviewResult> {
+    unsupported("login webview")
+}
+
 /// The local path of a file chosen in the picker. Android copies a `content://` file into the app
 /// cache, because the core reads files by path.
 #[cfg(target_os = "android")]

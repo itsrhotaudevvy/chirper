@@ -160,6 +160,41 @@ pub fn picked_path(app: &AppHandle, entry: FilePath) -> CmdResult<PathBuf> {
     }
 }
 
+pub async fn open_login_webview(
+    app: &AppHandle,
+    url: &str,
+    extract_js: &str,
+    wait_for_pattern: &str,
+    user_agent: &str,
+    title: &str,
+) -> CmdResult<crate::commands::LoginWebviewResult> {
+    let url_owned = url.to_owned();
+    let extract_js_owned = extract_js.to_owned();
+    let wait_for_pattern_owned = wait_for_pattern.to_owned();
+    let user_agent_owned = user_agent.to_owned();
+    let title_owned = title.to_owned();
+    let app_handle = app.clone();
+
+    let answer = tauri::async_runtime::spawn_blocking(move || {
+        let arg = tauri_plugin_chirper_native::LoginWebviewArg {
+            url: &url_owned,
+            extract_js: &extract_js_owned,
+            wait_for_pattern: &wait_for_pattern_owned,
+            user_agent: &user_agent_owned,
+            title: &title_owned,
+        };
+        app_handle.chirper_native().open_login_webview(arg)
+    })
+    .await
+    .map_err(|e| CmdError::new(code::CORE, e.to_string()))?
+    .map_err(native_error)?;
+
+    Ok(crate::commands::LoginWebviewResult {
+        token: answer.token,
+        cancelled: answer.cancelled.unwrap_or(false),
+    })
+}
+
 fn native_error(err: tauri_plugin_chirper_native::Error) -> CmdError {
     CmdError::new(code::CORE, err.to_string())
 }

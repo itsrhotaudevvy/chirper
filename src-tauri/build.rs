@@ -40,6 +40,7 @@ const COMMANDS: &[&str] = &[
     "unlock",
     "set_secure_screen",
     "open_external",
+    "open_login_webview",
     "set_app_prefs",
     "get_app_prefs",
     "pick_files",

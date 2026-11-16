@@ -34,6 +34,7 @@
   let cookieRefused = $state(false);
   let cookieError = $state('');
   let cookieToken = $state('');
+  let showManualToken = $state(false);
   let finished = $state(false);
   let pulse = $state(false);
   let hint = $state('');
@@ -41,6 +42,7 @@
   // Not reactive: the login process and the attempt counter guard every async result.
   let processId = '';
   let flowId = '';
+  let webviewLaunchedFor = '';
   let attempt = 0;
   let doneTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -82,6 +84,10 @@
     view = null;
     failed = false;
     cookieRefused = false;
+    cookieError = '';
+    cookieToken = '';
+    showManualToken = false;
+    webviewLaunchedFor = '';
     finished = false;
     busy = true;
     try {
@@ -145,6 +151,47 @@
       if (current === attempt) busy = false;
     }
   }
+
+  async function launchWebviewLogin(cookiesView: Extract<LoginView, { kind: 'cookies' }>): Promise<void> {
+    if (!cookiesView.url || busy) return;
+    const current = attempt;
+    busy = true;
+    cookieRefused = false;
+    cookieError = '';
+    try {
+      const res = await core.openLoginWebview({
+        url: cookiesView.url,
+        extractJs: cookiesView.extractJs,
+        waitForPattern: cookiesView.waitForUrlPattern,
+        userAgent: cookiesView.userAgent,
+        title: chosen?.name ?? 'Discord',
+      });
+      if (current === attempt && res.token) {
+        cookieToken = res.token;
+        await continueCookies(res.token);
+      }
+    } catch (err: unknown) {
+      if (current === attempt) {
+        cookieRefused = true;
+        cookieError =
+          err instanceof Error
+            ? err.message
+            : err && typeof err === 'object' && 'message' in err && typeof err.message === 'string'
+              ? err.message
+              : 'Could not open login webview';
+      }
+    } finally {
+      if (current === attempt) busy = false;
+    }
+  }
+
+  $effect(() => {
+    if (view?.kind === 'cookies' && processId && webviewLaunchedFor !== processId) {
+      webviewLaunchedFor = processId;
+      const cv = view as Extract<LoginView, { kind: 'cookies' }>;
+      untrack(() => void launchWebviewLogin(cv));
+    }
+  });
 
   function complete(): void {
     finished = true;
@@ -267,24 +314,32 @@
         <p class="t-body">{view.instructions}</p>
       {:else if view?.kind === 'cookies'}
         {@const cookiesView = view}
-        <p class="t-body">{cookiesView.instructions || 'Signing in needs a browser window.'}</p>
-        {#if cookiesView.url}
-          <div class="browser-actions">
-            <Button variant="quiet" onclick={() => void core.openExternal({ url: cookiesView.url })}>Open Discord in browser</Button>
+        <p class="t-body">{cookiesView.instructions || 'Sign in with Discord to connect your account.'}</p>
+        <div class="flow-actions">
+          <Button color={net.id} disabled={busy} onclick={() => void launchWebviewLogin(cookiesView)}>
+            {busy ? 'Signing in…' : 'Sign in with Discord'}
+          </Button>
+        </div>
+        {#if showManualToken}
+          <div class="manual-token">
+            <TextField
+              label="Discord token"
+              type="password"
+              placeholder="Paste Discord token"
+              bind:value={cookieToken}
+              disabled={busy}
+              onsubmit={() => void continueCookies(cookieToken.trim())}
+            />
+            <p class="t-label t-muted">In browser: open Developer Tools (Network or Storage) to find your token.</p>
+            <div class="actions">
+              <Button color={net.id} disabled={busy || !cookieToken.trim()} onclick={() => void continueCookies(cookieToken.trim())}>Continue</Button>
+            </div>
+          </div>
+        {:else}
+          <div class="manual-toggle">
+            <Button variant="quiet" onclick={() => (showManualToken = true)}>Or enter token manually</Button>
           </div>
         {/if}
-        <TextField
-          label="Discord token"
-          type="password"
-          placeholder="Paste Discord token"
-          bind:value={cookieToken}
-          disabled={busy}
-          onsubmit={() => void continueCookies(cookieToken.trim())}
-        />
-        <p class="t-label t-muted">In browser: open Developer Tools (Network or Storage) to find your token.</p>
-        <div class="actions">
-          <Button color={net.id} disabled={busy || !cookieToken.trim()} onclick={() => void continueCookies(cookieToken.trim())}>Continue</Button>
-        </div>
         {#if cookieRefused}<StatusStrip tone="warn" message={cookieError || NOT_SUPPORTED} />{/if}
       {:else if view?.kind === 'unsupported'}
         <StatusStrip tone="warn" message={NOT_SUPPORTED} />
@@ -356,8 +411,20 @@
     font-size: var(--t-headline-size);
   }
 
-  .browser-actions {
+  .flow-actions :global(.btn) {
+    width: 100%;
+    min-height: 52px;
+    font-size: var(--t-headline-size);
+  }
+
+  .manual-toggle {
     display: flex;
+    justify-content: center;
+  }
+
+  .manual-token {
+    display: grid;
+    gap: var(--s-3);
   }
 
   .actions {

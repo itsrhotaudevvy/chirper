@@ -77,6 +77,12 @@ export interface CookiesStep {
   userAgent: string;
   fields: CookieField[];
   extractJs: string;
+  waitForUrlPattern?: string;
+}
+
+export interface LoginWebviewResult {
+  token?: string;
+  cancelled: boolean;
 }
 
 export type DisplayType = 'qr' | 'emoji' | 'code' | 'nothing';

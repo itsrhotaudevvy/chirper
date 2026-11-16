@@ -197,6 +197,23 @@ struct KeychainAnswer {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginWebviewArg<'a> {
+    pub url: &'a str,
+    pub extract_js: &'a str,
+    pub wait_for_pattern: &'a str,
+    pub user_agent: &'a str,
+    pub title: &'a str,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginWebviewAnswer {
+    pub token: Option<String>,
+    pub cancelled: Option<bool>,
+}
+
+#[derive(Serialize)]
 #[cfg(target_os = "ios")]
 struct BadgeArg {
     count: i64,
@@ -287,6 +304,12 @@ impl<R: Runtime> ChirperNative<R> {
         Ok(self
             .0
             .run_mobile_plugin("copyContentUri", CopyArg { uri, max_bytes })?)
+    }
+
+    /// Opens an in-app native web view dialog for web/cookie login flows.
+    #[cfg(target_os = "android")]
+    pub fn open_login_webview(&self, arg: LoginWebviewArg<'_>) -> Result<LoginWebviewAnswer> {
+        Ok(self.0.run_mobile_plugin("openLoginWebview", arg)?)
     }
 
     /// Stores `value` as the Keychain item of `service` and `account` unless one exists, and returns

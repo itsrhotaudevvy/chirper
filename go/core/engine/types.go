@@ -75,10 +75,11 @@ type InputField struct {
 
 // CookiesStep asks the user to log in to a web page so that cookies can be collected.
 type CookiesStep struct {
-	URL       string        `json:"url"`
-	UserAgent string        `json:"userAgent"`
-	Fields    []CookieField `json:"fields"`
-	ExtractJS string        `json:"extractJs"`
+	URL               string        `json:"url"`
+	UserAgent         string        `json:"userAgent"`
+	Fields            []CookieField `json:"fields"`
+	ExtractJS         string        `json:"extractJs"`
+	WaitForURLPattern string        `json:"waitForUrlPattern,omitempty"`
 }
 
 // CookieField is one cookie or token collected from the web page.

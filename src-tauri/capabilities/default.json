@@ -42,6 +42,7 @@
     "allow-unlock",
     "allow-set-secure-screen",
     "allow-open-external",
+    "allow-open-login-webview",
     "allow-set-app-prefs",
     "allow-get-app-prefs",
     "allow-pick-files"

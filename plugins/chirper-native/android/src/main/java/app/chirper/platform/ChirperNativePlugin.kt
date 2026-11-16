@@ -2,10 +2,26 @@ package app.chirper.platform
 
 import android.Manifest
 import android.app.Activity
+import android.app.Dialog
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.text.TextUtils
+import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.core.content.ContextCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -56,6 +72,15 @@ class ReplyChannelArgs {
 class CopyArgs {
     var uri: String = ""
     var maxBytes: Long = 0
+}
+
+@InvokeArg
+class LoginWebviewArgs {
+    var url: String = ""
+    var extractJs: String = ""
+    var waitForPattern: String = ""
+    var userAgent: String = ""
+    var title: String = ""
 }
 
 /**
@@ -179,6 +204,247 @@ class ChirperNativePlugin(private val activity: Activity) : Plugin(activity) {
         } catch (e: Exception) {
             invoke.reject("cannot copy the picked file: ${e.message ?: e.javaClass.simpleName}")
         }
+    }
+
+    @Command
+    fun openLoginWebview(invoke: Invoke) {
+        val args = invoke.parseArgs(LoginWebviewArgs::class.java)
+        activity.runOnUiThread {
+            showLoginDialog(args, invoke)
+        }
+    }
+
+    private fun showLoginDialog(args: LoginWebviewArgs, invoke: Invoke) {
+        val dialog = Dialog(activity, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen)
+        dialog.window?.let { win ->
+            win.setLayout(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+            )
+            win.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        }
+
+        var finished = false
+        val handler = Handler(Looper.getMainLooper())
+
+        val root = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.parseColor("#0E1517"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+            )
+        }
+
+        val topBar = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(Color.parseColor("#161F22"))
+            gravity = Gravity.CENTER_VERTICAL
+            val h = (56 * activity.resources.displayMetrics.density).toInt()
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                h,
+            )
+            val padH = (16 * activity.resources.displayMetrics.density).toInt()
+            setPadding(padH, 0, padH, 0)
+        }
+
+        val cancelBtn = TextView(activity).apply {
+            text = "Cancel"
+            setTextColor(Color.parseColor("#8A6FC9"))
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            isClickable = true
+            isFocusable = true
+        }
+
+        val titleView = TextView(activity).apply {
+            text = if (args.title.isNotEmpty()) args.title else "Sign In"
+            setTextColor(Color.WHITE)
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f,
+            )
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }
+
+        val spacer = TextView(activity).apply {
+            text = "Cancel"
+            textSize = 16f
+            visibility = View.INVISIBLE
+        }
+
+        topBar.addView(cancelBtn)
+        topBar.addView(titleView)
+        topBar.addView(spacer)
+        root.addView(topBar)
+
+        val progressBar = ProgressBar(
+            activity,
+            null,
+            android.R.attr.progressBarStyleHorizontal,
+        ).apply {
+            val h = (3 * activity.resources.displayMetrics.density).toInt()
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                h,
+            )
+            max = 100
+            progress = 0
+            visibility = View.GONE
+        }
+        root.addView(progressBar)
+
+        val webView = WebView(activity).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f,
+            )
+            setBackgroundColor(Color.parseColor("#0E1517"))
+        }
+
+        val settings = webView.settings
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.databaseEnabled = true
+        settings.setSupportZoom(true)
+        settings.builtInZoomControls = true
+        settings.displayZoomControls = false
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
+
+        if (args.userAgent.isNotEmpty()) {
+            settings.userAgentString = args.userAgent
+        } else {
+            settings.userAgentString =
+                "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36"
+        }
+
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        cookieManager.setAcceptThirdPartyCookies(webView, true)
+
+        val customJs = if (args.extractJs.isNotEmpty()) {
+            "try { var c = ${args.extractJs}; if (c && typeof c === 'string' && c.length > 20) return c; } catch(e) {}"
+        } else ""
+
+        val extractScript = """
+            (function() {
+                $customJs
+                try {
+                    var raw = localStorage.getItem('token');
+                    if (raw) {
+                        var v = raw;
+                        try { v = JSON.parse(raw); } catch(e) {}
+                        if (typeof v === 'string' && v.length > 20) return v;
+                    }
+                } catch(e) {}
+                try {
+                    var m = [];
+                    window.webpackChunkdiscord_app?.push([['chirper_' + Date.now()], {}, function(e) {
+                        for (var c in e.c) m.push(e.c[c]);
+                    }]);
+                    for (var i = 0; i < m.length; i++) {
+                        var mod = m[i]?.exports?.default;
+                        if (mod && typeof mod.getToken === 'function') {
+                            var t = mod.getToken();
+                            if (typeof t === 'string' && t.length > 20) return t;
+                        }
+                    }
+                } catch(e) {}
+                return null;
+            })()
+        """.trimIndent()
+
+        fun finishWith(token: String?, cancelled: Boolean) {
+            if (finished) return
+            finished = true
+            activity.runOnUiThread {
+                try {
+                    dialog.dismiss()
+                    webView.destroy()
+                } catch (_: Exception) {}
+            }
+            val res = JSObject()
+            if (token != null) {
+                res.put("token", token)
+                res.put("cancelled", false)
+            } else {
+                res.put("cancelled", cancelled)
+            }
+            invoke.resolve(res)
+        }
+
+        val pollRunnable = object : Runnable {
+            override fun run() {
+                if (!finished && dialog.isShowing) {
+                    webView.evaluateJavascript(extractScript) { result ->
+                        val clean = result?.trim('"', ' ', '\n', '\r', '\\')
+                        if (!clean.isNullOrEmpty() && clean != "null" && clean.length > 20) {
+                            finishWith(clean, cancelled = false)
+                        }
+                    }
+                    handler.postDelayed(this, 500)
+                }
+            }
+        }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                if (newProgress < 100) {
+                    progressBar.visibility = View.VISIBLE
+                    progressBar.progress = newProgress
+                } else {
+                    progressBar.visibility = View.GONE
+                }
+            }
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): Boolean {
+                val reqUrl = request?.url?.toString() ?: return false
+                if (reqUrl.startsWith("https://chirper-login.local/") || reqUrl.startsWith("chirper-login://")) {
+                    val tok = request.url?.getQueryParameter("token")
+                    if (!tok.isNullOrEmpty()) {
+                        finishWith(tok, cancelled = false)
+                        return true
+                    }
+                }
+                return false
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                webView.evaluateJavascript(extractScript) { result ->
+                    val clean = result?.trim('"', ' ', '\n', '\r', '\\')
+                    if (!clean.isNullOrEmpty() && clean != "null" && clean.length > 20) {
+                        finishWith(clean, cancelled = false)
+                    }
+                }
+            }
+        }
+
+        cancelBtn.setOnClickListener {
+            finishWith(null, cancelled = true)
+        }
+
+        dialog.setOnCancelListener {
+            finishWith(null, cancelled = true)
+        }
+
+        dialog.setContentView(root)
+        dialog.show()
+        handler.postDelayed(pollRunnable, 800)
+        webView.loadUrl(args.url)
     }
 
     private fun notificationPermissionMissing(): Boolean =

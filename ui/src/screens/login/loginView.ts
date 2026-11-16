@@ -21,7 +21,14 @@ export type LoginView =
   | { kind: 'qr'; instructions: string; data: string }
   | { kind: 'code'; instructions: string; text: string; emoji: boolean }
   | { kind: 'waiting'; instructions: string }
-  | { kind: 'cookies'; instructions: string; url: string }
+  | {
+      kind: 'cookies';
+      instructions: string;
+      url: string;
+      extractJs: string;
+      waitForUrlPattern?: string;
+      userAgent: string;
+    }
   | { kind: 'complete'; loginId: string }
   | { kind: 'unsupported' };
 
@@ -38,7 +45,14 @@ export function viewForStep(step: LoginStep): LoginView {
     case 'display_and_wait':
       return displayView(step);
     case 'cookies':
-      return { kind: 'cookies', instructions: step.instructions, url: step.cookies?.url ?? '' };
+      return {
+        kind: 'cookies',
+        instructions: step.instructions,
+        url: step.cookies?.url ?? '',
+        extractJs: step.cookies?.extractJs ?? '',
+        waitForUrlPattern: step.cookies?.waitForUrlPattern,
+        userAgent: step.cookies?.userAgent ?? '',
+      };
     case 'complete':
       return { kind: 'complete', loginId: step.complete?.loginId ?? '' };
     default:

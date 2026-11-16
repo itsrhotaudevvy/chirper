@@ -113,6 +113,7 @@ fn builder() -> tauri::Builder<tauri::Wry> {
             commands::unlock,
             commands::set_secure_screen,
             commands::open_external,
+            commands::open_login_webview,
             commands::set_app_prefs,
             commands::get_app_prefs,
             commands::pick_files,

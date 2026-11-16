@@ -213,7 +213,13 @@ func stepJSON(s *bridgev2.LoginStep) LoginStep {
 			}
 			fields = append(fields, CookieField{ID: f.ID, Required: f.Required, Sources: sources})
 		}
-		out.Cookies = &CookiesStep{URL: p.URL, UserAgent: p.UserAgent, Fields: fields, ExtractJS: p.ExtractJS}
+		out.Cookies = &CookiesStep{
+			URL:               p.URL,
+			UserAgent:         p.UserAgent,
+			Fields:            fields,
+			ExtractJS:         p.ExtractJS,
+			WaitForURLPattern: p.WaitForURLPattern,
+		}
 	}
 	if p := s.DisplayAndWaitParams; p != nil {
 		out.DisplayAndWait = &DisplayStep{Type: string(p.Type), Data: p.Data, ImageURL: p.ImageURL}

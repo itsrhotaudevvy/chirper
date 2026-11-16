@@ -509,6 +509,188 @@ pub fn open_external(app: AppHandle, state: State<'_, AppState>, url: String) ->
         .map_err(|e| CmdError::new(code::CORE, e.to_string()))
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginWebviewArgs {
+    pub url: String,
+    pub extract_js: Option<String>,
+    #[allow(dead_code)]
+    pub wait_for_pattern: Option<String>,
+    pub user_agent: Option<String>,
+    pub title: Option<String>,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginWebviewResult {
+    pub token: Option<String>,
+    pub cancelled: bool,
+}
+
+#[tauri::command]
+pub async fn open_login_webview(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    url: String,
+    extract_js: Option<String>,
+    wait_for_pattern: Option<String>,
+    user_agent: Option<String>,
+    title: Option<String>,
+) -> CmdResult<LoginWebviewResult> {
+    state.ensure_unlocked()?;
+    let args = LoginWebviewArgs {
+        url,
+        extract_js,
+        wait_for_pattern,
+        user_agent,
+        title,
+    };
+    #[cfg(desktop)]
+    {
+        run_desktop_login_webview(app, args).await
+    }
+    #[cfg(mobile)]
+    {
+        platform::open_login_webview(
+            &app,
+            &args.url,
+            args.extract_js.as_deref().unwrap_or(""),
+            args.wait_for_pattern.as_deref().unwrap_or(""),
+            args.user_agent.as_deref().unwrap_or(""),
+            args.title.as_deref().unwrap_or(""),
+        )
+        .await
+    }
+}
+
+#[cfg(desktop)]
+static LOGIN_WINDOW_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+#[cfg(desktop)]
+async fn run_desktop_login_webview(
+    app: AppHandle,
+    args: LoginWebviewArgs,
+) -> CmdResult<LoginWebviewResult> {
+    let parsed_url = check_http_url(&args.url)?;
+    let title = args.title.unwrap_or_else(|| "Sign In".to_string());
+    let seq = LOGIN_WINDOW_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let window_label = format!("login-webview-{seq}");
+
+    let (tx, mut rx) = tauri::async_runtime::channel::<Option<String>>(1);
+    let tx_nav = tx.clone();
+    let app_handle = app.clone();
+    let label_close = window_label.clone();
+
+    let custom_js = args.extract_js.as_deref().unwrap_or("");
+    let custom_inject = if !custom_js.is_empty() {
+        format!("try {{ var c = {custom_js}; if (c && typeof c === 'string' && c.length > 20) return c; }} catch(e) {{}}")
+    } else {
+        String::new()
+    };
+
+    let injection_script = format!(
+        r#"
+        (function() {{
+            if (window.__chirper_login_injected) return;
+            window.__chirper_login_injected = true;
+            function tryExtract() {{
+                {custom_inject}
+                try {{
+                    var raw = localStorage.getItem('token');
+                    if (raw) {{
+                        var v = raw;
+                        try {{ v = JSON.parse(raw); }} catch(e) {{}}
+                        if (typeof v === 'string' && v.length > 20) return v;
+                    }}
+                }} catch(e) {{}}
+                try {{
+                    var m = [];
+                    window.webpackChunkdiscord_app?.push([['chirper_' + Date.now()], {{}}, function(e) {{
+                        for (var c in e.c) m.push(e.c[c]);
+                    }}]);
+                    for (var i = 0; i < m.length; i++) {{
+                        var mod = m[i]?.exports?.default;
+                        if (mod && typeof mod.getToken === 'function') {{
+                            var t = mod.getToken();
+                            if (typeof t === 'string' && t.length > 20) return t;
+                        }}
+                    }}
+                }} catch(e) {{}}
+                return null;
+            }}
+            var interval = setInterval(function() {{
+                var tok = tryExtract();
+                if (tok) {{
+                    clearInterval(interval);
+                    window.location.href = 'https://chirper-login.local/?token=' + encodeURIComponent(tok);
+                }}
+            }}, 500);
+        }})();
+        "#
+    );
+
+    let default_ua = match () {
+        #[cfg(target_os = "macos")]
+        () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        #[cfg(target_os = "windows")]
+        () => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        #[cfg(target_os = "linux")]
+        () => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    };
+    let user_agent = args.user_agent.as_deref().unwrap_or(default_ua);
+
+    let mut builder = tauri::WebviewWindowBuilder::new(
+        &app,
+        &window_label,
+        tauri::WebviewUrl::External(parsed_url),
+    )
+    .title(&title)
+    .inner_size(840.0, 720.0)
+    .center()
+    .user_agent(user_agent)
+    .initialization_script(&injection_script);
+
+    builder = builder.on_navigation(move |nav_url| {
+        if nav_url.host_str() == Some("chirper-login.local") {
+            let token = nav_url
+                .query_pairs()
+                .find(|(k, _)| k == "token")
+                .map(|(_, v)| v.into_owned());
+            if let Some(t) = token {
+                let tx = tx_nav.clone();
+                tauri::async_runtime::spawn(async move {
+                    let _ = tx.send(Some(t)).await;
+                });
+                if let Some(w) = app_handle.get_webview_window(&label_close) {
+                    let _ = w.close();
+                }
+                return false;
+            }
+        }
+        true
+    });
+
+    let window = builder.build().map_err(|e| CmdError::new(code::CORE, e.to_string()))?;
+
+    let tx_close = tx.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Destroyed = event {
+            let tx = tx_close.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = tx.send(None).await;
+            });
+        }
+    });
+
+    let token_opt = rx.recv().await.flatten();
+    Ok(LoginWebviewResult {
+        cancelled: token_opt.is_none(),
+        token: token_opt,
+    })
+}
+
 /// Applies a partial update of the preferences. Side effects run first, so a refused change (for
 /// example app lock on a platform that cannot authenticate) saves nothing.
 #[tauri::command]

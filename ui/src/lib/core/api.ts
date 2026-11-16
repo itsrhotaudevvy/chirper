@@ -20,6 +20,7 @@ import type {
   NotificationReply,
   PickedFile,
   PickKind,
+  LoginWebviewResult,
 } from './types';
 
 /** Error returned by every core call. `code` is a stable machine string, `message` is for humans. */
@@ -89,6 +90,13 @@ export interface CoreApi {
   unlock(): Promise<UnlockResult>;
   setSecureScreen(args: { enabled: boolean }): Promise<void>;
   openExternal(args: { url: string }): Promise<void>;
+  openLoginWebview(args: {
+    url: string;
+    extractJs?: string;
+    waitForPattern?: string;
+    userAgent?: string;
+    title?: string;
+  }): Promise<LoginWebviewResult>;
   getAppPrefs(): Promise<AppPrefs>;
   setAppPrefs(args: { prefs: AppPrefs }): Promise<void>;
   pickFiles(args: { kind: PickKind }): Promise<PickedFile[]>;

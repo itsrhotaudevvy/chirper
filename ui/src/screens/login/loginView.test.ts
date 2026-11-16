@@ -42,6 +42,9 @@ describe('viewForStep', () => {
       kind: 'cookies',
       instructions: 'Do it',
       url: 'https://x.test',
+      extractJs: '',
+      waitForUrlPattern: undefined,
+      userAgent: '',
     });
     expect(viewForStep({ ...base, type: 'complete', complete: { loginId: 'acc-1' } })).toEqual({ kind: 'complete', loginId: 'acc-1' });
   });
@@ -93,7 +96,7 @@ describe('statusWord', () => {
       { kind: 'form', stepId: '', instructions: '', fields: [] },
       { kind: 'code', instructions: '', text: '', emoji: false },
       { kind: 'waiting', instructions: '' },
-      { kind: 'cookies', instructions: '', url: '' },
+      { kind: 'cookies', instructions: '', url: '', extractJs: '', userAgent: '' },
       { kind: 'unsupported' },
     ] as const) {
       expect(statusWord(view).split(' ')).toHaveLength(1);
