@@ -374,13 +374,12 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Create draft release with artifacts
+      - name: Create release with artifacts
         run: |
           tag="${GITHUB_REF_NAME}"
           if [[ "$tag" == "" || "$tag" == "main" ]]; then
             tag="${{ inputs.tag || 'v0.1.0' }}"
           fi
           gh release create "$tag" dist/* \
-            --draft \
             --title "Chirper $tag" \
             --generate-notes

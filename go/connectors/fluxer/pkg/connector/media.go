@@ -38,7 +38,13 @@ func (c *fluxerClient) avatar(path string, hash *string) *bridgev2.Avatar {
 			if c.meta.Bot && token != "" {
 				token = "Bot " + token
 			}
-			return downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, token)
+			data, err := downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, token)
+			if err != nil && token != "" {
+				if unauthData, unauthErr := downloadBytesWithAuth(ctx, c.main.HTTP, src, maxMediaBytes, ""); unauthErr == nil {
+					return unauthData, nil
+				}
+			}
+			return data, err
 		},
 	}
 }

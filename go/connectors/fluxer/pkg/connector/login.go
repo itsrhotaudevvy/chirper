@@ -10,6 +10,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/status"
+	"maunium.net/go/mautrix/id"
 
 	"chirper.dev/connectors/fluxer/pkg/fluxerapi"
 )
@@ -85,12 +86,17 @@ func (b loginBase) finish(ctx context.Context, origin string, ep *fluxerapi.Endp
 		Bot:       cred.Bot,
 		UserID:    user.ID,
 	}
+	var avatarURI id.ContentURIString
+	if user.Avatar != nil && *user.Avatar != "" {
+		avatarURI = id.ContentURIString(imageURL(ep.Media, "/avatars/"+user.ID, *user.Avatar))
+	}
 	ul, err := b.user.NewLogin(ctx, &database.UserLogin{
 		ID:         makeUserLoginID(user.ID),
 		RemoteName: user.Username,
 		RemoteProfile: status.RemoteProfile{
 			Username: user.Username,
 			Name:     user.DisplayName(),
+			Avatar:   avatarURI,
 		},
 		Metadata: meta,
 	}, &bridgev2.NewLoginParams{DeleteOnConflict: true})

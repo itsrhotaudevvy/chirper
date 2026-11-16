@@ -3,6 +3,7 @@ import type { Chat } from '../../lib/core';
 import {
   formatRowTime,
   groupByNetwork,
+  groupByServer,
   moveIndex,
   networksOf,
   pinnedOf,
@@ -48,9 +49,26 @@ describe('visibleChats', () => {
     expect(visibleChats(list, 'telegram', 'alice')).toEqual([]);
   });
 
-  it('filters out servers/spaces from the inbox', () => {
-    const withSpace = [...list, chat('Discord Server', 'discord', { isSpace: true })];
-    expect(visibleChats(withSpace, null, '').map((c) => c.roomId)).toEqual(['Alice', 'Telegram team', 'alice work']);
+  it('filters out servers/spaces and server channels from direct chats inbox', () => {
+    const withServerAndSpace = [
+      ...list,
+      chat('Discord Guild', 'discord', { isSpace: true }),
+      chat('general', 'discord', { parentId: '!guild:chirper.local', serverName: 'Discord Guild', isChannel: true }),
+      chat('announcements', 'fluxer', { parentId: '!fguild:chirper.local', serverName: 'Fluxer Guild', isChannel: true }),
+    ];
+    // In 'chats' tab: server channels are filtered out
+    expect(visibleChats(withServerAndSpace, null, '', 'chats').map((c) => c.roomId)).toEqual([
+      'Alice',
+      'Telegram team',
+      'alice work',
+    ]);
+    // In 'servers' tab: only server channels are kept
+    expect(visibleChats(withServerAndSpace, null, '', 'servers').map((c) => c.roomId)).toEqual([
+      'general',
+      'announcements',
+    ]);
+    // Can filter servers by network
+    expect(visibleChats(withServerAndSpace, 'fluxer', '', 'servers').map((c) => c.roomId)).toEqual(['announcements']);
   });
 });
 
@@ -71,6 +89,22 @@ describe('networksOf and groupByNetwork', () => {
     const groups = groupByNetwork(list);
     expect(groups.map((g) => g.network)).toEqual(['whatsapp', 'telegram']);
     expect(groups[1]?.chats.map((c) => c.roomId)).toEqual(['p', 't']);
+  });
+});
+
+describe('groupByServer', () => {
+  it('groups channels under their respective servers', () => {
+    const list = [
+      chat('c1', 'discord', { parentId: 'guild-1', serverName: 'Gaming' }),
+      chat('c2', 'discord', { parentId: 'guild-1', serverName: 'Gaming' }),
+      chat('c3', 'fluxer', { parentId: 'guild-2', serverName: 'Fluxer Devs' }),
+    ];
+    const groups = groupByServer(list);
+    expect(groups.length).toBe(2);
+    expect(groups[0]?.serverName).toBe('Gaming');
+    expect(groups[0]?.chats.map((c) => c.roomId)).toEqual(['c1', 'c2']);
+    expect(groups[1]?.serverName).toBe('Fluxer Devs');
+    expect(groups[1]?.chats.map((c) => c.roomId)).toEqual(['c3']);
   });
 });
 

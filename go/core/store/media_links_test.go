@@ -84,8 +84,8 @@ func TestMigrationLinksMediaOfAVersion2Database(t *testing.T) {
 	t.Cleanup(func() { _ = s.Close() })
 
 	var version int
-	if err := s.db.QueryRow(ctx, `SELECT version FROM chirper_version`).Scan(&version); err != nil || version != 3 {
-		t.Fatalf("schema version = %d, %v; want 3", version, err)
+	if err := s.db.QueryRow(ctx, `SELECT version FROM chirper_version`).Scan(&version); err != nil || version != 4 {
+		t.Fatalf("schema version = %d, %v; want 4", version, err)
 	}
 	if got, want := linksOf(t, s, "$pic"), []string{"mediaA", "thumbA"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("links of the migrated picture = %v, want %v", got, want)

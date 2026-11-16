@@ -34,24 +34,39 @@ func (e *Engine) ListChats(filter store.ChatFilter) ([]store.Chat, error) {
 		return nil, err
 	}
 	for i := range chats {
-		if chats[i].LoginID == "" {
-			e.fillLoginID(&chats[i])
+		if chats[i].LoginID == "" || (chats[i].ParentID == "" && !chats[i].IsDM) {
+			e.fillRoomIdentity(&chats[i])
 		}
 		chats[i].Typing = e.typingNames(e.ctx, chats[i].RoomID)
 	}
 	return chats, nil
 }
 
-// fillLoginID resolves the login of a chat that does not have one yet. Chats whose login is still
-// unknown are left as they are.
-func (e *Engine) fillLoginID(chat *store.Chat) {
+// fillRoomIdentity resolves the login and parent server of a chat that does not have them yet.
+func (e *Engine) fillRoomIdentity(chat *store.Chat) {
 	room, err := e.st.GetRoom(e.ctx, chat.RoomID)
 	if err != nil {
 		return
 	}
-	if login, err := e.attachRoomLogin(e.ctx, room); err == nil {
+	if login, err := e.attachRoomLogin(e.ctx, room); err == nil && login != nil {
 		chat.LoginID = string(login.ID)
 	}
+	if room.ParentID != "" {
+		chat.ParentID = room.ParentID
+		chat.IsChannel = true
+		chat.IsGroup = false
+		if chat.ServerName == "" {
+			if parentRoom, err := e.st.GetRoom(e.ctx, id.RoomID(room.ParentID)); err == nil && parentRoom.Name != "" {
+				chat.ServerName = parentRoom.Name
+			}
+		}
+	}
+}
+
+// fillLoginID resolves the login of a chat that does not have one yet. Chats whose login is still
+// unknown are left as they are.
+func (e *Engine) fillLoginID(chat *store.Chat) {
+	e.fillRoomIdentity(chat)
 }
 
 // GetChat returns one chat. Deleted chats are reported as store.ErrNotFound.
@@ -69,7 +84,7 @@ func (e *Engine) loadChat(ctx context.Context, roomID id.RoomID) (*store.Chat, e
 	if room.Deleted {
 		return nil, store.ErrNotFound
 	}
-	if room.LoginID == "" {
+	if room.LoginID == "" || (room.ParentID == "" && !room.IsDM) {
 		_, _ = e.attachRoomLogin(ctx, room)
 	}
 	chat, err := e.st.GetChat(ctx, roomID)
@@ -103,7 +118,32 @@ func (e *Engine) attachRoomLogin(ctx context.Context, room *store.Room) (*bridge
 		return nil, fmt.Errorf("no logged-in account in chat: %w", err)
 	}
 	loginID, portalID := string(login.ID), string(portal.PortalKey.ID)
-	if err := e.st.SetRoomFields(ctx, room.RoomID, store.RoomFields{LoginID: &loginID, PortalID: &portalID}); err != nil {
+	fields := store.RoomFields{LoginID: &loginID, PortalID: &portalID}
+
+	if room.ParentID == "" {
+		var parentID string
+		if portal.Parent != nil && portal.Parent.MXID != "" {
+			parentID = string(portal.Parent.MXID)
+		} else if portal.ParentKey.ID != "" {
+			parentKey := portal.ParentKey
+			if parentKey.Receiver == "" {
+				parentKey.Receiver = portal.PortalKey.Receiver
+			}
+			if parentPortal, _ := inst.br.GetPortalByKey(ctx, parentKey); parentPortal != nil && parentPortal.MXID != "" {
+				parentID = string(parentPortal.MXID)
+			} else if spaceRoom, err := e.st.FindSpaceRoom(ctx, room.BridgeID, string(portal.ParentKey.ID)); err == nil && spaceRoom != nil {
+				parentID = string(spaceRoom.RoomID)
+			} else {
+				parentID = string(portal.ParentKey.ID)
+			}
+		}
+		if parentID != "" {
+			fields.ParentID = &parentID
+			room.ParentID = parentID
+		}
+	}
+
+	if err := e.st.SetRoomFields(ctx, room.RoomID, fields); err != nil {
 		return nil, err
 	}
 	room.LoginID, room.PortalID = loginID, portalID

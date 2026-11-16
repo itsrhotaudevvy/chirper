@@ -137,6 +137,9 @@ export interface Chat {
   /** Unix milliseconds; 0 when not muted. */
   mutedUntil: number;
   typing: string[];
+  parentId?: string;
+  serverName?: string;
+  isChannel?: boolean;
 }
 
 export interface MessageMedia {
@@ -204,6 +207,8 @@ export interface ChatFilter {
   archived: boolean;
   unreadOnly: boolean;
   query: string;
+  directOnly?: boolean;
+  serversOnly?: boolean;
 }
 
 export interface ChatFlags {

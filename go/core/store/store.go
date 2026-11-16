@@ -75,9 +75,11 @@ CREATE TABLE room (
 	archived         BOOLEAN NOT NULL DEFAULT false,
 	muted_until      BIGINT NOT NULL DEFAULT 0,
 	tags_json        TEXT NOT NULL DEFAULT '{}',
-	deleted          BOOLEAN NOT NULL DEFAULT false
+	deleted          BOOLEAN NOT NULL DEFAULT false,
+	parent_id        TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX room_bridge_idx ON room(bridge_id);
+CREATE INDEX room_parent_idx ON room(parent_id);
 
 CREATE TABLE member (
 	room_id     TEXT NOT NULL,
@@ -161,12 +163,45 @@ func upgradeSteps(last int) dbutil.UpgradeTable {
 	if last >= 3 {
 		steps = steps.WithRaw(2, 3, 3, "event media links", dbutil.TxnModeOn, migrateMediaLinks)
 	}
+	if last >= 4 {
+		steps = steps.WithRaw(3, 4, 4, "add room parent_id column", dbutil.TxnModeOn, migrateAddRoomParentID)
+	}
 	return steps.Finish()
+}
+
+func migrateAddRoomParentID(ctx context.Context, db *dbutil.Database) error {
+	rows, err := db.Query(ctx, `PRAGMA table_info(room)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	hasParent := false
+	for rows.Next() {
+		var (
+			cid     int
+			name    string
+			ctype   string
+			notnull int
+			dfltVal sql.NullString
+			pk      int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltVal, &pk); err == nil && name == "parent_id" {
+			hasParent = true
+			break
+		}
+	}
+	if !hasParent {
+		if _, err := db.Exec(ctx, `ALTER TABLE room ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''`); err != nil {
+			return err
+		}
+	}
+	_, err = db.Exec(ctx, `CREATE INDEX IF NOT EXISTS room_parent_idx ON room(parent_id)`)
+	return err
 }
 
 // Open opens (and migrates) the store at path. The file is created if it does not exist.
 func Open(ctx context.Context, path string) (*Store, error) {
-	return openWithUpgrades(ctx, path, upgradeSteps(3))
+	return openWithUpgrades(ctx, path, upgradeSteps(4))
 }
 
 // openWithUpgrades opens the store at path and migrates it with steps.

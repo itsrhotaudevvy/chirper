@@ -37,16 +37,16 @@
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    height: min(62dvh, 560px);
-    min-height: 300px;
+    height: min(48dvh, 400px);
+    min-height: 220px;
     border-radius: 0 0 var(--banner-radius) var(--banner-radius);
     overflow: hidden;
     color: var(--on-banner);
   }
 
   .hero.short {
-    height: min(46dvh, 420px);
-    min-height: 240px;
+    height: min(34dvh, 280px);
+    min-height: 160px;
   }
 
   .rainbow {
@@ -78,8 +78,8 @@
   .content {
     display: grid;
     justify-items: start;
-    gap: var(--s-3);
-    padding: calc(var(--safe-top) + var(--s-12)) calc(var(--gutter) + var(--safe-right)) var(--s-6)
+    gap: var(--s-2);
+    padding: calc(var(--safe-top) + var(--s-6)) calc(var(--gutter) + var(--safe-right)) var(--s-4)
       calc(var(--gutter) + var(--safe-left));
   }
 

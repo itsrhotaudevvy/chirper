@@ -17,6 +17,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+	"maunium.net/go/mautrix/bridgev2/status"
+	"maunium.net/go/mautrix/id"
 )
 
 const (
@@ -152,10 +154,19 @@ func (dc *DiscordConnector) finishLogin(ctx context.Context, user *bridgev2.User
 		}
 		return nil, errors.New("this token belongs to a bot account; log in with the bot token flow instead")
 	}
+	var avatarURI id.ContentURIString
+	if me.Avatar != "" {
+		avatarURI = id.ContentURIString(fmt.Sprintf("%s/avatars/%s/%s.webp?size=256", discordCDN, me.ID, me.Avatar))
+	}
 	ul, err := user.NewLogin(ctx, &database.UserLogin{
 		ID:         makeUserLoginID(me.ID),
 		RemoteName: me.Username,
-		Metadata:   &UserLoginMetadata{Token: token, IsBot: isBot},
+		RemoteProfile: status.RemoteProfile{
+			Username: me.Username,
+			Name:     me.Username,
+			Avatar:   avatarURI,
+		},
+		Metadata: &UserLoginMetadata{Token: token, IsBot: isBot},
 	}, &bridgev2.NewLoginParams{DeleteOnConflict: true})
 	if err != nil {
 		return nil, err

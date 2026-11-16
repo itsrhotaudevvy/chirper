@@ -53,6 +53,18 @@ func (c *Connector) sendState(ctx context.Context, roomID id.RoomID, sender id.U
 		if visible, err = c.applyMember(ctx, roomID, stateKey, content); err != nil {
 			return "", err
 		}
+	case event.StateSpaceParent:
+		if stateKey != "" {
+			sp, _ := parseContent[event.SpaceParentEventContent](content)
+			parentID := stateKey
+			if sp != nil && !sp.Canonical {
+				parentID = ""
+			}
+			if err := c.st.SetRoomFields(ctx, roomID, store.RoomFields{ParentID: &parentID}); err != nil {
+				return "", err
+			}
+			c.sink.RoomChanged(roomID)
+		}
 	}
 	if !visible {
 		return eventID, nil

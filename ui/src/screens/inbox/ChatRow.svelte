@@ -164,7 +164,12 @@
     <span class="text">
       <span class="line">
         {#if chat.pinned}<span class="pinned" aria-hidden="true"><Icon name="pin" size={20} /></span>{/if}
-        <span class="name t-headline truncate">{chat.name}</span>
+        <span class="name t-headline truncate">
+          {#if (chat.isChannel || chat.parentId) && !chat.name.startsWith('#')}
+            <span class="channel-hash" aria-hidden="true"># </span>
+          {/if}
+          {chat.name}
+        </span>
         <span class="time t-label" aria-hidden="true">{time}</span>
       </span>
       <span class="line">
@@ -279,6 +284,11 @@
     flex: 1;
     min-width: 0;
     font-weight: 650;
+  }
+
+  .channel-hash {
+    color: var(--on-muted);
+    font-weight: 500;
   }
 
   .time {

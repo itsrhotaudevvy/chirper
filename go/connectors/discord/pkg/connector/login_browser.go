@@ -52,7 +52,8 @@ func (b *browserLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 		StepID:       LoginStepIDBrowser,
 		Instructions: "Sign in to Discord. The window closes by itself as soon as you are logged in.",
 		CookiesParams: &bridgev2.LoginCookiesParams{
-			URL: "https://discord.com/login",
+			URL:       "https://discord.com/login",
+			UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 			Fields: []bridgev2.LoginCookieField{{
 				ID:       loginTokenField,
 				Required: true,

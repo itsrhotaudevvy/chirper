@@ -4,11 +4,12 @@
    * resizable inbox pane (300-480 px) and a detail pane. Lock screen and onboarding overlay both.
    */
   import { onMount } from 'svelte';
-  import { connectStores, accounts, chats, ui } from './lib/stores';
+  import { connectStores, accounts, chats, ui, settings } from './lib/stores';
   import { createBadgeSync } from './lib/stores/chats.svelte';
   import { router, parseDeepLink } from './lib/router.svelte';
   import { core } from './lib/core';
   import { INBOX_WIDTH } from './lib/stores/ui.svelte';
+  import { updater } from './lib/updater';
   import InboxScreen from './screens/inbox/InboxScreen.svelte';
   import ChatScreen from './screens/chat/ChatScreen.svelte';
   import EmptyChat from './screens/chat/EmptyChat.svelte';
@@ -89,6 +90,9 @@
     void connectStores().then((dispose) => {
       disposers.push(dispose);
       ready = true;
+      if (settings.autoUpdate) {
+        void updater.checkForUpdates({ autoDownload: true, silent: true });
+      }
     });
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && router.view !== 'inbox') router.back();

@@ -1,5 +1,7 @@
 <script lang="ts">
+  import Button from '../../lib/components/Button.svelte';
   import { core } from '../../lib/core';
+  import { haptic } from '../../lib/haptics';
   import { settings } from '../../lib/stores/settings.svelte';
   import type { LoginView } from './loginView';
   import { qrMatrix } from './qr';
@@ -11,6 +13,24 @@
   }
 
   let { view, colour }: Props = $props();
+
+  let copied = $state(false);
+  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function copyCode(): Promise<void> {
+    if (view.kind !== 'code' || !view.text) return;
+    try {
+      await navigator.clipboard.writeText(view.text);
+      copied = true;
+      haptic('selection');
+      if (copyTimer) clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => {
+        copied = false;
+      }, 2000);
+    } catch {
+      // Ignore clipboard permission issues
+    }
+  }
 
   const matrix = $derived(view.kind === 'qr' ? matrixOf(view.data) : null);
 
@@ -44,10 +64,30 @@
     <p class="t-body">This code is too large to show.</p>
   {/if}
 {:else}
-  <p class="huge t-display" aria-live="polite" style:--code={colour}>{view.text}</p>
+  <div class="code-wrap">
+    <p class="huge t-display" aria-live="polite" style:--code={colour}>{view.text}</p>
+    <div class="code-actions">
+      <Button variant="quiet" onclick={copyCode}>
+        {copied ? 'Copied code!' : 'Copy code'}
+      </Button>
+    </div>
+  </div>
 {/if}
 
 <style>
+  .code-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s-3);
+    width: 100%;
+  }
+
+  .code-actions {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
   .qr {
     justify-self: center;
     width: min(78vw, 300px);

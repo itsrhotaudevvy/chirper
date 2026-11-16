@@ -9,13 +9,14 @@ export interface LocalPrefs {
   theme: ThemePref;
   accent: AccentId;
   reduceMotion: boolean;
+  autoUpdate?: boolean;
 }
 
 const STORAGE_KEY = 'chirper.ui.v1';
 const THEMES: readonly string[] = ['system', 'dark', 'light', 'amoled'];
 const ACCENTS: readonly string[] = ACCENT_PRESETS.map((a) => a.id);
 
-export const DEFAULT_LOCAL: LocalPrefs = { theme: 'system', accent: 'aurora', reduceMotion: false };
+export const DEFAULT_LOCAL: LocalPrefs = { theme: 'system', accent: 'aurora', reduceMotion: false, autoUpdate: true };
 
 /** Until the core answers, these apply. The core's get_app_prefs replaces them at start-up. */
 export const DEFAULT_APP_PREFS: AppPrefs = {
@@ -36,6 +37,7 @@ export function sanitiseLocal(raw: unknown): LocalPrefs {
     theme: THEMES.includes(source.theme as string) ? (source.theme as ThemePref) : DEFAULT_LOCAL.theme,
     accent: ACCENTS.includes(source.accent as string) ? (source.accent as AccentId) : DEFAULT_LOCAL.accent,
     reduceMotion: typeof source.reduceMotion === 'boolean' ? source.reduceMotion : DEFAULT_LOCAL.reduceMotion,
+    autoUpdate: typeof source.autoUpdate === 'boolean' ? source.autoUpdate : true,
   };
 }
 
@@ -49,6 +51,7 @@ class SettingsStore {
   theme = $state<ThemePref>(DEFAULT_LOCAL.theme);
   accent = $state<AccentId>(DEFAULT_LOCAL.accent);
   reduceMotion = $state(DEFAULT_LOCAL.reduceMotion);
+  autoUpdate = $state(DEFAULT_LOCAL.autoUpdate ?? true);
   app = $state<AppPrefs>({ ...DEFAULT_APP_PREFS });
 
   constructor(private readonly api: CoreApi = core) {
@@ -90,13 +93,14 @@ class SettingsStore {
   }
 
   private localSnapshot(): LocalPrefs {
-    return { theme: this.theme, accent: this.accent, reduceMotion: this.reduceMotion };
+    return { theme: this.theme, accent: this.accent, reduceMotion: this.reduceMotion, autoUpdate: this.autoUpdate };
   }
 
   private assignLocal(prefs: LocalPrefs): void {
     this.theme = prefs.theme;
     this.accent = prefs.accent;
     this.reduceMotion = prefs.reduceMotion;
+    this.autoUpdate = prefs.autoUpdate ?? true;
   }
 
   private readLocal(): LocalPrefs {

@@ -307,6 +307,48 @@ func TestChatListingFiltersAndPreview(t *testing.T) {
 	}
 }
 
+func TestListChatsDirectAndServersFiltering(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t)
+	serverSpace := id.RoomID("!space:chirper.local")
+	if err := s.UpsertRoom(ctx, &Room{RoomID: serverSpace, BridgeID: "discord", IsSpace: true, CreatedTS: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRoomFields(ctx, serverSpace, RoomFields{Name: strPtr("My Guild")}); err != nil {
+		t.Fatal(err)
+	}
+	channel := id.RoomID("!channel:chirper.local")
+	if err := s.UpsertRoom(ctx, &Room{RoomID: channel, BridgeID: "discord", Name: "general", ParentID: string(serverSpace), CreatedTS: 2}); err != nil {
+		t.Fatal(err)
+	}
+	dm := id.RoomID("!dm:chirper.local")
+	if err := s.UpsertRoom(ctx, &Room{RoomID: dm, BridgeID: "discord", Name: "Bob", IsDM: true, CreatedTS: 3}); err != nil {
+		t.Fatal(err)
+	}
+
+	direct, err := s.ListChats(ctx, ChatFilter{Network: "discord", DirectOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(direct) != 1 || direct[0].RoomID != dm {
+		t.Fatalf("DirectOnly want [dm], got: %+v", direct)
+	}
+
+	servers, err := s.ListChats(ctx, ChatFilter{Network: "discord", ServersOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 1 || servers[0].RoomID != channel {
+		t.Fatalf("ServersOnly want [channel], got: %+v", servers)
+	}
+	if servers[0].ServerName != "My Guild" {
+		t.Errorf("ServerName want 'My Guild', got %q", servers[0].ServerName)
+	}
+	if !servers[0].IsChannel || servers[0].IsGroup {
+		t.Errorf("expected channel to have IsChannel=true and IsGroup=false")
+	}
+}
+
 func TestPreviewLabelsForMedia(t *testing.T) {
 	ctx := context.Background()
 	s := openTest(t)

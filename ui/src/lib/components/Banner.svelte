@@ -3,12 +3,15 @@
   import { untrack } from 'svelte';
   import { blendForNetworks } from '../spectrum';
   import Icon from './Icon.svelte';
+  import { networkLogoPath } from './networkLogos';
 
   interface Props {
     /** Network ids. One is a solid colour; several blend along the rainbow (blendForNetworks). */
     networks?: string[];
     /** Raw CSS colours. Several are blended into one gradient, for contexts that are not networks. */
     colors?: string[];
+    /** Optional network id for a watermark logo in the bottom right corner. */
+    logo?: string;
     /** One bold line. */
     title: string;
     /** Optional single action, shown as a light pill on the colour or combined with title if back/cancel. */
@@ -35,7 +38,11 @@
     children,
     hideTitle = false,
     onback,
+    logo,
   }: Props = $props();
+
+  const logoId = $derived(logo || (networks && networks.length === 1 ? networks[0] : null));
+  const logoPath = $derived(logoId ? networkLogoPath(logoId) : null);
 
   /*
    * DESIGN 3.3 v2: banners are bright in every theme (the bright column, never the page theme),
@@ -74,6 +81,13 @@
 </script>
 
 <header class="banner" data-tauri-drag-region>
+  {#if logoPath}
+    <div class="watermark-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <path d={logoPath} />
+      </svg>
+    </div>
+  {/if}
   {#if previous}
     <div class="fill" aria-hidden="true" style:background={previous}></div>
   {/if}
@@ -124,7 +138,7 @@
     flex-direction: column;
     justify-content: flex-end;
     min-height: calc(var(--banner-h) + var(--safe-top));
-    padding: calc(var(--safe-top) + var(--titlebar-inset) + var(--s-2)) calc(var(--gutter) + var(--safe-right)) var(--s-3)
+    padding: calc(var(--safe-top) + var(--titlebar-inset) + 2px) calc(var(--gutter) + var(--safe-right)) var(--s-2)
       calc(var(--gutter) + var(--safe-left));
     border-radius: 0 0 var(--banner-radius) var(--banner-radius);
     overflow: hidden;
@@ -138,6 +152,27 @@
     position: absolute;
     inset: 0;
     z-index: -2;
+  }
+
+  .watermark-logo {
+    position: absolute;
+    right: -14px;
+    bottom: -14px;
+    width: 96px;
+    height: 96px;
+    opacity: 0.18;
+    pointer-events: none;
+    z-index: -1;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .watermark-logo svg {
+    width: 100%;
+    height: 100%;
   }
 
   .fill.fresh {
@@ -163,9 +198,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--s-3);
+    gap: var(--s-2);
     min-width: 0;
-    min-height: var(--hit);
+    min-height: 38px;
   }
 
   .title-wrap {
@@ -230,7 +265,7 @@
 
   .status {
     font-weight: 650;
-    margin: var(--s-1) 0 0;
+    margin: 2px 0 0;
   }
 
   .trailing {
@@ -241,8 +276,8 @@
   }
 
   .action {
-    min-height: calc(var(--hit) - 4px);
-    padding: 0 var(--s-4);
+    min-height: 34px;
+    padding: 0 var(--s-3);
     border-radius: var(--r-pill);
     font-weight: 650;
   }
@@ -250,8 +285,8 @@
   @media (min-width: 900px) {
     .banner {
       min-height: var(--banner-h-desktop);
-      padding-top: calc(var(--s-2) + var(--titlebar-inset));
-      padding-bottom: var(--s-3);
+      padding-top: calc(2px + var(--titlebar-inset));
+      padding-bottom: var(--s-2);
       padding-left: var(--banner-start-desktop, calc(var(--gutter) + var(--safe-left)));
     }
   }

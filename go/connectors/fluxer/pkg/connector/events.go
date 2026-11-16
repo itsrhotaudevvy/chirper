@@ -12,6 +12,8 @@ import (
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/simplevent"
+	"maunium.net/go/mautrix/bridgev2/status"
+	"maunium.net/go/mautrix/id"
 
 	"chirper.dev/connectors/fluxer/pkg/fluxerapi"
 )
@@ -60,6 +62,33 @@ func (c *fluxerClient) onReady(ctx context.Context, data json.RawMessage) error 
 	var ready fluxerapi.Ready
 	if err := json.Unmarshal(data, &ready); err != nil {
 		return err
+	}
+	if c.login != nil {
+		changed := false
+		if ready.User.Avatar != nil && *ready.User.Avatar != "" {
+			mediaBase := c.meta.MediaBase
+			if mediaBase == "" {
+				mediaBase = c.meta.APIBase
+			}
+			newAvatar := id.ContentURIString(imageURL(mediaBase, "/avatars/"+ready.User.ID, *ready.User.Avatar))
+			if c.login.RemoteProfile.Avatar != newAvatar {
+				c.login.RemoteProfile.Avatar = newAvatar
+				changed = true
+			}
+		}
+		displayName := ready.User.DisplayName()
+		if displayName != "" && c.login.RemoteProfile.Name != displayName {
+			c.login.RemoteProfile.Name = displayName
+			changed = true
+		}
+		if ready.User.Username != "" && c.login.RemoteProfile.Username != ready.User.Username {
+			c.login.RemoteProfile.Username = ready.User.Username
+			changed = true
+		}
+		if changed {
+			_ = c.login.Save(ctx)
+			c.login.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+		}
 	}
 	for _, ch := range ready.PrivateChannels {
 		c.rememberChannel(ch.ID, "")

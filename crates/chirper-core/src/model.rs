@@ -202,6 +202,9 @@ pub struct Chat {
     pub archived: bool,
     pub muted_until: i64,
     pub typing: Vec<String>,
+    pub parent_id: String,
+    pub server_name: String,
+    pub is_channel: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -290,6 +293,8 @@ pub struct ChatFilter {
     pub archived: bool,
     pub unread_only: bool,
     pub query: String,
+    pub direct_only: bool,
+    pub servers_only: bool,
 }
 
 /// Local-only chat flags for `setChatFlags`. Absent (`None`) fields are left unchanged.

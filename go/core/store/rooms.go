@@ -11,7 +11,7 @@ import (
 
 var roomColumnNames = []string{"room_id", "bridge_id", "login_id", "portal_id", "name", "topic", "avatar_url",
 	"is_dm", "is_space", "dm_user_id", "created_ts", "last_activity_ts", "last_event_id", "unread_count",
-	"mention_count", "read_up_to_order", "pinned", "archived", "muted_until", "tags_json", "deleted"}
+	"mention_count", "read_up_to_order", "pinned", "archived", "muted_until", "tags_json", "deleted", "parent_id"}
 
 // roomColumns lists the room columns for queries on the room table alone.
 var roomColumns = strings.Join(roomColumnNames, ", ")
@@ -30,7 +30,7 @@ func roomDest(r *Room) []any {
 	return []any{&r.RoomID, &r.BridgeID, &r.LoginID, &r.PortalID, &r.Name, &r.Topic, &r.AvatarURL,
 		&r.IsDM, &r.IsSpace, &r.DMUserID, &r.CreatedTS, &r.LastActivityTS, &r.LastEventID,
 		&r.UnreadCount, &r.MentionCount, &r.ReadUpToOrder, &r.Pinned, &r.Archived, &r.MutedUntil,
-		&r.TagsJSON, &r.Deleted}
+		&r.TagsJSON, &r.Deleted, &r.ParentID}
 }
 
 func scanRoom(row rowScanner) (*Room, error) {
@@ -46,8 +46,8 @@ func scanRoom(row rowScanner) (*Room, error) {
 // A non-empty LoginID/PortalID is kept when the new value is empty.
 func (s *Store) UpsertRoom(ctx context.Context, r *Room) error {
 	_, err := s.db.Exec(ctx, `
-		INSERT INTO room (room_id, bridge_id, login_id, portal_id, is_dm, is_space, dm_user_id, created_ts, deleted)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false)
+		INSERT INTO room (room_id, bridge_id, login_id, portal_id, is_dm, is_space, dm_user_id, created_ts, deleted, parent_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, $9)
 		ON CONFLICT (room_id) DO UPDATE SET
 			bridge_id = excluded.bridge_id,
 			login_id = COALESCE(NULLIF(excluded.login_id, ''), room.login_id),
@@ -55,8 +55,9 @@ func (s *Store) UpsertRoom(ctx context.Context, r *Room) error {
 			is_dm = excluded.is_dm,
 			is_space = excluded.is_space,
 			dm_user_id = excluded.dm_user_id,
-			deleted = false`,
-		r.RoomID, r.BridgeID, r.LoginID, r.PortalID, r.IsDM, r.IsSpace, r.DMUserID, r.CreatedTS)
+			deleted = false,
+			parent_id = COALESCE(NULLIF(excluded.parent_id, ''), room.parent_id)`,
+		r.RoomID, r.BridgeID, r.LoginID, r.PortalID, r.IsDM, r.IsSpace, r.DMUserID, r.CreatedTS, r.ParentID)
 	if err != nil {
 		return fmt.Errorf("failed to upsert room: %w", err)
 	}
@@ -102,6 +103,9 @@ func (s *Store) SetRoomFields(ctx context.Context, roomID id.RoomID, f RoomField
 	}
 	if f.TagsJSON != nil {
 		add("tags_json", *f.TagsJSON)
+	}
+	if f.ParentID != nil {
+		add("parent_id", *f.ParentID)
 	}
 	if len(sets) == 0 {
 		return nil
@@ -218,7 +222,8 @@ func (s *Store) MarkUnread(ctx context.Context, roomID id.RoomID, unread bool) e
 var chatSelect = "SELECT " + qualifiedRoomColumns + `,
 	(SELECT COUNT(*) FROM member WHERE member.room_id = room.room_id AND member.membership = 'join'),
 	ev.event_id, ev.sender, ev.type, ev.state_key, ev.content_json, ev.edit_content_json,
-	COALESCE(NULLIF(em.displayname, ''), NULLIF(pr.displayname, ''))
+	COALESCE(NULLIF(em.displayname, ''), NULLIF(pr.displayname, '')),
+	COALESCE((SELECT name FROM room p WHERE (p.room_id = room.parent_id OR (p.portal_id = room.parent_id AND p.bridge_id = room.bridge_id AND p.is_space = true)) AND p.deleted = false LIMIT 1), '')
 	FROM room
 	LEFT JOIN event ev ON ev.event_id = room.last_event_id
 	LEFT JOIN member em ON em.room_id = ev.room_id AND em.user_id = ev.sender
@@ -231,10 +236,16 @@ func scanChat(row rowScanner) (Chat, error) {
 		memberCount                        int
 		evID, evSender, evType, evStateKey *string
 		evContent, evEdit, senderName      *string
+		serverName                         *string
 	)
-	dest := append(roomDest(&room), &memberCount, &evID, &evSender, &evType, &evStateKey, &evContent, &evEdit, &senderName)
+	dest := append(roomDest(&room), &memberCount, &evID, &evSender, &evType, &evStateKey, &evContent, &evEdit, &senderName, &serverName)
 	if err := row.Scan(dest...); err != nil {
 		return Chat{}, err
+	}
+	sName := deref(serverName)
+	isChannel := room.ParentID != ""
+	if isChannel && sName == "" && room.BridgeID != "" {
+		sName = strings.ToUpper(room.BridgeID[:1]) + room.BridgeID[1:] + " Server"
 	}
 	chat := Chat{
 		RoomID:       room.RoomID,
@@ -244,7 +255,7 @@ func scanChat(row rowScanner) (Chat, error) {
 		AvatarURL:    room.AvatarURL,
 		Topic:        room.Topic,
 		IsDM:         room.IsDM,
-		IsGroup:      !room.IsDM && !room.IsSpace,
+		IsGroup:      !room.IsDM && !room.IsSpace && !isChannel,
 		IsSpace:      room.IsSpace,
 		MemberCount:  memberCount,
 		LastActivity: room.LastActivityTS,
@@ -254,6 +265,9 @@ func scanChat(row rowScanner) (Chat, error) {
 		Archived:     room.Archived,
 		MutedUntil:   room.MutedUntil,
 		Typing:       []string{},
+		ParentID:     room.ParentID,
+		ServerName:   sName,
+		IsChannel:    isChannel,
 	}
 	if evID != nil {
 		ev := &Event{
@@ -298,12 +312,17 @@ func (s *Store) ListChats(ctx context.Context, filter ChatFilter) ([]Chat, error
 		args = append(args, filter.Network)
 		query += fmt.Sprintf(" AND room.bridge_id = $%d", len(args))
 	}
+	if filter.DirectOnly {
+		query += " AND (room.parent_id = '' OR room.is_dm = true)"
+	} else if filter.ServersOnly {
+		query += " AND room.parent_id <> '' AND room.is_dm = false"
+	}
 	if filter.UnreadOnly {
 		query += " AND room.unread_count > 0"
 	}
 	if filter.Query != "" {
 		args = append(args, likePattern(filter.Query))
-		query += fmt.Sprintf(` AND room.name LIKE $%d ESCAPE '\'`, len(args))
+		query += fmt.Sprintf(` AND (room.name LIKE $%d ESCAPE '\' OR (SELECT name FROM room p WHERE (p.room_id = room.parent_id OR (p.portal_id = room.parent_id AND p.bridge_id = room.bridge_id AND p.is_space = true)) AND p.deleted = false LIMIT 1) LIKE $%d ESCAPE '\')`, len(args), len(args))
 	}
 	query += " ORDER BY room.pinned DESC, room.last_activity_ts DESC, room.room_id"
 	chats, err := queryAll(ctx, s, scanChat, query, args...)
@@ -314,6 +333,13 @@ func (s *Store) ListChats(ctx context.Context, filter ChatFilter) ([]Chat, error
 		chats = []Chat{}
 	}
 	return chats, nil
+}
+
+// FindSpaceRoom finds a space room by portal ID and bridge ID.
+func (s *Store) FindSpaceRoom(ctx context.Context, bridgeID, portalID string) (*Room, error) {
+	return queryOne(ctx, s, scanRoom,
+		`SELECT `+roomColumns+` FROM room WHERE bridge_id = $1 AND portal_id = $2 AND is_space = true AND deleted = false LIMIT 1`,
+		bridgeID, portalID)
 }
 
 // SetMembership sets only the membership of a user in a room, creating the row if needed.

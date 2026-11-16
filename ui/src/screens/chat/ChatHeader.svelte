@@ -62,7 +62,7 @@
     right: 0;
     height: var(--head-big);
     pointer-events: none;
-    --compact-h: calc(56px + var(--safe-top) + var(--titlebar-inset));
+    --compact-h: calc(48px + var(--safe-top) + var(--titlebar-inset));
   }
 
   .hero {
@@ -134,7 +134,7 @@
 
   @media (min-width: 900px) {
     .head {
-      --compact-h: calc(56px + var(--safe-top) + var(--titlebar-inset));
+      --compact-h: calc(48px + var(--safe-top) + var(--titlebar-inset));
     }
   }
 </style>

@@ -13,6 +13,7 @@
   import NotificationsSection from './NotificationsSection.svelte';
   import PrivacySection from './PrivacySection.svelte';
   import SettingsSection from './SettingsSection.svelte';
+  import SyncSection from './SyncSection.svelte';
   import { router } from '../../lib/router.svelte';
 
   interface Props {
@@ -21,7 +22,7 @@
 
   let { onclose }: Props = $props();
 
-  type SectionId = 'accounts' | 'notifications' | 'privacy' | 'appearance' | 'chats' | 'about';
+  type SectionId = 'accounts' | 'notifications' | 'privacy' | 'appearance' | 'chats' | 'sync' | 'about';
 
   /** One section is open at a time; Accounts starts open so the first screen is useful. */
   let open = $state<SectionId | null>('accounts');
@@ -113,6 +114,17 @@
         ontoggle={() => toggle('chats')}
       >
         <ChatsSection {desktop} />
+      </SettingsSection>
+
+      <SettingsSection
+        id="sync"
+        color="var(--cat-appearance)"
+        title="Cross-platform sync"
+        summary="Serverless sync"
+        open={open === 'sync'}
+        ontoggle={() => toggle('sync')}
+      >
+        <SyncSection />
       </SettingsSection>
 
       <SettingsSection id="about" color="var(--cat-about)" title="About" open={open === 'about'} ontoggle={() => toggle('about')}>

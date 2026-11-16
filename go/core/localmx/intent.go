@@ -184,6 +184,11 @@ func (c *Connector) applyInitialState(ctx context.Context, roomID id.RoomID, evt
 		}
 		_, err := c.applyMember(ctx, roomID, *evt.StateKey, &evt.Content)
 		return err
+	case event.StateSpaceParent:
+		if evt.StateKey != nil && *evt.StateKey != "" {
+			parentID := *evt.StateKey
+			fields.ParentID = &parentID
+		}
 	}
 	return nil
 }

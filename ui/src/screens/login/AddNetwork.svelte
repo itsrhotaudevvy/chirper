@@ -134,8 +134,19 @@
     cookieRefused = false;
     cookieError = '';
     try {
-      const cookies: Record<string, string> = {};
-      if (token) cookies['token'] = token;
+      let cookies: Record<string, string> = {};
+      if (token) {
+        const trimmed = token.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          try {
+            cookies = JSON.parse(trimmed) as Record<string, string>;
+          } catch {
+            cookies['token'] = trimmed;
+          }
+        } else {
+          cookies['token'] = trimmed;
+        }
+      }
       await present(await core.submitLoginCookies({ processId, cookies }), current);
     } catch (err: unknown) {
       if (current === attempt) {
@@ -164,7 +175,7 @@
         extractJs: cookiesView.extractJs,
         waitForPattern: cookiesView.waitForUrlPattern,
         userAgent: cookiesView.userAgent,
-        title: chosen?.name ?? 'Discord',
+        title: chosen?.name ?? 'Sign In',
       });
       if (current === attempt && res.token) {
         cookieToken = res.token;
@@ -272,7 +283,7 @@
     </div>
   {:else if stage === 'flows' && chosen}
     {@const net = chosen}
-    <Banner colors={[net.colour]} title={net.name} status="Choose" action={{ label: 'Back', onclick: back }} />
+    <Banner colors={[net.colour]} logo={net.id} title={net.name} status="Choose" action={{ label: 'Back', onclick: back }} />
     <div class="body">
       {#each net.flows as flow (flow.id)}
         <div class="flow">
@@ -287,10 +298,11 @@
       {#if failed}
         <Banner colors={['var(--banner-danger)']} title="Failed" action={{ label: 'Retry', onclick: retry }} />
       {:else if finished}
-        <Banner colors={[net.colour]} title={net.name} status="Connected" />
+        <Banner colors={[net.colour]} logo={net.id} title={net.name} status="Connected" />
       {:else}
         <Banner
           colors={[net.colour]}
+          logo={net.id}
           title={net.name}
           status={view ? statusWord(view) : 'Starting'}
           action={{ label: 'Cancel', onclick: () => void cancel() }}
@@ -314,30 +326,30 @@
         <p class="t-body">{view.instructions}</p>
       {:else if view?.kind === 'cookies'}
         {@const cookiesView = view}
-        <p class="t-body">{cookiesView.instructions || 'Sign in with Discord to connect your account.'}</p>
+        <p class="t-body">{cookiesView.instructions || `Sign in with ${net.name} to connect your account.`}</p>
         <div class="flow-actions">
           <Button color={net.id} disabled={busy} onclick={() => void launchWebviewLogin(cookiesView)}>
-            {busy ? 'Signing in…' : 'Sign in with Discord'}
+            {busy ? 'Signing in…' : `Sign in with ${net.name}`}
           </Button>
         </div>
         {#if showManualToken}
           <div class="manual-token">
             <TextField
-              label="Discord token"
+              label={net.id === 'discord' ? 'Discord token' : `${net.name} token / cookies`}
               type="password"
-              placeholder="Paste Discord token"
+              placeholder={net.id === 'discord' ? 'Paste Discord token' : `Paste ${net.name} token or cookies`}
               bind:value={cookieToken}
               disabled={busy}
               onsubmit={() => void continueCookies(cookieToken.trim())}
             />
-            <p class="t-label t-muted">In browser: open Developer Tools (Network or Storage) to find your token.</p>
+            <p class="t-label t-muted">In browser: open Developer Tools (Network or Storage) to find your token or cookies.</p>
             <div class="actions">
               <Button color={net.id} disabled={busy || !cookieToken.trim()} onclick={() => void continueCookies(cookieToken.trim())}>Continue</Button>
             </div>
           </div>
         {:else}
           <div class="manual-toggle">
-            <Button variant="quiet" onclick={() => (showManualToken = true)}>Or enter token manually</Button>
+            <Button variant="quiet" onclick={() => (showManualToken = true)}>Or enter {net.id === 'discord' ? 'token' : 'credentials'} manually</Button>
           </div>
         {/if}
         {#if cookieRefused}<StatusStrip tone="warn" message={cookieError || NOT_SUPPORTED} />{/if}

@@ -5,15 +5,39 @@
 import type { Chat } from '../../lib/core';
 import { sortBySpectrum } from '../../lib/spectrum';
 
-/** Chats of one network (or all networks when `network` is null) whose name contains `query`. */
-export function visibleChats(chats: readonly Chat[], network: string | null, query: string): Chat[] {
+export type InboxTab = 'chats' | 'servers';
+
+export function isServerChannel(chat: Chat): boolean {
+  return !chat.isSpace && (Boolean(chat.isChannel) || Boolean(chat.parentId && chat.parentId !== ''));
+}
+
+export function isDirectChat(chat: Chat): boolean {
+  return !chat.isSpace && !isServerChannel(chat);
+}
+
+/** Chats of one network (or all networks when `network` is null) whose name contains `query`.
+ * When `tab` is 'chats', server channels are filtered out.
+ * When `tab` is 'servers', only server channels are kept.
+ */
+export function visibleChats(
+  chats: readonly Chat[],
+  network: string | null,
+  query: string,
+  tab: InboxTab = 'chats',
+): Chat[] {
   const needle = query.trim().toLocaleLowerCase();
-  return chats.filter(
-    (chat) =>
-      !chat.isSpace &&
-      (network === null || chat.network === network) &&
-      (needle === '' || chat.name.toLocaleLowerCase().includes(needle)),
-  );
+  return chats.filter((chat) => {
+    if (chat.isSpace) return false;
+    if (tab === 'chats' && isServerChannel(chat)) return false;
+    if (tab === 'servers' && !isServerChannel(chat)) return false;
+    if (network !== null && chat.network !== network) return false;
+    if (needle !== '') {
+      const matchName = chat.name.toLocaleLowerCase().includes(needle);
+      const matchServer = chat.serverName && chat.serverName.toLocaleLowerCase().includes(needle);
+      if (!matchName && !matchServer) return false;
+    }
+    return true;
+  });
 }
 
 /** Distinct networks of the chats, in spectrum order. */
@@ -38,6 +62,36 @@ export function groupByNetwork(chats: readonly Chat[]): NetworkGroup[] {
   return networksOf(chats).map((network) => ({ network, chats: byNetwork.get(network) ?? [] }));
 }
 
+export interface ServerGroup {
+  serverKey: string;
+  serverName: string;
+  network: string;
+  chats: Chat[];
+}
+
+/** Groups server channels by their parent server. */
+export function groupByServer(chats: readonly Chat[]): ServerGroup[] {
+  const byServer = new Map<string, { serverName: string; network: string; chats: Chat[] }>();
+  for (const chat of chats) {
+    const key = chat.parentId || chat.serverName || chat.network;
+    const name =
+      chat.serverName ||
+      (chat.network ? `${chat.network.charAt(0).toUpperCase() + chat.network.slice(1)} Server` : 'Server');
+    const entry = byServer.get(key);
+    if (entry) {
+      entry.chats.push(chat);
+    } else {
+      byServer.set(key, { serverName: name, network: chat.network, chats: [chat] });
+    }
+  }
+  return [...byServer.entries()].map(([serverKey, data]) => ({
+    serverKey,
+    serverName: data.serverName,
+    network: data.network,
+    chats: data.chats,
+  }));
+}
+
 export function unreadOf(chats: readonly Chat[]): number {
   return chats.reduce((sum, c) => sum + c.unreadCount, 0);
 }
@@ -53,9 +107,10 @@ export type ChatAction = 'pin' | 'mute' | 'archive' | 'read';
 /** "Muted until" for an indefinite mute (year 9999, far beyond any clock in use). */
 export const MUTE_FOREVER = 253402300799000;
 
-/** A row of the list, or the colour band that opens a network group. */
+/** A row of the list, or the colour band that opens a network or server group. */
 export type ListItem =
   | { key: string; kind: 'band'; network: string; label: string }
+  | { key: string; kind: 'server'; serverKey: string; network: string; label: string }
   | { key: string; kind: 'row'; chat: Chat };
 
 const DAY_MS = 86_400_000;

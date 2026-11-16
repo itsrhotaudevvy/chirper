@@ -31,6 +31,9 @@ type Chat struct {
 	Archived     bool         `json:"archived"`
 	MutedUntil   int64        `json:"mutedUntil"`
 	Typing       []string     `json:"typing"`
+	ParentID     string       `json:"parentId"`
+	ServerName   string       `json:"serverName"`
+	IsChannel    bool         `json:"isChannel"`
 }
 
 // ChatPreview is the last visible, non-state event of a chat.
@@ -96,10 +99,12 @@ type MessageReaction struct {
 // ChatFilter selects chats for ListChats. Archived selects only archived chats when true and
 // only non-archived chats when false.
 type ChatFilter struct {
-	Network    string `json:"network"`
-	Archived   bool   `json:"archived"`
-	UnreadOnly bool   `json:"unreadOnly"`
-	Query      string `json:"query"`
+	Network     string `json:"network"`
+	Archived    bool   `json:"archived"`
+	UnreadOnly  bool   `json:"unreadOnly"`
+	Query       string `json:"query"`
+	DirectOnly  bool   `json:"directOnly"`
+	ServersOnly bool   `json:"serversOnly"`
 }
 
 // Room is the stored row of a chat.
@@ -125,6 +130,7 @@ type Room struct {
 	MutedUntil     int64
 	TagsJSON       string
 	Deleted        bool
+	ParentID       string
 }
 
 // RoomFields is a partial update for SetRoomFields. Nil fields are left unchanged.
@@ -138,6 +144,7 @@ type RoomFields struct {
 	Archived   *bool
 	MutedUntil *int64
 	TagsJSON   *string
+	ParentID   *string
 }
 
 // Member is a room member row.
