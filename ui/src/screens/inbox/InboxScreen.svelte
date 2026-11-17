@@ -252,6 +252,7 @@
     hideTitle={searching}
     status={searching ? '' : notice || (unread > 0 ? `${unread} unread` : '')}
     action={archivedView ? { label: 'Back', onclick: toggleArchived } : undefined}
+    titlebar
     {trailing}
   >
     {#if searching}

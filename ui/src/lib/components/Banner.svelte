@@ -26,6 +26,8 @@
     hideTitle?: boolean;
     /** Optional explicit back handler to combine with the title. */
     onback?: () => void;
+    /** On macOS desktop, put a small title on the traffic-light row, beside the window buttons. */
+    titlebar?: boolean;
   }
 
   let {
@@ -39,6 +41,7 @@
     hideTitle = false,
     onback,
     logo,
+    titlebar = false,
   }: Props = $props();
 
   const logoId = $derived(logo || (networks && networks.length === 1 ? networks[0] : null));
@@ -81,7 +84,7 @@
   });
 </script>
 
-<header class="banner" data-tauri-drag-region>
+<header class="banner" class:titlebar data-tauri-drag-region>
   {#if logoPath}
     <div class="watermark-logo" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="currentColor">
@@ -292,5 +295,26 @@
       padding-bottom: var(--s-2);
       padding-left: var(--banner-start-desktop, calc(var(--gutter) + var(--safe-left)));
     }
+  }
+
+  /*
+   * macOS titlebar mode: the traffic lights are centred about 30 px from the window top, so the
+   * title row sits on that line (28 px tall, centred at 30 px) and the title is smaller.
+   */
+  :global(html[data-form='desktop'][data-platform='macos']) .banner.titlebar {
+    justify-content: flex-start;
+    min-height: 0;
+    padding-top: 16px;
+    padding-bottom: var(--s-2);
+  }
+
+  :global(html[data-form='desktop'][data-platform='macos']) .banner.titlebar .main-row {
+    min-height: 28px;
+  }
+
+  :global(html[data-form='desktop'][data-platform='macos']) .banner.titlebar .title {
+    font-size: 15px;
+    line-height: 1.2;
+    letter-spacing: 0;
   }
 </style>
