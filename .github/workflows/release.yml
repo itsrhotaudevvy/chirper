@@ -76,6 +76,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.27"
+
       - name: Install Tauri Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -159,6 +163,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.27"
+
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
@@ -230,8 +238,8 @@ jobs:
 
       - name: Build universal APK and per-ABI APKs
         run: |
-          cargo tauri android build --apk
-          cargo tauri android build --apk --split-per-abi
+          tauri android build --apk
+          tauri android build --apk --split-per-abi
 
       - name: Verify per-ABI APKs
         run: |
@@ -267,6 +275,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.27"
 
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
         with:
@@ -336,19 +348,19 @@ jobs:
       # plugin's Swift package and src-tauri/Info.ios.plist are merged in by the Tauri CLI.
       - name: Generate the Xcode project
         if: hashFiles('src-tauri/gen/apple/project.yml') == ''
-        run: cargo tauri ios init --ci
+        run: tauri ios init --ci
 
       - name: Build iOS app (signed, App Store Connect)
         if: env.HAS_IOS_SIGNING == 'true'
         env:
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
-        run: cargo tauri ios build --export-method app-store-connect
+        run: tauri ios build --export-method app-store-connect
 
       - name: Build iOS app (simulator, unsigned)
         if: env.HAS_IOS_SIGNING != 'true'
         run: |
-          cargo tauri ios build --target aarch64-sim
-          cargo tauri ios build --target x86_64
+          tauri ios build --target aarch64-sim
+          tauri ios build --target x86_64
 
       - name: Upload signed IPA
         if: env.HAS_IOS_SIGNING == 'true'
