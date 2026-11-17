@@ -26,7 +26,7 @@ export type LoginView =
       instructions: string;
       url: string;
       extractJs: string;
-      waitForUrlPattern?: string;
+      waitForUrlPattern?: string | undefined;
       userAgent: string;
     }
   | { kind: 'complete'; loginId: string }

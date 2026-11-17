@@ -37,20 +37,21 @@ export const NETWORK_LOGOS: Record<string, string> = {
 
 export function networkLogoPath(id: string): string | null {
   const norm = id.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (NETWORK_LOGOS[norm]) return NETWORK_LOGOS[norm];
-  if (norm.includes('discord')) return NETWORK_LOGOS.discord;
-  if (norm.includes('whatsapp')) return NETWORK_LOGOS.whatsapp;
-  if (norm.includes('telegram')) return NETWORK_LOGOS.telegram;
-  if (norm.includes('signal')) return NETWORK_LOGOS.signal;
-  if (norm.includes('slack')) return NETWORK_LOGOS.slack;
-  if (norm.includes('fluxer')) return NETWORK_LOGOS.fluxer;
-  if (norm.includes('gmessage') || norm.includes('googlemessage')) return NETWORK_LOGOS.gmessages;
-  if (norm.includes('gvoice') || norm.includes('googlevoice')) return NETWORK_LOGOS.gvoice;
-  if (norm.includes('bluesky')) return NETWORK_LOGOS.bluesky;
-  if (norm.includes('twitter')) return NETWORK_LOGOS.twitter;
-  if (norm.includes('linkedin')) return NETWORK_LOGOS.linkedin;
-  if (norm.includes('instagram')) return NETWORK_LOGOS.instagram;
-  if (norm.includes('messenger') || norm.includes('meta')) return NETWORK_LOGOS.messenger;
+  const direct = NETWORK_LOGOS[norm];
+  if (direct) return direct;
+  if (norm.includes('discord')) return NETWORK_LOGOS['discord'] ?? null;
+  if (norm.includes('whatsapp')) return NETWORK_LOGOS['whatsapp'] ?? null;
+  if (norm.includes('telegram')) return NETWORK_LOGOS['telegram'] ?? null;
+  if (norm.includes('signal')) return NETWORK_LOGOS['signal'] ?? null;
+  if (norm.includes('slack')) return NETWORK_LOGOS['slack'] ?? null;
+  if (norm.includes('fluxer')) return NETWORK_LOGOS['fluxer'] ?? null;
+  if (norm.includes('gmessage') || norm.includes('googlemessage')) return NETWORK_LOGOS['gmessages'] ?? null;
+  if (norm.includes('gvoice') || norm.includes('googlevoice')) return NETWORK_LOGOS['gvoice'] ?? null;
+  if (norm.includes('bluesky')) return NETWORK_LOGOS['bluesky'] ?? null;
+  if (norm.includes('twitter')) return NETWORK_LOGOS['twitter'] ?? null;
+  if (norm.includes('linkedin')) return NETWORK_LOGOS['linkedin'] ?? null;
+  if (norm.includes('instagram')) return NETWORK_LOGOS['instagram'] ?? null;
+  if (norm.includes('messenger') || norm.includes('meta')) return NETWORK_LOGOS['messenger'] ?? null;
   return null;
 }
 

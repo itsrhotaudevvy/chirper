@@ -77,7 +77,7 @@ export interface CookiesStep {
   userAgent: string;
   fields: CookieField[];
   extractJs: string;
-  waitForUrlPattern?: string;
+  waitForUrlPattern?: string | undefined;
 }
 
 export interface LoginWebviewResult {

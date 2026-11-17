@@ -29,7 +29,11 @@ export function withMessage(list: readonly Message[], message: Message): Message
 export class MessagesStore {
   readonly #rooms = new SvelteMap<string, RoomTimeline>();
 
-  constructor(private readonly api: CoreApi = defaultCore) {}
+  private readonly api: CoreApi;
+
+  constructor(api: CoreApi = defaultCore) {
+    this.api = api;
+  }
 
   /**
    * Read-only view of a room. Safe to call from templates and $derived: it never writes state.

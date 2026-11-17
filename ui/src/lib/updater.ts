@@ -25,9 +25,9 @@ export interface UpdaterState {
   releaseNotes: string;
   downloadUrl: string;
   assetName: string;
-  error?: string;
-  lastChecked?: number;
-  dismissed?: boolean;
+  error?: string | undefined;
+  lastChecked?: number | undefined;
+  dismissed?: boolean | undefined;
 }
 
 const GITHUB_REPO = 'itsrhotaudevvy/chirper';

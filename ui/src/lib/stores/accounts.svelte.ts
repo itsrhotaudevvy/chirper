@@ -8,7 +8,11 @@ export class AccountsStore {
   networks = $state.raw<Network[]>([]);
   readonly #accounts = new SvelteMap<string, Account>();
 
-  constructor(private readonly api: CoreApi = defaultCore) {}
+  private readonly api: CoreApi;
+
+  constructor(api: CoreApi = defaultCore) {
+    this.api = api;
+  }
 
   readonly list = $derived([...this.#accounts.values()]);
 

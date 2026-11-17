@@ -33,7 +33,7 @@
   const resizeObserver = new ResizeObserver((entries) => {
     for (const entry of entries) {
       const el = entry.target as HTMLElement;
-      const key = el.dataset.key;
+      const key = el.dataset['key'];
       if (key === undefined) continue;
       const h = el.getBoundingClientRect().height;
       if (measured.get(key) !== h) measured.set(key, h);
@@ -44,11 +44,11 @@
 
   /** Svelte action: observes a row and records its key. */
   function observe(node: HTMLElement, key: string): { update: (k: string) => void; destroy: () => void } {
-    node.dataset.key = key;
+    node.dataset['key'] = key;
     resizeObserver.observe(node);
     return {
       update(next: string) {
-        node.dataset.key = next;
+        node.dataset['key'] = next;
       },
       destroy() {
         resizeObserver.unobserve(node);
@@ -130,8 +130,8 @@
     void items;
     untrack(() => {
       const el = anchorRow();
-      anchor = el && viewport && el.dataset.key
-        ? { key: el.dataset.key, el, offset: el.getBoundingClientRect().top - viewport.getBoundingClientRect().top }
+      anchor = el && viewport && el.dataset['key']
+        ? { key: el.dataset['key'], el, offset: el.getBoundingClientRect().top - viewport.getBoundingClientRect().top }
         : null;
     });
   });

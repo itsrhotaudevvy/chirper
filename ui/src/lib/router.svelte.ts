@@ -133,7 +133,7 @@ class Router {
   /** Applies a route, animated for phone and tablet. `write` says how the URL follows the route. */
   private move(route: Route, direction: NavDirection, write: HistoryWrite): void {
     const commit = (): void => this.set(route, write);
-    if (typeof document !== 'undefined') document.documentElement.dataset.nav = direction;
+    if (typeof document !== 'undefined') document.documentElement.dataset['nav'] = direction;
     if (ui.mode === 'split' || !canAnimate()) {
       commit();
       return;

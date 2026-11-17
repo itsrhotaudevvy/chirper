@@ -101,7 +101,10 @@ export class FakeCore implements CoreApi {
     telegram: { apiId: 0, apiHash: '' },
   };
 
-  constructor(private readonly now: () => number = Date.now) {
+  private readonly now: () => number;
+
+  constructor(now: () => number = Date.now) {
+    this.now = now;
     const world = createDemoWorld(now());
     this.networkList = world.networks;
     this.accountList = world.accounts;
@@ -404,9 +407,9 @@ export class FakeCore implements CoreApi {
   async openLoginWebview(args: {
     url: string;
     extractJs?: string;
-    waitForPattern?: string;
-    userAgent?: string;
-    title?: string;
+    waitForPattern?: string | undefined;
+    userAgent?: string | undefined;
+    title?: string | undefined;
   }): Promise<LoginWebviewResult> {
     void args;
     return { token: 'mock-discord-token-demo', cancelled: false };

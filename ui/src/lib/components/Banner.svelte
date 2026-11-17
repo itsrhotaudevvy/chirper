@@ -7,27 +7,27 @@
 
   interface Props {
     /** Network ids. One is a solid colour; several blend along the rainbow (blendForNetworks). */
-    networks?: string[];
+    networks?: string[] | undefined;
     /** Raw CSS colours. Several are blended into one gradient, for contexts that are not networks. */
-    colors?: string[];
+    colors?: string[] | undefined;
     /** Optional network id for a watermark logo in the bottom right corner. */
-    logo?: string;
+    logo?: string | undefined;
     /** One bold line. */
     title: string;
     /** Optional single action, shown as a light pill on the colour or combined with title if back/cancel. */
-    action?: { label: string; onclick: () => void };
+    action?: { label: string; onclick: () => void } | undefined;
     /** Optional status word under the title, for example "3 unread". */
-    status?: string;
+    status?: string | undefined;
     /** Trailing controls (icon buttons), on the title row. */
-    trailing?: Snippet;
+    trailing?: Snippet | undefined;
     /** Extra content under the title (kept short). */
-    children?: Snippet;
+    children?: Snippet | undefined;
     /** When true, animates the title out (e.g. when search takes over the header). */
-    hideTitle?: boolean;
+    hideTitle?: boolean | undefined;
     /** Optional explicit back handler to combine with the title. */
-    onback?: () => void;
+    onback?: () => void | undefined;
     /** On macOS desktop, put a small title on the traffic-light row, beside the window buttons. */
-    titlebar?: boolean;
+    titlebar?: boolean | undefined;
   }
 
   let {

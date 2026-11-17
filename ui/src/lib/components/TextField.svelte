@@ -4,17 +4,17 @@
   interface Props {
     /** Required: visible label above the field and its accessible name. */
     label: string;
-    value?: string;
-    type?: 'text' | 'password' | 'email' | 'tel' | 'url' | 'search';
-    placeholder?: string;
-    autocomplete?: HTMLInputAttributes['autocomplete'];
-    inputmode?: HTMLInputAttributes['inputmode'];
+    value?: string | undefined;
+    type?: 'text' | 'password' | 'email' | 'tel' | 'url' | 'search' | undefined;
+    placeholder?: string | undefined;
+    autocomplete?: HTMLInputAttributes['autocomplete'] | undefined;
+    inputmode?: HTMLInputAttributes['inputmode'] | undefined;
     /** One line of help or error text under the field. */
-    hint?: string;
+    hint?: string | undefined;
     /** Marks the hint as an error (warn colour, announced). */
-    invalid?: boolean;
-    disabled?: boolean;
-    onsubmit?: () => void;
+    invalid?: boolean | undefined;
+    disabled?: boolean | undefined;
+    onsubmit?: () => void | undefined;
   }
 
   let {

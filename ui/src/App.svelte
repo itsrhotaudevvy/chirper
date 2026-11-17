@@ -40,8 +40,8 @@
     void core
       .appInfo()
       .then((info) => {
-        root.dataset.platform = info.platform;
-        root.dataset.form = info.formFactor;
+        root.dataset['platform'] = info.platform;
+        root.dataset['form'] = info.formFactor;
       })
       .catch(() => undefined);
   }

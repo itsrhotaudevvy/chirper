@@ -4,10 +4,10 @@
 
   interface Props {
     message: string;
-    tone?: 'info' | 'warn' | 'danger';
-    action?: { label: string; onclick: () => void };
+    tone?: 'info' | 'warn' | 'danger' | undefined;
+    action?: { label: string; onclick: () => void } | undefined;
     /** Milliseconds before the toast asks to be removed. Errors stay until dismissed. */
-    duration?: number;
+    duration?: number | undefined;
     ondismiss: () => void;
   }
 

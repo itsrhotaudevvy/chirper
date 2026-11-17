@@ -93,9 +93,9 @@ export interface CoreApi {
   openLoginWebview(args: {
     url: string;
     extractJs?: string;
-    waitForPattern?: string;
-    userAgent?: string;
-    title?: string;
+    waitForPattern?: string | undefined;
+    userAgent?: string | undefined;
+    title?: string | undefined;
   }): Promise<LoginWebviewResult>;
   getAppPrefs(): Promise<AppPrefs>;
   setAppPrefs(args: { prefs: AppPrefs }): Promise<void>;

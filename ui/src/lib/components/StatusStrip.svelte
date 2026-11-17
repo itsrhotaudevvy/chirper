@@ -1,10 +1,10 @@
 <script lang="ts">
   interface Props {
     /** warn and danger are banner states (colour + one word); info is neutral. */
-    tone?: 'info' | 'warn' | 'danger';
+    tone?: 'info' | 'warn' | 'danger' | undefined;
     message: string;
     /** Optional single action word. */
-    action?: { label: string; onclick: () => void };
+    action?: { label: string; onclick: () => void } | undefined;
   }
 
   let { tone = 'info', message, action }: Props = $props();

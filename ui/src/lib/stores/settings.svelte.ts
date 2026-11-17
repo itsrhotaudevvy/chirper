@@ -37,11 +37,11 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
 export function sanitiseLocal(raw: unknown): LocalPrefs {
   const source = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   return {
-    theme: THEMES.includes(source.theme as string) ? (source.theme as ThemePref) : DEFAULT_LOCAL.theme,
-    accent: ACCENTS.includes(source.accent as string) ? (source.accent as AccentId) : DEFAULT_LOCAL.accent,
-    reduceMotion: typeof source.reduceMotion === 'boolean' ? source.reduceMotion : DEFAULT_LOCAL.reduceMotion,
-    autoUpdate: typeof source.autoUpdate === 'boolean' ? source.autoUpdate : true,
-    glass: typeof source.glass === 'boolean' ? source.glass : DEFAULT_LOCAL.glass ?? true,
+    theme: THEMES.includes(source['theme'] as string) ? (source['theme'] as ThemePref) : DEFAULT_LOCAL.theme,
+    accent: ACCENTS.includes(source['accent'] as string) ? (source['accent'] as AccentId) : DEFAULT_LOCAL.accent,
+    reduceMotion: typeof source['reduceMotion'] === 'boolean' ? source['reduceMotion'] : DEFAULT_LOCAL.reduceMotion,
+    autoUpdate: typeof source['autoUpdate'] === 'boolean' ? source['autoUpdate'] : true,
+    glass: typeof source['glass'] === 'boolean' ? source['glass'] : DEFAULT_LOCAL.glass ?? true,
   };
 }
 
@@ -59,7 +59,10 @@ class SettingsStore {
   glass = $state(DEFAULT_LOCAL.glass ?? true);
   app = $state<AppPrefs>({ ...DEFAULT_APP_PREFS });
 
-  constructor(private readonly api: CoreApi = core) {
+  private readonly api: CoreApi;
+
+  constructor(api: CoreApi = core) {
+    this.api = api;
     this.assignLocal(this.readLocal());
   }
 
