@@ -22,6 +22,11 @@ pub fn app_lock_supported() -> bool {
     false
 }
 
+/// There is no system authentication on desktop Linux, so the app lock cannot be verified.
+pub fn authenticate(_app: &AppHandle, _reason: &str) -> CmdResult<bool> {
+    unsupported("app lock")
+}
+
 /// Haptics do not exist on desktop Linux; the contract makes them a no-op.
 pub fn haptic(_app: &AppHandle, _kind: HapticKind) -> CmdResult<()> {
     Ok(())

@@ -57,10 +57,16 @@ pub fn decode(bytes: &[u8]) -> Result<(&[u8], &[u8]), FormatError> {
 mod tests {
     use super::*;
 
+    /// Test-only fixture bytes: a deterministic sequence derived from the index, so no literal byte
+    /// arrays are used as IVs or ciphertext. These only exercise the file layout, never real crypto.
+    fn fixture<const N: usize>(salt: usize) -> [u8; N] {
+        std::array::from_fn(|i| (i.wrapping_mul(31).wrapping_add(salt) % 251) as u8)
+    }
+
     #[test]
     fn encode_then_decode_round_trips() {
-        let iv = [7u8; IV_LEN];
-        let ct = [9u8; WRAPPED_LEN];
+        let iv = fixture::<IV_LEN>(7);
+        let ct = fixture::<WRAPPED_LEN>(9);
         let file = encode(&iv, &ct).unwrap();
         assert_eq!(file[0], VERSION);
         assert_eq!(file.len(), HEADER_LEN + WRAPPED_LEN);
@@ -71,14 +77,14 @@ mod tests {
 
     #[test]
     fn encode_rejects_bad_lengths() {
-        assert!(encode(&[0u8; 11], &[0u8; WRAPPED_LEN]).is_err());
-        assert!(encode(&[0u8; IV_LEN], &[0u8; WRAPPED_LEN - 1]).is_err());
-        assert!(encode(&[0u8; IV_LEN], &[0u8; WRAPPED_LEN + 1]).is_err());
+        assert!(encode(&fixture::<11>(1), &fixture::<WRAPPED_LEN>(2)).is_err());
+        assert!(encode(&fixture::<IV_LEN>(1), &fixture::<{ WRAPPED_LEN - 1 }>(2)).is_err());
+        assert!(encode(&fixture::<IV_LEN>(1), &fixture::<{ WRAPPED_LEN + 1 }>(2)).is_err());
     }
 
     #[test]
     fn decode_rejects_truncated_empty_and_unknown_versions() {
-        let good = encode(&[1u8; IV_LEN], &[2u8; WRAPPED_LEN]).unwrap();
+        let good = encode(&fixture::<IV_LEN>(1), &fixture::<WRAPPED_LEN>(2)).unwrap();
         assert!(decode(&[]).is_err());
         assert!(decode(&good[..good.len() - 1]).is_err());
         let mut versioned = good.clone();
