@@ -394,6 +394,13 @@
     background: var(--bg);
   }
 
+  /* Desktop glass: a translucent main container with a soft blur behind it (settings: Blur chat containers). */
+  :global(html[data-glass='true'][data-form='desktop']) .inbox {
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  }
+
   .list {
     flex: 1;
     min-height: 0;

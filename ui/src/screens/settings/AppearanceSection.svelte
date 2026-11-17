@@ -54,6 +54,7 @@
 </div>
 
 <Toggle label="Reduce motion" color={COLOUR} checked={settings.reduceMotion} onchange={(on) => settings.updateLocal({ reduceMotion: on })} />
+<Toggle label="Blur chat containers (desktop)" color={COLOUR} checked={settings.glass} onchange={(on) => settings.updateLocal({ glass: on })} />
 
 <style>
   .block {
