@@ -49,7 +49,10 @@
   style:--font={fontSize}
 >
   {#if url && !failed}
-    <img src={url} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />
+    <img src={url} alt="" loading="lazy" decoding="async" onerror={() => {
+      failed = true;
+      console.warn('[avatar] image did not load', url);
+    }} />
   {:else}
     <span class="initials" aria-hidden="true">{initials}</span>
   {/if}

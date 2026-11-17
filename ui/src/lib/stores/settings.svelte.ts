@@ -28,6 +28,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   closeToTray: true,
   launchAtLogin: false,
   haptics: true,
+  mutedNetworks: [],
 };
 
 /** Keeps only well-typed local values; anything else falls back to the default. */

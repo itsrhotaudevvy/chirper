@@ -52,7 +52,7 @@ const defaultMaxFileSize = httpsec.MaxMediaBytes
 func (dc *DiscordConnector) Init(bridge *bridgev2.Bridge) {
 	dc.br = bridge
 	dc.Config = Config{
-		SyncChannelLimit:     50,
+		SyncChannelLimit:     1000,
 		CustomEmojiReactions: true,
 		Backfill: BackfillConfig{
 			Enabled:       true,

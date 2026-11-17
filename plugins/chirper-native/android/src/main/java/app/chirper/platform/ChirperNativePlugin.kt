@@ -312,6 +312,8 @@ class ChirperNativePlugin(private val activity: Activity) : Plugin(activity) {
             )
             setBackgroundColor(Color.parseColor("#0E1517"))
         }
+        // The page lives in the dialog's layout. Without this the dialog shows only its background.
+        root.addView(webView)
 
         val settings = webView.settings
         settings.javaScriptEnabled = true

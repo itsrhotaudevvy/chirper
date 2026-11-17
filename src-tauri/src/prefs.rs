@@ -21,6 +21,8 @@ pub struct Prefs {
     pub close_to_tray: bool,
     pub launch_at_login: bool,
     pub haptics: bool,
+    /// Network ids (for example "whatsapp") whose messages never raise a notification.
+    pub muted_networks: Vec<String>,
 }
 
 impl Default for Prefs {
@@ -35,8 +37,14 @@ impl Default for Prefs {
             close_to_tray: true,
             launch_at_login: false,
             haptics: true,
+            muted_networks: Vec::new(),
         }
     }
+}
+
+/// Whether messages of `network` are kept from notifications by the user's choice.
+pub fn network_muted(prefs: &Prefs, network: &str) -> bool {
+    prefs.muted_networks.iter().any(|muted| muted == network)
 }
 
 impl Prefs {

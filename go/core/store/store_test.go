@@ -426,8 +426,8 @@ func TestReplyPreviewAndStateEvents(t *testing.T) {
 	if room.LastEventID != id2("reply") {
 		t.Errorf("state events must not become the preview event: last=%s", room.LastEventID)
 	}
-	if room.LastActivityTS != 120 {
-		t.Errorf("state events still count as activity: got %d", room.LastActivityTS)
+	if room.LastActivityTS != 110 {
+		t.Errorf("state events must not move the chat; activity should stay at the last message (110): got %d", room.LastActivityTS)
 	}
 }
 
@@ -520,3 +520,28 @@ func TestOlderEventKeepsThePreview(t *testing.T) {
 
 func strPtr(s string) *string { return &s }
 func boolPtr(b bool) *bool    { return &b }
+
+// A channel whose parent_id is the Discord guild ID still finds its server's name, because the
+// space's room ID is derived from the guild ID (!<guild>.<receiver>:server).
+func TestServerNameFoundFromDeterministicSpaceRoomID(t *testing.T) {
+	ctx := context.Background()
+	s := openTest(t)
+	space := id.RoomID("!12345.:chirper.local")
+	if err := s.UpsertRoom(ctx, &Room{RoomID: space, BridgeID: "discord", IsSpace: true, CreatedTS: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetRoomFields(ctx, space, RoomFields{Name: strPtr("Real Guild")}); err != nil {
+		t.Fatal(err)
+	}
+	channel := id.RoomID("!chan:chirper.local")
+	if err := s.UpsertRoom(ctx, &Room{RoomID: channel, BridgeID: "discord", Name: "general", ParentID: "12345", CreatedTS: 2}); err != nil {
+		t.Fatal(err)
+	}
+	servers, err := s.ListChats(ctx, ChatFilter{Network: "discord", ServersOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(servers) != 1 || servers[0].ServerName != "Real Guild" {
+		t.Fatalf("ServerName want 'Real Guild', got: %+v", servers)
+	}
+}

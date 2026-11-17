@@ -166,7 +166,33 @@ func upgradeSteps(last int) dbutil.UpgradeTable {
 	if last >= 4 {
 		steps = steps.WithRaw(3, 4, 4, "add room parent_id column", dbutil.TxnModeOn, migrateAddRoomParentID)
 	}
+	if last >= 5 {
+		steps = steps.WithRaw(4, 5, 5, "chat order by last message", dbutil.TxnModeOn, migrateActivityToMessages)
+	}
 	return steps.Finish()
+}
+
+// isMessageEvent reports whether an event type counts as a message for the chat list order.
+func isMessageEvent(eventType string) bool {
+	return eventType == typeMessage || eventType == typeSticker
+}
+
+// migrateActivityToMessages recomputes each chat's activity from its newest message. Earlier
+// versions also counted state events, which moved chats without a new message.
+func migrateActivityToMessages(ctx context.Context, db *dbutil.Database) error {
+	_, err := db.Exec(ctx, `
+		UPDATE room SET
+			last_activity_ts = COALESCE((
+				SELECT MAX(ts) FROM event
+				WHERE event.room_id = room.room_id AND event.state_key IS NULL
+					AND event.type IN ($1, $2)), created_ts),
+			last_event_id = COALESCE((
+				SELECT event_id FROM event
+				WHERE event.room_id = room.room_id AND event.state_key IS NULL
+					AND event.type IN ($1, $2)
+				ORDER BY ts DESC, ord DESC LIMIT 1), '')`,
+		typeMessage, typeSticker)
+	return err
 }
 
 func migrateAddRoomParentID(ctx context.Context, db *dbutil.Database) error {
@@ -201,7 +227,7 @@ func migrateAddRoomParentID(ctx context.Context, db *dbutil.Database) error {
 
 // Open opens (and migrates) the store at path. The file is created if it does not exist.
 func Open(ctx context.Context, path string) (*Store, error) {
-	return openWithUpgrades(ctx, path, upgradeSteps(4))
+	return openWithUpgrades(ctx, path, upgradeSteps(5))
 }
 
 // openWithUpgrades opens the store at path and migrates it with steps.

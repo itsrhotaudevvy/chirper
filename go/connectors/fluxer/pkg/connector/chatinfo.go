@@ -43,6 +43,8 @@ func (c *fluxerClient) channelChatInfo(ch fluxerapi.Channel, guildID string) *br
 		parent := networkid.PortalID(guildID)
 		info.ParentID = &parent
 		info.Name = ch.Name
+		// A channel shows the icon of the server it belongs to.
+		info.Avatar = c.guildChannelAvatar(guildID)
 		return info
 	}
 	if ch.Type == fluxerapi.ChannelGroupDM {
@@ -58,6 +60,9 @@ func (c *fluxerClient) channelChatInfo(ch fluxerapi.Channel, guildID string) *br
 		}
 		if ch.Icon != nil {
 			info.Avatar = c.avatar("/channel-icons/"+ch.ID, ch.Icon)
+		} else if len(ch.Recipients) > 0 {
+			// Without its own icon, a group shows the picture of its first member.
+			info.Avatar = c.avatar("/avatars/"+ch.Recipients[0].ID, ch.Recipients[0].Avatar)
 		}
 	} else {
 		info.Type = ptr.Ptr(database.RoomTypeDM)

@@ -97,28 +97,34 @@ func (c *DiscordClient) onReady(evt *discordgo.Ready) {
 	}
 }
 
+// onGuildCreate bridges a server as a space and its channels as rooms inside it, so that adding a
+// server brings in all of its channels, up to the per-server limit.
 func (c *DiscordClient) onGuildCreate(guild *discordgo.Guild) {
 	c.queueSpaceResync(guild)
 	for _, ch := range guild.Channels {
 		if !c.reserveGuildChannelSync(ch) {
-			return
+			continue
 		}
 		c.queueChannelResync(ch)
 	}
 }
 
-// reserveGuildChannelSync reports whether an eager channel portal may be created. Only the first
-// SyncChannelLimit guild channels are created up front; the rest are created lazily on first message.
+// reserveGuildChannelSync reports whether an eager channel portal may be created. Up to
+// SyncChannelLimit channels of each server are created up front; the rest are created lazily on
+// first message. The limit is counted per server, so one large server does not block the others.
 func (c *DiscordClient) reserveGuildChannelSync(ch *discordgo.Channel) bool {
 	if !isBridgeableGuildChannel(ch) {
 		return true
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.guildChannelsSynced >= c.Main.Config.SyncChannelLimit {
+	if c.guildChannelsSynced == nil {
+		c.guildChannelsSynced = map[string]int{}
+	}
+	if c.guildChannelsSynced[ch.GuildID] >= c.Main.Config.SyncChannelLimit {
 		return false
 	}
-	c.guildChannelsSynced++
+	c.guildChannelsSynced[ch.GuildID]++
 	return true
 }
 

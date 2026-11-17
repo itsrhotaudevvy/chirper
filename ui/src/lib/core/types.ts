@@ -268,6 +268,8 @@ export interface AppPrefs {
   closeToTray: boolean;
   launchAtLogin: boolean;
   haptics: boolean;
+  /** Network ids whose messages never raise a notification. */
+  mutedNetworks: string[];
 }
 
 export type PickKind = 'media' | 'file';

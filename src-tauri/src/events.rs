@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
+use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 use chirper_core::model::{CoreEvent, event_kind};
@@ -36,6 +37,7 @@ fn pump(app: &AppHandle, rx: &Receiver<CoreEvent>) {
     let mut batches: u64 = 0;
     while let Ok(first) = rx.recv() {
         let batch = collect_batch(first, rx, BATCH_MAX_ITEMS, BATCH_WINDOW);
+        remember_networks(&batch);
         for event in &batch {
             notify_if_needed(app, event);
         }
@@ -172,6 +174,36 @@ pub fn notice_text(payload: &str, hide_content: bool) -> Option<(String, String)
     Some((title, body))
 }
 
+/// The network of each room, learned from the chat events. Kept here, not fetched from the core, so
+/// that the event thread never waits on a core call.
+static ROOM_NETWORKS: LazyLock<Mutex<HashMap<String, String>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChatNetwork {
+    room_id: String,
+    network: String,
+}
+
+/// Records the network of every room named by a chat event of the batch.
+fn remember_networks(batch: &[CoreEvent]) {
+    let mut networks = ROOM_NETWORKS.lock().unwrap_or_else(|e| e.into_inner());
+    for event in batch.iter().filter(|e| e.kind == event_kind::CHAT) {
+        if let Ok(chat) = serde_json::from_str::<ChatNetwork>(event.payload.get()) {
+            networks.insert(chat.room_id, chat.network);
+        }
+    }
+}
+
+fn network_of_room(room_id: &str) -> Option<String> {
+    ROOM_NETWORKS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(room_id)
+        .cloned()
+}
+
 fn notify_if_needed(app: &AppHandle, event: &CoreEvent) {
     if event.kind != event_kind::MESSAGE {
         return;
@@ -188,6 +220,12 @@ fn notify_if_needed(app: &AppHandle, event: &CoreEvent) {
     let Some(room_id) = room_of(event) else {
         return;
     };
+    // A room whose network is unknown still notifies: a missing entry must not hide a message.
+    if network_of_room(&room_id)
+        .is_some_and(|network| crate::prefs::network_muted(&prefs, &network))
+    {
+        return;
+    }
     if let Err(e) = crate::platform::show_message(
         app,
         &room_id,

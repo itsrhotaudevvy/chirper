@@ -3,7 +3,7 @@
   import { untrack } from 'svelte';
   import { blendForNetworks } from '../spectrum';
   import Icon from './Icon.svelte';
-  import { networkLogoPath } from './networkLogos';
+  import { networkLogoFillRule, networkLogoPath } from './networkLogos';
 
   interface Props {
     /** Network ids. One is a solid colour; several blend along the rainbow (blendForNetworks). */
@@ -43,6 +43,7 @@
 
   const logoId = $derived(logo || (networks && networks.length === 1 ? networks[0] : null));
   const logoPath = $derived(logoId ? networkLogoPath(logoId) : null);
+  const logoRule = $derived(logoId ? networkLogoFillRule(logoId) : 'nonzero');
 
   /*
    * DESIGN 3.3 v2: banners are bright in every theme (the bright column, never the page theme),
@@ -84,7 +85,7 @@
   {#if logoPath}
     <div class="watermark-logo" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d={logoPath} />
+        <path d={logoPath} fill-rule={logoRule} />
       </svg>
     </div>
   {/if}

@@ -93,13 +93,14 @@ func (s *Store) InsertEvent(ctx context.Context, e *Event) (inserted bool, err e
 	return inserted, err
 }
 
+// touchRoom moves a chat in the list only when a message arrives. State events (members, names,
+// avatars) and other events (reactions, redactions) leave the chat where its last message put it,
+// so the chat list stays ordered by the date of the last message.
 func (s *Store) touchRoom(ctx context.Context, e *Event) error {
-	if e.StateKey != nil {
-		_, err := s.db.Exec(ctx, `UPDATE room SET last_activity_ts = MAX(last_activity_ts, $2) WHERE room_id = $1`,
-			e.RoomID, e.TS)
-		return err
+	if e.StateKey != nil || !isMessageEvent(e.Type) {
+		return nil
 	}
-	// The preview follows the newest event by timestamp, so an older event inserted later
+	// The preview follows the newest message by timestamp, so an older message inserted later
 	// (backfill) does not replace it. SQLite evaluates the SET expressions on the old row.
 	_, err := s.db.Exec(ctx, `
 		UPDATE room SET

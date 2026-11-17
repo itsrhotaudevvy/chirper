@@ -92,6 +92,7 @@ export class FakeCore implements CoreApi {
     closeToTray: true,
     launchAtLogin: false,
     haptics: true,
+    mutedNetworks: [],
   };
   private settingsValue: CoreSettings = {
     demoNetwork: true,
