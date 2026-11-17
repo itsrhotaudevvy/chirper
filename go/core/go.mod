@@ -38,11 +38,11 @@ require (
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/mattn/go-sqlite3 v1.14.52
+	github.com/mattn/go-sqlite3 v1.14.53
 	github.com/rs/zerolog v1.35.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	go.mau.fi/util v0.11.1-0.20261026174803-9e6b9c87cfbc
-	golang.org/x/image v0.47.0
+	golang.org/x/image v0.48.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	maunium.net/go/mautrix v0.32.1-0.20261111005907-b2652e840224
