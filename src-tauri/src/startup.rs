@@ -47,7 +47,9 @@ fn open(app: &AppHandle) -> Result<(), String> {
                 || msg.contains("database disk image is malformed")
                 || msg.contains("not a database")
             {
-                log::warn!("database unreadable or key mismatched ({msg}), recreating data directory");
+                log::warn!(
+                    "database unreadable or key mismatched ({msg}), recreating data directory"
+                );
                 let _ = std::fs::remove_dir_all(state.core_dir());
                 Core::open(backend, state.core_dir(), key.as_ref())
                     .map_err(|e2| format!("cannot open the core after reset: {e2}"))?
