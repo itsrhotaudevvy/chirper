@@ -228,9 +228,9 @@ jobs:
             echo "keyPassword=$ANDROID_KEY_PASSWORD"
           } > src-tauri/gen/android/keystore.properties
 
-      - name: Build universal APK, AAB and per-ABI APKs
+      - name: Build universal APK and per-ABI APKs
         run: |
-          cargo tauri android build --apk --aab
+          cargo tauri android build --apk
           cargo tauri android build --apk --split-per-abi
 
       - name: Verify per-ABI APKs
@@ -256,7 +256,6 @@ jobs:
             src-tauri/gen/android/app/build/outputs/apk/**/*-armeabi-v7a-release*.apk
             src-tauri/gen/android/app/build/outputs/apk/**/*-x86_64-release*.apk
             src-tauri/gen/android/app/build/outputs/apk/**/*-x86-release*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
 
   ios:
     name: iOS
