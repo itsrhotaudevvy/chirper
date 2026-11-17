@@ -10,7 +10,7 @@ require (
 	github.com/bwmarrin/discordgo v0.0.0-00010101000000-000000000000
 	github.com/coder/websocket v1.8.15
 	github.com/gorilla/websocket v1.5.3
-	github.com/yuin/goldmark v1.8.6
+	github.com/yuin/goldmark v1.8.7
 	go.mau.fi/util v0.11.0
 	maunium.net/go/mautrix v0.0.0-00010101000000-000000000000
 )
