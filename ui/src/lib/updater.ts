@@ -1,4 +1,4 @@
-import { core, type Platform } from './core';
+import { core, isTauri, type Platform } from './core';
 
 export interface GitHubReleaseAsset {
   name: string;
@@ -161,6 +161,9 @@ class UpdaterStore {
   /** Checks GitHub Releases for an update and downloads automatically if autoDownload is true. */
   async checkForUpdates(opts: { autoDownload?: boolean; silent?: boolean } = {}): Promise<void> {
     const { autoDownload = true, silent = false } = opts;
+
+    // The browser build is fully offline: it never contacts GitHub. Only the desktop and mobile apps update.
+    if (!isTauri()) return;
 
     let appInfo = { version: '0.1.0', platform: 'macos' as Platform };
     try {
