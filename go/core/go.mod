@@ -153,7 +153,7 @@ require (
 	github.com/whyrusleeping/cbor-gen v0.2.1-0.20241030202151-b7a6831be65e // indirect
 	github.com/whyrusleeping/go-did v0.0.0-20240828165449-bcaa7ae21371 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	github.com/yuin/goldmark v1.8.6 // indirect
+	github.com/yuin/goldmark v1.8.7 // indirect
 	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.mau.fi/libsignal v0.2.3-0.20261103023201-5ce3f7a54370 // indirect
