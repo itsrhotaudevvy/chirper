@@ -231,7 +231,9 @@
     line-height: 1.1;
     display: flex;
     align-items: center;
-    overflow-wrap: anywhere;
+    /* Keep titles on one line: never break inside a word ("Ch/ats"). */
+    white-space: nowrap;
+    min-width: 0;
     color: var(--on-banner);
     letter-spacing: -0.01em;
   }
