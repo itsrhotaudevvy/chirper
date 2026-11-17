@@ -149,7 +149,7 @@ jobs:
           path: target/${{ matrix.tauri-triple }}/release/bundle/**/*.{dmg,exe,msi,AppImage,deb,rpm}
 
   android:
-    name: Android (APK + AAB)
+    name: Android (APK)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
