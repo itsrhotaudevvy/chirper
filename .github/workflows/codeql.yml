@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           for module in go/core go/connectors/discord go/connectors/fluxer; do
-            (cd "$module" && go build ./...)
+            (cd "$module" && go build -a ./...)
           done
 
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3

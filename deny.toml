@@ -27,6 +27,8 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Workspace path dependencies are not version-pinned; they are part of this repo.
+allow-wildcard-paths = true
 highlight = "all"
 
 [sources]
