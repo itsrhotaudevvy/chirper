@@ -18,22 +18,22 @@ default = []
 mock = ["chirper-core/mock"]
 
 [dependencies]
-tauri = { version = "=2.12.5", features = ["tray-icon", "image-png"] }
-tauri-plugin-deep-link = "=2.4.10"
+tauri = { version = "=2.12.6", features = ["tray-icon", "image-png"] }
+tauri-plugin-deep-link = "=2.6.3"
 tauri-plugin-dialog = "=2.8.4"
-tauri-plugin-notification = "=2.4.0"
+tauri-plugin-notification = "=2.8.1"
 tauri-plugin-opener = "=2.7.3"
 tauri-plugin-os = "=2.4.0"
 log = "=0.4.35"
 percent-encoding = "=2.3.2"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.154", features = ["raw_value"] }
-zeroize = "=1.9.1"
+zeroize = "=1.9.2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-single-instance = { version = "=2.4.5", features = ["deep-link"] }
-tauri-plugin-window-state = "=2.4.1"
-tauri-plugin-autostart = "=2.5.1"
+tauri-plugin-single-instance = { version = "=2.5.5", features = ["deep-link"] }
+tauri-plugin-window-state = "=2.5.0"
+tauri-plugin-autostart = "=2.7.0"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-haptics = "=2.4.2"
@@ -61,7 +61,7 @@ windows = { version = "=0.62.2", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus = "=5.19.0"
+zbus = "=6.3.0"
 
 # The Go core is linked statically on Apple targets and loaded at runtime elsewhere.
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.chirper-core]
@@ -73,4 +73,4 @@ path = "../crates/chirper-core"
 features = ["dynamic-link"]
 
 [build-dependencies]
-tauri-build = { version = "=2.7.4", features = [] }
+tauri-build = { version = "=2.7.5", features = [] }

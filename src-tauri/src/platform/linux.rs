@@ -5,8 +5,7 @@
 use std::collections::HashMap;
 
 use tauri::AppHandle;
-use zbus::blocking::Connection;
-use zbus::zvariant::Value;
+use zbus::Variant;
 
 use super::{HapticKind, unsupported};
 use crate::error::CmdResult;
@@ -42,19 +41,24 @@ pub fn set_badge(_app: &AppHandle, count: i64) -> CmdResult<()> {
 }
 
 fn publish_count(count: i64) -> zbus::Result<()> {
-    let connection = Connection::session()?;
-    let properties: HashMap<&str, Value<'_>> = HashMap::from([
-        ("count", Value::from(count)),
-        ("count-visible", Value::from(count > 0)),
-    ]);
-    // A broadcast: the signal has no destination bus name.
-    connection.emit_signal(
-        None::<&str>,
-        LAUNCHER_PATH,
-        LAUNCHER_INTERFACE,
-        "Update",
-        &(APPLICATION_URI, properties),
-    )
+    // zbus 6 is async; the badge path is synchronous, so run the emit on zbus's own runtime.
+    zbus::block_on(async {
+        let connection = zbus::Connection::session().await?;
+        let properties: HashMap<&str, Variant<'_>> = HashMap::from([
+            ("count", Variant::from(count)),
+            ("count-visible", Variant::from(count > 0)),
+        ]);
+        // A broadcast: the signal has no destination bus name.
+        connection
+            .emit_signal(
+                None::<&str>,
+                LAUNCHER_PATH,
+                LAUNCHER_INTERFACE,
+                "Update",
+                &(APPLICATION_URI, properties),
+            )
+            .await
+    })
 }
 
 /// X11 and Wayland have no portable way to exclude a window from capture.
