@@ -57,16 +57,18 @@ pub fn decode(bytes: &[u8]) -> Result<(&[u8], &[u8]), FormatError> {
 mod tests {
     use super::*;
 
-    /// Test-only fixture bytes: a deterministic sequence derived from the index, so no literal byte
-    /// arrays are used as IVs or ciphertext. These only exercise the file layout, never real crypto.
-    fn fixture<const N: usize>(salt: usize) -> [u8; N] {
-        std::array::from_fn(|i| (i.wrapping_mul(31).wrapping_add(salt) % 251) as u8)
+    /// Test-only fixture bytes, filled from the OS random source at run time. The tests check the
+    /// file layout only; the bytes are never used as keys or IVs.
+    fn fixture<const N: usize>() -> [u8; N] {
+        let mut bytes = [0u8; N];
+        getrandom::fill(&mut bytes).expect("OS random source is available in tests");
+        bytes
     }
 
     #[test]
     fn encode_then_decode_round_trips() {
-        let iv = fixture::<IV_LEN>(7);
-        let ct = fixture::<WRAPPED_LEN>(9);
+        let iv = fixture::<IV_LEN>();
+        let ct = fixture::<WRAPPED_LEN>();
         let file = encode(&iv, &ct).unwrap();
         assert_eq!(file[0], VERSION);
         assert_eq!(file.len(), HEADER_LEN + WRAPPED_LEN);
@@ -77,14 +79,14 @@ mod tests {
 
     #[test]
     fn encode_rejects_bad_lengths() {
-        assert!(encode(&fixture::<11>(1), &fixture::<WRAPPED_LEN>(2)).is_err());
-        assert!(encode(&fixture::<IV_LEN>(1), &fixture::<{ WRAPPED_LEN - 1 }>(2)).is_err());
-        assert!(encode(&fixture::<IV_LEN>(1), &fixture::<{ WRAPPED_LEN + 1 }>(2)).is_err());
+        assert!(encode(&fixture::<11>(), &fixture::<WRAPPED_LEN>()).is_err());
+        assert!(encode(&fixture::<IV_LEN>(), &fixture::<{ WRAPPED_LEN - 1 }>()).is_err());
+        assert!(encode(&fixture::<IV_LEN>(), &fixture::<{ WRAPPED_LEN + 1 }>()).is_err());
     }
 
     #[test]
     fn decode_rejects_truncated_empty_and_unknown_versions() {
-        let good = encode(&fixture::<IV_LEN>(1), &fixture::<WRAPPED_LEN>(2)).unwrap();
+        let good = encode(&fixture::<IV_LEN>(), &fixture::<WRAPPED_LEN>()).unwrap();
         assert!(decode(&[]).is_err());
         assert!(decode(&good[..good.len() - 1]).is_err());
         let mut versioned = good.clone();
