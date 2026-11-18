@@ -3,6 +3,18 @@
 
 [advisories]
 version = 2
+# Unmaintained-crate notices with no safe upgrade available yet. Accepted explicitly by the maintainer
+# until the upstream dependencies move. Each is a maintenance notice, not a known vulnerability.
+ignore = [
+  # zbus 5 (zvariant, zbus_names, zvariant_derive) is still used by Tauri's notification, opener and
+  # single-instance plugins and by the Linux keyring (keyring -> secret-service). The app's own code
+  # uses zbus 6. Remove these when Tauri and secret-service move to zbus 6.
+  { id = "RUSTSEC-2026-0370", reason = "zvariant 5 via zbus 5 in Tauri plugins and the Linux keyring; no safe upgrade yet" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names 4 via zbus 5 in Tauri plugins and the Linux keyring; no safe upgrade yet" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 5 via zbus 5 in Tauri plugins and the Linux keyring; no safe upgrade yet" },
+  # proc-macro-error is a build-time dependency of Tauri's GTK bindings (Linux only).
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error via Tauri's GTK bindings; build-time only, no safe upgrade yet" },
+]
 
 [licenses]
 version = 2
