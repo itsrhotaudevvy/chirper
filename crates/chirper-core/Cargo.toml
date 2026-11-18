@@ -1,6 +1,6 @@
 [package]
 name = "chirper-core"
-description = "Safe Rust wrapper over the Chirper Go core C ABI"
+description = "Chirper's on-device core: timeline store, engine, bridge runtime host and the app facade"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,25 +8,30 @@ rust-version.workspace = true
 publish = false
 
 [features]
-default = []
-# Link the Go core as a static archive (macOS, iOS).
-static-link = []
-# Load the Go core as a shared library at runtime (Windows, Linux, Android).
-dynamic-link = ["dep:libloading"]
-# In-memory fake backend for tests and UI development.
+default = ["sqlite-plain"]
+# Plain SQLite, for development and tests. Never shipped encrypted-by-default builds.
+sqlite-plain = ["rusqlite/bundled"]
+# SQLCipher at rest. Mutually exclusive with `sqlite-plain`; release builds use this one.
+sqlcipher = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
+# The in-app demo network, for UI development and tests.
 mock = []
 
 [dependencies]
+chirper-bridge = { path = "../chirper-bridge" }
+chirper-net-testnet = { path = "../chirper-net-testnet" }
+chirper-net-discord = { path = "../chirper-net-discord" }
+aes-gcm = "=0.11.1"
+async-trait = "=0.1.92"
+getrandom = "=0.4.3"
+hex = "=0.4.3"
+log = "=0.4.35"
+rusqlite = { version = "=0.43.0", default-features = false }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.154", features = ["raw_value"] }
 thiserror = "=2.0.21"
-tokio = { version = "=1.54.1", features = ["rt", "sync"] }
-zeroize = "=1.9.1"
-getrandom = "=0.4.3"
-libloading = { version = "=0.9.1", optional = true }
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "sync", "time", "fs", "macros"] }
+zeroize = { version = "=1.9.2", features = ["derive"] }
 
-[target.'cfg(not(target_os = "android"))'.dependencies]
-keyring = { version = "=4.2.0", default-features = false, features = ["v1"] }
 
 [dev-dependencies]
 tokio = { version = "=1.54.1", features = ["macros", "rt-multi-thread"] }

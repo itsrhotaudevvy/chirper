@@ -49,18 +49,19 @@ impl CmdError {
     }
 }
 
-impl From<chirper_core::CoreError> for CmdError {
-    fn from(err: chirper_core::CoreError) -> Self {
-        use chirper_core::CoreError;
+impl From<chirper_core::Error> for CmdError {
+    fn from(err: chirper_core::Error) -> Self {
+        use chirper_core::Error;
         match err {
-            CoreError::InvalidInput(field) => Self::invalid(&field),
-            CoreError::Closed => Self::not_ready(),
-            CoreError::Io(e) => Self::new(code::IO, e.to_string()),
-            CoreError::Go(message) => Self::new(code::CORE, message),
-            CoreError::Ffi(message) | CoreError::KeyStore(message) => {
-                Self::new(code::CORE, message)
-            }
-            CoreError::Json(e) => Self::new(code::CORE, e.to_string()),
+            Error::InvalidInput(field) => Self::invalid(&field),
+            Error::Closed => Self::not_ready(),
+            Error::Io(e) => Self::new(code::IO, e.to_string()),
+            Error::Store(e) => Self::new(code::CORE, e.to_string()),
+            Error::Json(e) => Self::new(code::CORE, e.to_string()),
+            Error::NotFound => Self::new(code::CORE, "not found"),
+            Error::NotConnected => Self::new(code::CORE, "the account is not connected"),
+            Error::Unsupported(what) => Self::new(code::UNSUPPORTED, what),
+            Error::Failed(message) => Self::new(code::CORE, message),
         }
     }
 }
@@ -84,15 +85,19 @@ mod tests {
 
     #[test]
     fn core_errors_map_to_contract_codes() {
-        use chirper_core::CoreError;
-        assert_eq!(CmdError::from(CoreError::Closed).code, code::NOT_READY,);
+        use chirper_core::Error;
+        assert_eq!(CmdError::from(Error::Closed).code, code::NOT_READY);
         assert_eq!(
-            CmdError::from(CoreError::InvalidInput("room id".into())).code,
+            CmdError::from(Error::InvalidInput("room id".into())).code,
             code::INVALID_INPUT,
         );
         assert_eq!(
-            CmdError::from(CoreError::Go("boom".into())).code,
+            CmdError::from(Error::Failed("boom".into())).code,
             code::CORE,
+        );
+        assert_eq!(
+            CmdError::from(Error::Unsupported("voice".into())).code,
+            code::UNSUPPORTED,
         );
     }
 }

@@ -17,14 +17,33 @@ use crate::state::AppState;
 pub const EVENT_CORE_BATCH: &str = "core-batch";
 pub const BATCH_WINDOW: Duration = Duration::from_millis(16);
 pub const BATCH_MAX_ITEMS: usize = 256;
+/// How many events may wait between the core and the batching thread.
+const EVENT_QUEUE: usize = 8192;
 
 const NOTIFY_TITLE: &str = "Chirper";
 const NOTIFY_HIDDEN_BODY: &str = "New message";
 const NOTIFY_MAX_CHARS: usize = 200;
 
-/// Starts the thread that turns core events into `core-batch` events. It ends when the core is
-/// closed and the channel disconnects.
-pub fn spawn_pump(app: AppHandle, rx: Receiver<CoreEvent>) {
+/// Starts the thread that turns core events into `core-batch` events. The core's stream is async,
+/// so a small forwarder moves events onto a blocking channel the batching thread can time out on.
+/// It ends when the core is shut down.
+pub fn spawn_pump(app: AppHandle, mut events: chirper_core::EventStream) {
+    let (tx, rx) = std::sync::mpsc::sync_channel::<CoreEvent>(EVENT_QUEUE);
+    let forwarded = std::thread::Builder::new()
+        .name("core-events-forward".into())
+        .spawn(move || {
+            tauri::async_runtime::block_on(async move {
+                while let Some(event) = events.recv().await {
+                    if tx.send(event).is_err() {
+                        break;
+                    }
+                }
+            });
+        });
+    if let Err(e) = forwarded {
+        log::error!("cannot start the event forwarder: {e}");
+        return;
+    }
     let spawned = std::thread::Builder::new()
         .name("core-events".into())
         .spawn(move || pump(&app, &rx));

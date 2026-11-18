@@ -11,7 +11,7 @@ Chirper brings 13 chat networks directly onto your device into a unified inbox w
 | **WhatsApp** | WhatsApp Web Protocol | QR Code pairing | Native E2EE (Noise + Signal) | Images, Video, Audio, Docs | Full | Full |
 | **Signal** | Signal WebSocket / REST | QR Linked Device | Native E2EE (Signal Protocol) | Images, Video, Audio, Docs | Full | Full |
 | **Telegram** | MTProto v2.0 | Phone + SMS / QR | Server-encrypted (Secret chats client-side) | Full multimedia & stickers | Full | Full |
-| **Discord** | Discord Gateway / REST | Token / QR Login | TLS | Images, Video, Embeds, Audio | Full + Custom Emojis | Full |
+| **Discord** | Discord Gateway / REST | Token (user or bot) | TLS | Images, Video, Embeds, Audio | Full + Custom Emojis | Full |
 | **Slack** | Slack Events / Web API | OAuth / User Token | TLS | Files, Images, Snippets | Full + Custom Reactions | Channel markers |
 | **Messenger** | Meta MQTT / Graph | Browser session / cookies | Native E2EE (where enabled) | Images, Audio, Video | Full | Full |
 | **Instagram** | Meta MQTT / Private API | User / Pass / 2FA | TLS / E2EE DMs | Photos, Reels, Voice notes | Full | Full |
@@ -20,7 +20,7 @@ Chirper brings 13 chat networks directly onto your device into a unified inbox w
 | **Google Messages** | Google Messages Web (RCS) | QR Code web pairing | RCS E2EE supported | Rich RCS Media, Audio | Full | Full |
 | **Google Voice** | Google Voice Web API | Google Account Session | TLS | SMS & MMS, Voicemail | Text replies | Basic |
 | **LinkedIn** | LinkedIn Voyager API | Cookie session | TLS | Attachments, Images | Direct replies | Basic |
-| **Fluxer** | Fluxer Decentralized API | Ed25519 Keypair | Native E2EE | Distributed storage | Full | Full |
+| **Fluxer** | Fluxer Decentralized API | Ed25519 Keypair | Native E2EE | Distributed storage | Not ported yet | Not ported yet |
 
 ---
 
@@ -42,7 +42,8 @@ Chirper brings 13 chat networks directly onto your device into a unified inbox w
 
 ### 2.4 Discord
 - **Bridge**: `go/connectors/discord`
-- **Pairing**: User authorization token or Discord mobile QR login. Direct gateway connection with heartbeats managed in the Go engine.
+- **Pairing**: User authorization token, or a bot token starting with `Bot `. The Rust driver
+  (`crates/chirper-net-discord`) owns the gateway connection and its heartbeats.
 
 ### 2.5 Google Messages (RCS)
 - **Bridge**: `third_party/gmessages` (mautrix-gmessages)

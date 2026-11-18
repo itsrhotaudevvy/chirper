@@ -1,6 +1,13 @@
 [workspace]
 resolver = "3"
-members = ["crates/chirper-core", "plugins/chirper-native", "src-tauri"]
+members = [
+    "crates/chirper-bridge",
+    "crates/chirper-core",
+    "crates/chirper-net-testnet",
+    "crates/chirper-net-discord",
+    "plugins/chirper-native",
+    "src-tauri",
+]
 
 [workspace.package]
 version = "0.2.1"

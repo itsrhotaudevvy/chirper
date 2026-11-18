@@ -1,21 +1,33 @@
 # Rust core port (branch rust-core-port)
 
 ## Decided
-- **Scope:** the core (engine, store, media, security, facade and the C ABI) moves to Rust.
-  The protocol bridges (third_party/*, connectors/discord, connectors/fluxer) stay Go.
-- **Boundary:** Rust hosts the app. The bridges are built as a Go c-archive/c-shared library and
-  linked into the Rust binary, which works on iOS and Android (no sidecar processes).
-  Go calls back into Rust through function pointers registered at start-up for storage and events.
+- The core (store, engine, media, security, facade) and the bridge runtime are **all Rust**.
+  There is no Go runtime, no cgo and no C ABI: the UI talks to `chirper-core` through the same
+  camelCase JSON contract as before (`docs/CONTRACT.md` is unchanged).
+- Drivers speak their own protocol and emit domain events (`chirper_bridge::Event`). The unified
+  `chirper_bridge::Runtime` owns reconnection, backoff, session states, id derivation and the
+  event stream. See `docs/RUST_BRIDGE_ARCHITECTURE.md`.
+- On-disk compatibility is a hard requirement: the same `chirper.db` schema (v1–v5 verbatim, v6
+  for remote ids and logins), the same deterministic ids, and the same `OCV1` media vault.
+- `#![forbid(unsafe_code)]` in the core and in every driver.
 
 ## Current state
-- `crates/chirper-core` is a thin FFI wrapper that loads the Go C ABI. It flips direction in this port:
-  the Rust core becomes the owner and the Go side becomes the bridge library.
-- The Go core (`go/core`, about 22.8k lines) is still the implementation. Nothing has been ported yet.
+| Area | State |
+| --- | --- |
+| `crates/chirper-bridge` | Runtime, ids, model, network traits, secret/file plumbing. Done. |
+| `crates/chirper-core` | Store (v1–v6), content codec (new + legacy Go reader), engine, facade, media vault. Done. |
+| `crates/chirper-net-testnet` | In-app demo network used by tests and the UI build. Done. |
+| `crates/chirper-net-discord` | REST v10 + gateway driver: login, chats, messages, edits, redactions, reactions, typing, backfill, attachments. Not yet exercised against a live account. |
+| `src-tauri` | Migrated to `Core::open(Options)`; desktop DB key lives in the OS keyring (`src/keystore.rs`). |
+| Fluxer | Not ported. Listed as unavailable with a reason, like Telegram, Signal, WhatsApp, Facebook, Instagram, iMessage and SMS. |
+| Go tree (`go/`) | Still present, no longer linked by the app. Deleted once the golden fixtures are captured from it. |
 
-## Phases
-1. Rust store: SQLCipher through rusqlite, with the same schema and migrations as `go/core/store`.
-2. Rust security and keystore: `go/core/security`, `chirper-core/src/keystore.rs`.
-3. Rust media: `go/core/media`.
-4. Rust engine and facade: `go/core/engine`, `go/core/facade`, and the dispatch table in `go/core/capi`.
-5. Go bridge library: `go/core/capi` is reduced to the bridge side, calling back into Rust for store and events.
-6. Remove the Go core modules that are no longer used. Keep the bridges until each one is ported.
+## Remaining work
+1. Capture golden fixtures from the Go implementation (`go/core/e2e_test.go` and the facade tests)
+   into `crates/chirper-core/tests/golden/` so the wire contract and the derived ids stay pinned.
+2. Exercise the Discord driver against a live account (login, send, edit, redact, reaction, backfill)
+   and fix what the real API disagrees with.
+3. Port Fluxer, then the remaining networks listed in `engine/networks.rs`.
+4. Delete `go/`, `third_party/pins.txt`, `scripts/build-go.sh`, `scripts/fetch-third-party.sh` and the
+   Go/cgo CI jobs; drop the `cbindgen`/C-header artefacts.
+5. Refresh `ARCHITECTURE.md`, `BUILDING.md` and `NETWORKS.md` for the all-Rust layout.

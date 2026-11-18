@@ -105,7 +105,7 @@ impl AppState {
 
     pub fn close_core(&self) {
         if let Some(core) = self.core.get() {
-            core.close();
+            core.shutdown();
         }
     }
 

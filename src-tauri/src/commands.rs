@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use chirper_core::api::MediaUpload;
+use chirper_core::MediaUpload;
 use chirper_core::model::{
     Account, Chat, ChatFilter, ChatFlags, CoreSettings, LoginState, LoginStepType, Message, Network,
 };

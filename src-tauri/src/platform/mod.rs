@@ -112,11 +112,7 @@ pub fn form_factor(_app: &AppHandle) -> &'static str {
     not(feature = "mock")
 ))]
 pub fn load_db_key(_app: &AppHandle) -> Result<Option<zeroize::Zeroizing<[u8; 32]>>, String> {
-    use chirper_core::keystore::KeyStore;
-    chirper_core::keystore::OsKeyStore
-        .load_or_create()
-        .map(Some)
-        .map_err(|e| e.to_string())
+    crate::keystore::load_or_create().map(Some)
 }
 
 #[cfg(all(not(any(target_os = "android", target_os = "ios")), feature = "mock"))]

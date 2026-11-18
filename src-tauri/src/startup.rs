@@ -1,15 +1,10 @@
 //! Opens the core off the UI thread. It emits `core-ready` once the core is open and started, or
 //! `core-failed` with a message that never contains user data.
 
-use std::sync::Arc;
-
-use chirper_core::Core;
-#[cfg(not(feature = "mock"))]
-use chirper_core::ffi::Backend;
-#[cfg(feature = "mock")]
-use chirper_core::ffi::MockBackend;
+use chirper_core::{Core, Options};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
+use zeroize::Zeroizing;
 
 use crate::state::AppState;
 
@@ -38,28 +33,8 @@ pub fn spawn(app: AppHandle) {
 fn open(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let key = crate::platform::load_db_key(app)?;
-    let (backend, backend_name) = backend()?;
-    let (core, events) = match Core::open(backend.clone(), state.core_dir(), key.as_ref()) {
-        Ok(res) => res,
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("file is not a database")
-                || msg.contains("database disk image is malformed")
-                || msg.contains("not a database")
-            {
-                log::warn!(
-                    "database unreadable or key mismatched ({msg}), recreating data directory"
-                );
-                let _ = std::fs::remove_dir_all(state.core_dir());
-                Core::open(backend, state.core_dir(), key.as_ref())
-                    .map_err(|e2| format!("cannot open the core after reset: {e2}"))?
-            } else {
-                return Err(format!("cannot open the core: {e}"));
-            }
-        }
-    };
-    log::info!("core opened with the {backend_name} backend");
-
+    let dir = state.core_dir().to_path_buf();
+    let (core, events) = tauri::async_runtime::block_on(open_core(dir, key))?;
     crate::events::spawn_pump(app.clone(), events);
     tauri::async_runtime::block_on(core.start())
         .map_err(|e| format!("cannot start the core: {e}"))?;
@@ -68,8 +43,36 @@ fn open(app: &AppHandle) -> Result<(), String> {
     }
     crate::deep_link::flush_pending(app);
     tauri::async_runtime::block_on(sync_background_service(app, &core));
-    smoke_test_mock(&core);
     Ok(())
+}
+
+/// Open the database, recreating the data directory when the file is unreadable or the key does not
+/// match. Losing local history is bad; refusing to start forever is worse.
+async fn open_core(
+    dir: std::path::PathBuf,
+    key: Option<Zeroizing<[u8; 32]>>,
+) -> Result<(Core, chirper_core::EventStream), String> {
+    let options = Options {
+        data_dir: dir.clone(),
+        db_key: key.as_ref().map(|k| **k),
+        demo_network: cfg!(feature = "mock"),
+    };
+    match Core::open(options.clone()) {
+        Ok(res) => Ok(res),
+        Err(e) => {
+            let message = e.to_string();
+            let unreadable = message.contains("file is not a database")
+                || message.contains("database disk image is malformed")
+                || message.contains("not a database")
+                || message.contains("code 26");
+            if !unreadable {
+                return Err(format!("cannot open the core: {message}"));
+            }
+            log::warn!("database unreadable or key mismatched ({message}), recreating the data directory");
+            let _ = std::fs::remove_dir_all(&dir);
+            Core::open(options).map_err(|e2| format!("cannot open the core after reset: {e2}"))
+        }
+    }
 }
 
 /// Keeps the background service in step with the accounts: Android runs it while at least one
@@ -85,45 +88,6 @@ pub async fn sync_background_service(app: &AppHandle, core: &Core) {
         Err(e) => log::warn!("cannot read the accounts for the background service: {e}"),
     }
 }
-
-#[cfg(feature = "mock")]
-fn backend() -> Result<(Arc<dyn chirper_core::ffi::Backend>, &'static str), String> {
-    Ok((Arc::new(MockBackend::new()), "mock"))
-}
-
-#[cfg(all(not(feature = "mock"), any(target_os = "macos", target_os = "ios")))]
-fn backend() -> Result<(Arc<dyn Backend>, &'static str), String> {
-    Ok((Arc::new(chirper_core::ffi::StaticBackend::new()), "static"))
-}
-
-#[cfg(all(
-    not(feature = "mock"),
-    not(any(target_os = "macos", target_os = "ios"))
-))]
-fn backend() -> Result<(Arc<dyn Backend>, &'static str), String> {
-    let backend = chirper_core::ffi::DynamicBackend::load_default()
-        .map_err(|e| format!("cannot load the core library: {e}"))?;
-    Ok((Arc::new(backend), "dynamic"))
-}
-
-/// With the mock core and `CHIRPER_MOCK_SMOKE` set, one fake message exercises the event path.
-#[cfg(feature = "mock")]
-fn smoke_test_mock(core: &Core) {
-    if std::env::var_os("CHIRPER_MOCK_SMOKE").is_some() {
-        let sent = tauri::async_runtime::block_on(core.send_text(
-            "!mock1:chirper.local",
-            "smoke",
-            None,
-            "smoke.1",
-        ));
-        if let Err(e) = sent {
-            log::warn!("mock smoke message failed: {e}");
-        }
-    }
-}
-
-#[cfg(not(feature = "mock"))]
-fn smoke_test_mock(_core: &Core) {}
 
 fn emit(app: &AppHandle, event: &str, payload: serde_json::Value) {
     if let Err(e) = app.emit(event, payload) {

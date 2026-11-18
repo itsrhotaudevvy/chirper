@@ -5,6 +5,7 @@ mod commands;
 mod deep_link;
 mod error;
 mod events;
+mod keystore;
 mod lock;
 mod logging;
 mod media;
