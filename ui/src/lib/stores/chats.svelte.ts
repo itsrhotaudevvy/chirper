@@ -50,7 +50,11 @@ export class ChatsStore {
   );
   readonly unreadTotal = $derived(this.active.reduce((sum, c) => sum + c.unreadCount, 0));
 
-  constructor(private readonly api: CoreApi = defaultCore) {}
+  private readonly api: CoreApi;
+
+  constructor(api: CoreApi = defaultCore) {
+    this.api = api;
+  }
 
   get(roomId: string): Chat | undefined {
     return this.#byId.get(roomId);

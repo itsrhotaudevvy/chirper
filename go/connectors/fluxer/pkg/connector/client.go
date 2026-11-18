@@ -29,6 +29,8 @@ type fluxerClient struct {
 	stop   context.CancelFunc
 	guilds map[string]string // channel ID -> guild ID; "" for direct channels
 	spaces map[string]bool   // guild IDs that have been bridged as spaces
+	// guildProps holds each bridged guild's properties, so that its channels can show its icon.
+	guildProps map[string]fluxerapi.Guild
 }
 
 var (
@@ -45,13 +47,14 @@ var (
 func newClient(login *bridgev2.UserLogin, main *FluxerConnector, meta *UserLoginMetadata) *fluxerClient {
 	cred := fluxerapi.Credential{Token: meta.Token, Bot: meta.Bot}
 	return &fluxerClient{
-		login:  login,
-		main:   main,
-		meta:   meta,
-		cred:   cred,
-		api:    fluxerapi.NewClient(meta.APIBase, cred, main.HTTP),
-		guilds: map[string]string{},
-		spaces: map[string]bool{},
+		login:      login,
+		main:       main,
+		meta:       meta,
+		cred:       cred,
+		api:        fluxerapi.NewClient(meta.APIBase, cred, main.HTTP),
+		guilds:     map[string]string{},
+		spaces:     map[string]bool{},
+		guildProps: map[string]fluxerapi.Guild{},
 	}
 }
 
@@ -183,6 +186,25 @@ func (c *fluxerClient) rememberSpace(guildID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.spaces[guildID] = true
+}
+
+// rememberGuild keeps a guild's properties, so that the channels inside it can show its icon.
+func (c *fluxerClient) rememberGuild(g fluxerapi.Guild) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.guildProps[g.ID] = g
+}
+
+// guildChannelAvatar returns the icon of a guild for the channels inside it. It returns nil, which
+// leaves the avatar alone, when the guild has not been seen yet in this session.
+func (c *fluxerClient) guildChannelAvatar(guildID string) *bridgev2.Avatar {
+	c.mu.Lock()
+	g, ok := c.guildProps[guildID]
+	c.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	return c.avatar("/icons/"+g.ID, g.Icon)
 }
 
 func (c *fluxerClient) isSpace(id string) bool {

@@ -8,12 +8,12 @@
     /** Display name, used for initials and the accessible name. */
     name: string;
     /** Stable id of the person or room; decides the background hue. Defaults to the name. */
-    id?: string;
+    id?: string | undefined;
     /** Avatar image as a Matrix content URI (mxc://...). Other URLs are not loaded. */
-    src?: string;
+    src?: string | undefined;
     /** Network id: draws a 2 px ring in its spectrum colour. */
-    network?: string;
-    size?: AvatarSize;
+    network?: string | undefined;
+    size?: AvatarSize | undefined;
   }
 
   let { name, id, src, network, size = 48 }: Props = $props();
@@ -49,7 +49,10 @@
   style:--font={fontSize}
 >
   {#if url && !failed}
-    <img src={url} alt="" loading="lazy" decoding="async" onerror={() => (failed = true)} />
+    <img src={url} alt="" loading="lazy" decoding="async" onerror={() => {
+      failed = true;
+      console.warn('[avatar] image did not load', url);
+    }} />
   {:else}
     <span class="initials" aria-hidden="true">{initials}</span>
   {/if}

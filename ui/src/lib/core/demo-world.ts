@@ -185,12 +185,15 @@ class TimelineBuilder {
   private readonly items: Message[] = [];
   private seq = 0;
   private spec: ChatSpec = { name: '' };
+  private readonly now: number;
+  private readonly network: string;
+  private readonly roomId: string;
 
-  constructor(
-    private readonly now: number,
-    private readonly network: string,
-    private readonly roomId: string,
-  ) {}
+  constructor(now: number, network: string, roomId: string) {
+    this.now = now;
+    this.network = network;
+    this.roomId = roomId;
+  }
 
   setChat(spec: ChatSpec): void {
     this.spec = spec;
@@ -292,7 +295,7 @@ function reaction(key: string, senders: string[], fromMe = false): MessageReacti
 }
 
 function photo(id: string): MessageMedia {
-  const [w, h] = (id.split('-').at(-1) ?? '0x0').split('x').map(Number);
+  const [w = 0, h = 0] = (id.split('-').at(-1) ?? '0x0').split('x').map(Number);
   return media({ url: `mxc://chirper.local/${id}`, mime: 'image/png', size: 240_000, width: w, height: h });
 }
 

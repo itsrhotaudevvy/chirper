@@ -601,7 +601,9 @@ async fn run_desktop_login_webview(
 
     let custom_js = args.extract_js.as_deref().unwrap_or("");
     let custom_inject = if !custom_js.is_empty() {
-        format!("try {{ var c = {custom_js}; if (c && typeof c === 'string' && c.length > 20) return c; }} catch(e) {{}}")
+        format!(
+            "try {{ var c = {custom_js}; if (c && typeof c === 'string' && c.length > 20) return c; }} catch(e) {{}}"
+        )
     } else {
         String::new()
     };
@@ -649,13 +651,21 @@ async fn run_desktop_login_webview(
 
     let default_ua = match () {
         #[cfg(target_os = "macos")]
-        () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        () => {
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        }
         #[cfg(target_os = "windows")]
-        () => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        () => {
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        }
         #[cfg(target_os = "linux")]
-        () => "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        () => {
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        }
         #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-        () => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        () => {
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        }
     };
     let user_agent = args.user_agent.as_deref().unwrap_or(default_ua);
 
@@ -690,7 +700,9 @@ async fn run_desktop_login_webview(
         true
     });
 
-    let window = builder.build().map_err(|e| CmdError::new(code::CORE, e.to_string()))?;
+    let window = builder
+        .build()
+        .map_err(|e| CmdError::new(code::CORE, e.to_string()))?;
 
     let tx_close = tx.clone();
     window.on_window_event(move |event| {

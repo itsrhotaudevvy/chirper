@@ -47,32 +47,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::thread::sleep(Duration::from_secs(2));
         let accounts = core.accounts().await?;
         let chats = core.list_chats(&ChatFilter::default()).await?;
-        println!("accounts: {}, chats: {}", accounts.len(), chats.len());
+        if accounts.is_empty() || chats.is_empty() {
+            return Err("smoke: demo network produced no accounts or chats".into());
+        }
+        println!("smoke: accounts and chats present");
         let chat = chats.first().ok_or("demo network produced no chats")?;
         let messages = core.list_messages(&chat.room_id, 0, 20).await?;
-        println!("messages in first chat: {}", messages.len());
+        if messages.is_empty() {
+            return Err("smoke: first chat has no messages".into());
+        }
+        println!("smoke: messages present");
         let event_id = core
             .send_text(&chat.room_id, "smoke test", None, "smoke-txn-1")
             .await?;
-        println!("sent: {}", !event_id.is_empty());
+        if event_id.is_empty() {
+            return Err("smoke: send returned no event id".into());
+        }
+        println!("smoke: send ok");
         Ok::<_, Box<dyn std::error::Error>>(())
     })?;
     std::thread::sleep(Duration::from_millis(500));
     let kinds: Vec<String> = events.try_iter().map(|e| e.kind).collect();
-    println!(
-        "events received: {} (message events: {})",
-        kinds.len(),
-        kinds.iter().filter(|k| *k == "message").count()
-    );
+    if kinds.is_empty() {
+        return Err("smoke: no events received".into());
+    }
+    println!("smoke: events received");
     core.close();
     drop(core);
 
     let (again, _events) = Core::open(backend, &dir, Some(&key))?;
     let chats = rt.block_on(again.list_chats(&ChatFilter::default()))?;
-    println!("reopened with key, chats: {}", chats.len());
+    if chats.is_empty() {
+        return Err("smoke: no chats after reopening with the key".into());
+    }
+    println!("smoke: reopened with key");
     again.close();
     let header = std::fs::read(dir.join("chirper.db")).map(|b| b.starts_with(b"SQLite format 3"));
-    println!("chirper.db plaintext header: {header:?}");
+    if header.is_ok_and(|plaintext| plaintext) {
+        return Err("smoke: database file is readable without the key".into());
+    }
+    println!("smoke: database file is not plaintext");
     std::fs::remove_dir_all(&dir)?;
     Ok(())
 }

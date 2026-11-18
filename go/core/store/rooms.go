@@ -223,7 +223,7 @@ var chatSelect = "SELECT " + qualifiedRoomColumns + `,
 	(SELECT COUNT(*) FROM member WHERE member.room_id = room.room_id AND member.membership = 'join'),
 	ev.event_id, ev.sender, ev.type, ev.state_key, ev.content_json, ev.edit_content_json,
 	COALESCE(NULLIF(em.displayname, ''), NULLIF(pr.displayname, '')),
-	COALESCE((SELECT name FROM room p WHERE (p.room_id = room.parent_id OR (p.portal_id = room.parent_id AND p.bridge_id = room.bridge_id AND p.is_space = true)) AND p.deleted = false LIMIT 1), '')
+	COALESCE((SELECT name FROM room p WHERE (p.room_id = room.parent_id OR (p.portal_id = room.parent_id AND p.bridge_id = room.bridge_id AND p.is_space = true) OR (p.is_space = true AND p.bridge_id = room.bridge_id AND room.parent_id <> '' AND p.room_id LIKE '!' || room.parent_id || '.%')) AND p.deleted = false LIMIT 1), '')
 	FROM room
 	LEFT JOIN event ev ON ev.event_id = room.last_event_id
 	LEFT JOIN member em ON em.room_id = ev.room_id AND em.user_id = ev.sender
@@ -322,7 +322,7 @@ func (s *Store) ListChats(ctx context.Context, filter ChatFilter) ([]Chat, error
 	}
 	if filter.Query != "" {
 		args = append(args, likePattern(filter.Query))
-		query += fmt.Sprintf(` AND (room.name LIKE $%d ESCAPE '\' OR (SELECT name FROM room p WHERE (p.room_id = room.parent_id OR (p.portal_id = room.parent_id AND p.bridge_id = room.bridge_id AND p.is_space = true)) AND p.deleted = false LIMIT 1) LIKE $%d ESCAPE '\')`, len(args), len(args))
+		query += fmt.Sprintf(` AND (room.name LIKE $%d ESCAPE '\' OR (SELECT name FROM room p WHERE (p.room_id = room.parent_id OR (p.portal_id = room.parent_id AND p.bridge_id = room.bridge_id AND p.is_space = true) OR (p.is_space = true AND p.bridge_id = room.bridge_id AND room.parent_id <> '' AND p.room_id LIKE '!' || room.parent_id || '.%%')) AND p.deleted = false LIMIT 1) LIKE $%d ESCAPE '\')`, len(args), len(args))
 	}
 	query += " ORDER BY room.pinned DESC, room.last_activity_ts DESC, room.room_id"
 	chats, err := queryAll(ctx, s, scanChat, query, args...)

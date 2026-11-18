@@ -10,13 +10,15 @@ export interface LocalPrefs {
   accent: AccentId;
   reduceMotion: boolean;
   autoUpdate?: boolean;
+  /** Blur behind the main desktop chat containers. On by default; can be turned off. */
+  glass?: boolean;
 }
 
 const STORAGE_KEY = 'chirper.ui.v1';
 const THEMES: readonly string[] = ['system', 'dark', 'light', 'amoled'];
 const ACCENTS: readonly string[] = ACCENT_PRESETS.map((a) => a.id);
 
-export const DEFAULT_LOCAL: LocalPrefs = { theme: 'system', accent: 'aurora', reduceMotion: false, autoUpdate: true };
+export const DEFAULT_LOCAL: LocalPrefs = { theme: 'system', accent: 'aurora', reduceMotion: false, autoUpdate: true, glass: true };
 
 /** Until the core answers, these apply. The core's get_app_prefs replaces them at start-up. */
 export const DEFAULT_APP_PREFS: AppPrefs = {
@@ -28,16 +30,18 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   closeToTray: true,
   launchAtLogin: false,
   haptics: true,
+  mutedNetworks: [],
 };
 
 /** Keeps only well-typed local values; anything else falls back to the default. */
 export function sanitiseLocal(raw: unknown): LocalPrefs {
   const source = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   return {
-    theme: THEMES.includes(source.theme as string) ? (source.theme as ThemePref) : DEFAULT_LOCAL.theme,
-    accent: ACCENTS.includes(source.accent as string) ? (source.accent as AccentId) : DEFAULT_LOCAL.accent,
-    reduceMotion: typeof source.reduceMotion === 'boolean' ? source.reduceMotion : DEFAULT_LOCAL.reduceMotion,
-    autoUpdate: typeof source.autoUpdate === 'boolean' ? source.autoUpdate : true,
+    theme: THEMES.includes(source['theme'] as string) ? (source['theme'] as ThemePref) : DEFAULT_LOCAL.theme,
+    accent: ACCENTS.includes(source['accent'] as string) ? (source['accent'] as AccentId) : DEFAULT_LOCAL.accent,
+    reduceMotion: typeof source['reduceMotion'] === 'boolean' ? source['reduceMotion'] : DEFAULT_LOCAL.reduceMotion,
+    autoUpdate: typeof source['autoUpdate'] === 'boolean' ? source['autoUpdate'] : true,
+    glass: typeof source['glass'] === 'boolean' ? source['glass'] : DEFAULT_LOCAL.glass ?? true,
   };
 }
 
@@ -52,9 +56,13 @@ class SettingsStore {
   accent = $state<AccentId>(DEFAULT_LOCAL.accent);
   reduceMotion = $state(DEFAULT_LOCAL.reduceMotion);
   autoUpdate = $state(DEFAULT_LOCAL.autoUpdate ?? true);
+  glass = $state(DEFAULT_LOCAL.glass ?? true);
   app = $state<AppPrefs>({ ...DEFAULT_APP_PREFS });
 
-  constructor(private readonly api: CoreApi = core) {
+  private readonly api: CoreApi;
+
+  constructor(api: CoreApi = core) {
+    this.api = api;
     this.assignLocal(this.readLocal());
   }
 
@@ -90,10 +98,11 @@ class SettingsStore {
     else root.setAttribute('data-theme', this.theme);
     root.setAttribute('data-accent', this.accent);
     root.setAttribute('data-reduce-motion', String(this.reduceMotion));
+    root.setAttribute('data-glass', String(this.glass));
   }
 
   private localSnapshot(): LocalPrefs {
-    return { theme: this.theme, accent: this.accent, reduceMotion: this.reduceMotion, autoUpdate: this.autoUpdate };
+    return { theme: this.theme, accent: this.accent, reduceMotion: this.reduceMotion, autoUpdate: this.autoUpdate, glass: this.glass };
   }
 
   private assignLocal(prefs: LocalPrefs): void {
@@ -101,6 +110,7 @@ class SettingsStore {
     this.accent = prefs.accent;
     this.reduceMotion = prefs.reduceMotion;
     this.autoUpdate = prefs.autoUpdate ?? true;
+    this.glass = prefs.glass ?? true;
   }
 
   private readLocal(): LocalPrefs {

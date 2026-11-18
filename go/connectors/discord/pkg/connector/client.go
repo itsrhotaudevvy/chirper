@@ -49,8 +49,8 @@ type DiscordClient struct {
 	connCancel context.CancelFunc
 	// gatewaySessionID is the session ID from READY, used for interaction payloads.
 	gatewaySessionID string
-	// guildChannelsSynced counts guild channels created eagerly; see syncChannelLimit.
-	guildChannelsSynced int
+	// guildChannelsSynced counts, per server, the channels created eagerly; see reserveGuildChannelSync.
+	guildChannelsSynced map[string]int
 }
 
 var (

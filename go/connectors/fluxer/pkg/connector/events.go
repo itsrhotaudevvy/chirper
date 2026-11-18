@@ -304,6 +304,7 @@ func (c *fluxerClient) queueChat(ch fluxerapi.Channel, parentGuild string) {
 }
 
 func (c *fluxerClient) queueSpace(g fluxerapi.Guild) {
+	c.rememberGuild(g)
 	c.login.QueueRemoteEvent(&simplevent.ChatResync{
 		EventMeta: simplevent.EventMeta{
 			Type:         bridgev2.RemoteEventChatResync,

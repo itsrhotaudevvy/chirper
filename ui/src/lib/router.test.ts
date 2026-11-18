@@ -71,7 +71,7 @@ describe('navigation', () => {
     router.replace('inbox');
     router.go('settings');
     expect(start).toHaveBeenCalledTimes(1);
-    expect(document.documentElement.dataset.nav).toBe('forward');
+    expect(document.documentElement.dataset['nav']).toBe('forward');
     expect(router.view).toBe('settings');
   });
 

@@ -403,6 +403,13 @@
     --head-big: var(--banner-h);
   }
 
+  /* Desktop glass: matches the inbox container (settings: Blur chat containers). */
+  :global(html[data-glass='true'][data-form='desktop']) .chat {
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  }
+
   @media (min-width: 900px) {
     .chat {
       --head-big: var(--banner-h-desktop);

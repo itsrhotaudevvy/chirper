@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.5
 // Chirper's native iOS code. Built by `cargo tauri ios build` on a macOS runner with full Xcode.
 
 import PackageDescription

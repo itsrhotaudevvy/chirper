@@ -77,7 +77,7 @@ export interface CookiesStep {
   userAgent: string;
   fields: CookieField[];
   extractJs: string;
-  waitForUrlPattern?: string;
+  waitForUrlPattern?: string | undefined;
 }
 
 export interface LoginWebviewResult {
@@ -268,6 +268,8 @@ export interface AppPrefs {
   closeToTray: boolean;
   launchAtLogin: boolean;
   haptics: boolean;
+  /** Network ids whose messages never raise a notification. */
+  mutedNetworks: string[];
 }
 
 export type PickKind = 'media' | 'file';

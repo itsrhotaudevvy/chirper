@@ -173,9 +173,9 @@ export class TauriCore implements CoreApi {
   openLoginWebview(args: {
     url: string;
     extractJs?: string;
-    waitForPattern?: string;
-    userAgent?: string;
-    title?: string;
+    waitForPattern?: string | undefined;
+    userAgent?: string | undefined;
+    title?: string | undefined;
   }): Promise<LoginWebviewResult> {
     return call('open_login_webview', { ...args });
   }

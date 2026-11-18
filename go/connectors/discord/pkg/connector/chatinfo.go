@@ -27,12 +27,13 @@ func (c *DiscordClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal
 	if err != nil {
 		return nil, err
 	}
-	if portal.RoomType == database.RoomTypeSpace {
-		guild, err := sess.State.Guild(string(portal.ID))
-		if err != nil {
-			return nil, fmt.Errorf("failed to find guild: %w", err)
-		}
+	// A parent server is created before its room type is known, so an ID that is a cached guild is
+	// always a server. Looking the channel endpoint up with a guild ID fails with "Unknown Channel".
+	if guild, err := sess.State.Guild(string(portal.ID)); err == nil && guild != nil {
 		return c.wrapGuildInfo(guild), nil
+	}
+	if portal.RoomType == database.RoomTypeSpace {
+		return nil, fmt.Errorf("failed to find guild %s in the session cache", portal.ID)
 	}
 	ch, err := c.getChannel(sess, string(portal.ID))
 	if err != nil {
@@ -82,7 +83,25 @@ func (c *DiscordClient) wrapChannelInfo(ch *discordgo.Channel) *bridgev2.ChatInf
 			info.ParentID = ptrPortalID(networkid.PortalID(ch.GuildID))
 		}
 	}
+	// A channel shows the picture of the server it belongs to, threads included.
+	if ch.GuildID != "" {
+		info.Avatar = c.guildChannelAvatar(ch.GuildID)
+	}
 	return info
+}
+
+// guildChannelAvatar returns the icon of a guild for the channels inside it. It returns nil, which
+// leaves the avatar alone, when the guild is not in the session cache.
+func (c *DiscordClient) guildChannelAvatar(guildID string) *bridgev2.Avatar {
+	sess, err := c.currentSession()
+	if err != nil {
+		return nil
+	}
+	guild, err := sess.State.Guild(guildID)
+	if err != nil || guild == nil {
+		return nil
+	}
+	return c.guildAvatar(guild)
 }
 
 func (c *DiscordClient) fillDMInfo(info *bridgev2.ChatInfo, ch *discordgo.Channel) {
@@ -118,6 +137,20 @@ func (c *DiscordClient) fillDMInfo(info *bridgev2.ChatInfo, ch *discordgo.Channe
 	info.Name = &name
 	info.Type = &roomType
 	info.Members = members
+	info.Avatar = c.dmAvatar(ch, len(ch.Recipients) == 1)
+}
+
+// dmAvatar returns the picture of a DM. A 1:1 DM shows the other person's avatar. A group DM shows
+// its own icon, or the picture of its first member when it has none.
+func (c *DiscordClient) dmAvatar(ch *discordgo.Channel, oneToOne bool) *bridgev2.Avatar {
+	if len(ch.Recipients) == 0 {
+		return nil
+	}
+	if oneToOne || ch.Icon == "" {
+		return c.userAvatar(ch.Recipients[0])
+	}
+	url := fmt.Sprintf("%s/channel-icons/%s/%s.png?size=256", discordCDN, ch.ID, ch.Icon)
+	return c.cdnAvatar(fmt.Sprintf("channel-icon/%s/%s", ch.ID, ch.Icon), url)
 }
 
 func ptrString(s string) *string {

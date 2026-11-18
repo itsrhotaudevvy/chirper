@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  TAURI_CLI_VERSION: "2.12.4"
+  TAURI_CLI_VERSION: "2.12.5"
 
 jobs:
   desktop:
@@ -55,7 +55,7 @@ jobs:
             msystem: MINGW32
             mingw-package: mingw-w64-i686-gcc
           - name: windows-arm64
-            os: windows-latest
+            os: windows-11-arm
             rust-targets: aarch64-pc-windows-msvc
             go-triples: aarch64-pc-windows-msvc
             tauri-triple: aarch64-pc-windows-msvc
@@ -72,9 +72,13 @@ jobs:
             go-triples: aarch64-unknown-linux-gnu
             tauri-triple: aarch64-unknown-linux-gnu
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: "1.27"
 
       - name: Install Tauri Linux dependencies
         if: runner.os == 'Linux'
@@ -107,7 +111,7 @@ jobs:
         with:
           version: 12
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -135,7 +139,7 @@ jobs:
           done
 
       - name: Build app
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         with:
           projectPath: .
           tauriScript: tauri
@@ -149,15 +153,19 @@ jobs:
           path: target/${{ matrix.tauri-triple }}/release/bundle/**/*.{dmg,exe,msi,AppImage,deb,rpm}
 
   android:
-    name: Android (APK + AAB)
+    name: Android (APK)
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       NDK_VERSION: "28.2.13676358"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: "1.27"
 
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
@@ -184,7 +192,7 @@ jobs:
         with:
           version: 12
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -228,10 +236,22 @@ jobs:
             echo "keyPassword=$ANDROID_KEY_PASSWORD"
           } > src-tauri/gen/android/keystore.properties
 
-      - name: Build APK and AAB
+      - name: Build universal APK and per-ABI APKs
         run: |
-          cargo tauri android build --apk --aab
-          cargo tauri android build --apk --split-per-abi
+          tauri android build --apk
+          tauri android build --apk --split-per-abi
+
+      - name: Verify per-ABI APKs
+        run: |
+          apk_dir=src-tauri/gen/android/app/build/outputs/apk
+          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+            if ! find "$apk_dir" -name "*-${abi}-release*.apk" | grep -q .; then
+              echo "::error::Missing per-ABI APK for ${abi}" >&2
+              find "$apk_dir" -name '*.apk' >&2 || true
+              exit 1
+            fi
+          done
+          find "$apk_dir" -name '*.apk' -print
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -239,8 +259,11 @@ jobs:
           name: chirper-android
           if-no-files-found: error
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+            src-tauri/gen/android/app/build/outputs/apk/**/*-universal-release*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/*-arm64-v8a-release*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/*-armeabi-v7a-release*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/*-x86_64-release*.apk
+            src-tauri/gen/android/app/build/outputs/apk/**/*-x86-release*.apk
 
   ios:
     name: iOS
@@ -249,9 +272,13 @@ jobs:
     env:
       HAS_IOS_SIGNING: ${{ secrets.IOS_CERTIFICATE_P12_B64 != '' && secrets.IOS_PROVISIONING_PROFILE_B64 != '' }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: "1.27"
 
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
         with:
@@ -266,7 +293,7 @@ jobs:
         with:
           version: 12
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: pnpm
@@ -321,19 +348,19 @@ jobs:
       # plugin's Swift package and src-tauri/Info.ios.plist are merged in by the Tauri CLI.
       - name: Generate the Xcode project
         if: hashFiles('src-tauri/gen/apple/project.yml') == ''
-        run: cargo tauri ios init --ci
+        run: tauri ios init --ci
 
       - name: Build iOS app (signed, App Store Connect)
         if: env.HAS_IOS_SIGNING == 'true'
         env:
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
-        run: cargo tauri ios build --export-method app-store-connect
+        run: tauri ios build --export-method app-store-connect
 
       - name: Build iOS app (simulator, unsigned)
         if: env.HAS_IOS_SIGNING != 'true'
         run: |
-          cargo tauri ios build --target aarch64-sim
-          cargo tauri ios build --target x86_64
+          tauri ios build --target aarch64-sim
+          tauri ios build --target x86_64
 
       - name: Upload signed IPA
         if: env.HAS_IOS_SIGNING == 'true'
@@ -368,7 +395,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: chirper-*
           path: dist

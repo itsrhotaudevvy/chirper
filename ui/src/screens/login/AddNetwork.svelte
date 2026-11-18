@@ -14,7 +14,7 @@
 
   interface Props {
     /** Opens the flow of this network straight away (deep link or from an account). */
-    network?: string;
+    network?: string | undefined;
     onclose: () => void;
   }
 

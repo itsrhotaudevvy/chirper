@@ -1,9 +1,9 @@
 # Discord connector configuration.
 
 # Create a portal for every guild channel the account can view as soon as the
-# account syncs, but only when it can see fewer channels than this limit.
-# Above the limit, channel portals are created lazily on first message.
-sync_channel_limit: 50
+# account syncs, up to this many channels per server.
+# Channels above the limit are created lazily, on their first message.
+sync_channel_limit: 1000
 
 # Render Discord custom emoji reactions in Matrix (as ":name:" keys).
 custom_emoji_reactions: true

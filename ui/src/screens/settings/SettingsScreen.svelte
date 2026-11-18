@@ -8,6 +8,7 @@
   import AccountPage from './AccountPage.svelte';
   import AboutSection from './AboutSection.svelte';
   import AccountsSection from './AccountsSection.svelte';
+  import AdvancedSection from './AdvancedSection.svelte';
   import AppearanceSection from './AppearanceSection.svelte';
   import ChatsSection from './ChatsSection.svelte';
   import NotificationsSection from './NotificationsSection.svelte';
@@ -22,7 +23,7 @@
 
   let { onclose }: Props = $props();
 
-  type SectionId = 'accounts' | 'notifications' | 'privacy' | 'appearance' | 'chats' | 'sync' | 'about';
+  type SectionId = 'accounts' | 'notifications' | 'privacy' | 'appearance' | 'chats' | 'sync' | 'advanced' | 'about';
 
   /** One section is open at a time; Accounts starts open so the first screen is useful. */
   let open = $state<SectionId | null>('accounts');
@@ -126,6 +127,17 @@
         ontoggle={() => toggle('sync')}
       >
         <SyncSection />
+      </SettingsSection>
+
+      <SettingsSection
+        id="advanced"
+        color="var(--cat-about)"
+        title="Advanced"
+        summary="Telegram API keys"
+        open={open === 'advanced'}
+        ontoggle={() => toggle('advanced')}
+      >
+        <AdvancedSection />
       </SettingsSection>
 
       <SettingsSection id="about" color="var(--cat-about)" title="About" open={open === 'about'} ontoggle={() => toggle('about')}>

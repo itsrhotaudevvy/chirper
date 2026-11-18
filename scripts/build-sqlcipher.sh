@@ -173,7 +173,14 @@ select_target() {
 	esac
 }
 
-sha256_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+sha256_of() {
+	# sha256sum ships with Git Bash and Linux; shasum is the macOS fallback.
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | cut -d' ' -f1
+	else
+		shasum -a 256 "$1" | cut -d' ' -f1
+	fi
+}
 
 # fetch <url> <sha256> <dest>: downloads once, refuses anything whose hash differs from the pin.
 fetch() {
@@ -238,7 +245,7 @@ build_sqlcipher() {
 	mkdir -p "$build"
 	cp "$amalg/sqlite3.h" "$amalg/sqlite3ext.h" "$out/include/"
 	"$CC_BIN" -c "${SQLITE_DEFINES[@]}" "$provider" ${TARGET_FLAGS[@]+"${TARGET_FLAGS[@]}"} \
-		-O2 -fPIC -I"$out/include" "$amalg/sqlite3.c" -o "$build/sqlite3.o"
+		-O2 -fPIC -include stdint.h -I"$out/include" "$amalg/sqlite3.c" -o "$build/sqlite3.o"
 	"$AR_BIN" rcs "$out/lib/libsqlite3.a" "$build/sqlite3.o"
 	"$RANLIB_BIN" "$out/lib/libsqlite3.a"
 

@@ -542,6 +542,38 @@ func TestMediaUploadDownloadRoundTrip(t *testing.T) {
 	}
 }
 
+// A joined member who only changes display name or avatar updates the member row but adds no
+// timeline entry. Joins and leaves still do.
+func TestDisplayNameChangeOfJoinedMemberIsNotShown(t *testing.T) {
+	ctx := context.Background()
+	f := newFixture(t)
+	bob := f.c.GhostIntent("bob")
+	bobID := f.c.FormatGhostMXID("bob")
+	send := func(membership event.Membership, name string) {
+		t.Helper()
+		content := &event.Content{Parsed: &event.MemberEventContent{Membership: membership, Displayname: name}}
+		if _, err := bob.SendState(ctx, testRoom, event.StateMember, string(bobID), content, time.Time{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	send(event.MembershipJoin, "Bob B")
+	send(event.MembershipJoin, "Bobby")
+	msgs, _ := f.st.ListMessages(ctx, testRoom, 0, 10)
+	// The body is worded from the member's current name, so only the count is checked here.
+	if len(msgs) != 1 {
+		t.Fatalf("a rename must add no timeline entry; got %+v", msgs)
+	}
+	info, _ := f.c.GetMemberInfo(ctx, testRoom, bobID)
+	if info == nil || info.Displayname != "Bobby" {
+		t.Errorf("the member row must still take the new name: %+v", info)
+	}
+	send(event.MembershipLeave, "Bobby")
+	msgs, _ = f.st.ListMessages(ctx, testRoom, 0, 10)
+	if len(msgs) != 2 {
+		t.Errorf("a leave must still be shown; got %d entries", len(msgs))
+	}
+}
+
 func TestProfileUpdatesPropagateToMembers(t *testing.T) {
 	ctx := context.Background()
 	f := newFixture(t)

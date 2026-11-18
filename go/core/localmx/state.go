@@ -92,13 +92,19 @@ func (c *Connector) sendState(ctx context.Context, roomID id.RoomID, sender id.U
 }
 
 // applyMember upserts the member row and reports whether the change is worth a timeline entry:
-// joins and leaves in group rooms are, invites and DM changes are not.
+// joins and leaves in group rooms are, invites and DM changes are not. A member who was already
+// joined and only changed display name or avatar is not: the row is updated, nothing is shown.
 func (c *Connector) applyMember(ctx context.Context, roomID id.RoomID, stateKey string, content *event.Content) (bool, error) {
 	mc, err := parseContent[event.MemberEventContent](content)
 	if err != nil {
 		return false, err
 	}
 	userID := id.UserID(stateKey)
+	prev, err := c.st.GetMember(ctx, roomID, userID)
+	if err != nil && err != store.ErrNotFound {
+		return false, err
+	}
+	wasJoined := err == nil && prev.Membership == event.MembershipJoin
 	err = c.st.UpsertMember(ctx, &store.Member{
 		RoomID:      roomID,
 		UserID:      userID,
@@ -110,6 +116,9 @@ func (c *Connector) applyMember(ctx context.Context, roomID id.RoomID, stateKey 
 		return false, err
 	}
 	if mc.Membership != event.MembershipJoin && mc.Membership != event.MembershipLeave {
+		return false, nil
+	}
+	if mc.Membership == event.MembershipJoin && wasJoined {
 		return false, nil
 	}
 	room, err := c.st.GetRoom(ctx, roomID)

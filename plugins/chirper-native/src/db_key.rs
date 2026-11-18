@@ -80,9 +80,7 @@ mod android {
                 };
                 key_from_bytes(&plaintext)
             }
-            Err(e) if e.kind() == ErrorKind::NotFound => {
-                create_and_store(native, &path)
-            }
+            Err(e) if e.kind() == ErrorKind::NotFound => create_and_store(native, &path),
             Err(e) => Err(e.into()),
         }
     }
