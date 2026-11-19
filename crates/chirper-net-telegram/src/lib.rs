@@ -1,7 +1,11 @@
-//! The Telegram driver for Chirper's unified bridge runtime. Work in progress: the network is listed
-//! as unavailable until its protocol client is complete.
+//! The Telegram driver for Chirper's unified bridge runtime. The protocol client (MTProto 2.0) is
+//! built here from scratch; login and messaging land in the next phase, so the network is still
+//! listed as unavailable.
 
 #![forbid(unsafe_code)]
+
+pub mod mtproto;
+pub mod tl;
 
 use async_trait::async_trait;
 
@@ -10,6 +14,13 @@ use chirper_bridge::{Error, LoginCtx, LoginProcess, Network, Result, Session};
 
 /// The network id used in settings, account ids and every stored row. Never changes.
 pub const NETWORK_ID: &str = "telegram";
+
+/// The Telegram API id and hash this build was compiled with, if both were set.
+pub fn api_credentials() -> Option<(i32, &'static str)> {
+    let id = option_env!("CHIRPER_TELEGRAM_API_ID")?.parse().ok()?;
+    let hash = option_env!("CHIRPER_TELEGRAM_API_HASH")?;
+    Some((id, hash))
+}
 
 /// The Telegram driver.
 #[derive(Debug, Default, Clone)]
@@ -44,7 +55,13 @@ impl Network for Telegram {
     }
 
     fn unavailable(&self) -> Option<String> {
-        Some("Telegram is being ported to the unified Rust runtime.".to_owned())
+        if api_credentials().is_none() {
+            return Some(
+                "This build has no Telegram API id (set CHIRPER_TELEGRAM_API_ID and CHIRPER_TELEGRAM_API_HASH)"
+                    .to_owned(),
+            );
+        }
+        Some("Telegram login lands in the next phase".to_owned())
     }
 
     async fn start_login(&self, _flow_id: &str, _ctx: LoginCtx) -> Result<Box<dyn LoginProcess>> {
