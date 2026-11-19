@@ -11,8 +11,25 @@ publish = false
 chirper-bridge = { path = "../chirper-bridge" }
 async-trait = "=0.1.92"
 log = "=0.4.35"
-tokio = { version = "=1.54.1", features = ["sync", "time", "macros", "rt"] }
+tokio = { version = "=1.54.1", features = ["net", "sync", "time", "macros", "rt"] }
+futures-util = "=0.3.31"
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 zeroize = "=1.9.2"
+prost = "=0.14.4"
+reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
+aes-gcm = "=0.11.1"
+curve25519-dalek = "=4.1.3"
+flate2 = "=1.1.11"
+getrandom = "=0.4.3"
+hex = "=0.4.3"
+base64 = "=0.23.1"
+md-5 = "=0.10.6"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.154"
+hkdf = "=0.12.4"
+hmac = "=0.12.1"
+sha2 = "=0.10.9"
+x25519-dalek = { version = "=2.0.1", features = ["static_secrets"] }
 
 [dev-dependencies]
 tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "time"] }
