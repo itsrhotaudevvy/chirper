@@ -38,8 +38,7 @@ pub fn load(data_dir: &Path) -> CoreSettings {
 pub fn save(data_dir: &Path, settings: &CoreSettings) -> Result<()> {
     let path = data_dir.join(FILE);
     let tmp = data_dir.join(format!(".{FILE}.tmp"));
-    std::fs::write(&tmp, serde_json::to_vec_pretty(settings)?)?;
-    crate::secure::restrict_file(&tmp)?;
+    crate::secure::write_private(&tmp, &serde_json::to_vec_pretty(settings)?)?;
     std::fs::rename(&tmp, &path).map_err(Error::Io)?;
     Ok(())
 }

@@ -403,3 +403,143 @@ CREATE TABLE backfill (
 pub type ChatRow = Chat;
 pub type MessageRow = Message;
 pub type ChatFilterRow = ChatFilter;
+
+#[cfg(test)]
+mod hardening_tests {
+    use super::events::{sql_event_by_remote, sql_event_by_txn};
+    use super::messages::LIST_MESSAGES_SQL;
+    use super::rooms::chat_list_query;
+    use super::*;
+    use crate::model::ChatFilter;
+
+    const ROOM: &str = "!room:test";
+
+    fn store_with_room() -> Store {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .upsert_room(&Room {
+                room_id: ROOM.to_owned(),
+                bridge_id: "net".to_owned(),
+                login_id: "net_1".to_owned(),
+                ..Default::default()
+            })
+            .unwrap();
+        store
+    }
+
+    fn event(id: &str) -> Event {
+        Event {
+            event_id: id.to_owned(),
+            room_id: ROOM.to_owned(),
+            sender: "@them:test".to_owned(),
+            kind: "message".to_owned(),
+            content_json: "{\"v\":1,\"kind\":\"text\",\"body\":\"hi\"}".to_owned(),
+            ts: 1_000,
+            status: "sent".to_owned(),
+            remote_id: format!("remote-{id}"),
+            ..Default::default()
+        }
+    }
+
+    fn profile() -> Profile {
+        Profile {
+            user_id: "@them:test".to_owned(),
+            displayname: "Them".to_owned(),
+            ..Default::default()
+        }
+    }
+
+    /// The plan SQLite chooses for a statement, one line per step.
+    #[allow(clippy::let_and_return)] // The statement must outlive the rows it yields.
+    fn plan(store: &Store, sql: &str) -> Vec<String> {
+        let conn = store.conn();
+        let mut stmt = conn.prepare(&format!("EXPLAIN QUERY PLAN {sql}")).unwrap();
+        // The plan does not depend on the values, so every placeholder is bound to NULL.
+        let nulls = vec![rusqlite::types::Value::Null; stmt.parameter_count()];
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(nulls.iter()), |row| {
+                row.get::<_, String>(3)
+            })
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap();
+        rows
+    }
+
+    /// No step may read a whole table without an index.
+    fn assert_no_full_scan(plan: &[String]) {
+        for line in plan {
+            assert!(
+                !(line.starts_with("SCAN ") && !line.contains("USING")),
+                "full table scan in {plan:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn hot_queries_use_their_indices() {
+        let store = store_with_room();
+
+        let page = plan(&store, LIST_MESSAGES_SQL);
+        assert_no_full_scan(&page);
+        assert!(
+            page.iter().any(|l| l.contains("event_room_ord_idx")),
+            "{page:?}"
+        );
+
+        let by_remote = plan(&store, &sql_event_by_remote());
+        assert_no_full_scan(&by_remote);
+        assert!(
+            by_remote.iter().any(|l| l.contains("event_remote_idx")),
+            "{by_remote:?}"
+        );
+
+        let by_txn = plan(&store, &sql_event_by_txn());
+        assert_no_full_scan(&by_txn);
+        assert!(
+            by_txn.iter().any(|l| l.contains("event_room_txn_idx")),
+            "{by_txn:?}"
+        );
+
+        let (chats, _) = chat_list_query(&ChatFilter::default());
+        let list = plan(&store, &chats);
+        assert_no_full_scan(&list);
+        assert!(list.iter().any(|l| l.contains("room_list_idx")), "{list:?}");
+    }
+
+    #[test]
+    fn a_backfill_page_commits_together() {
+        let store = store_with_room();
+        let mut page = vec![event("$1"), event("$2")];
+        let added = store
+            .store_backfill_page(ROOM, &mut page, &[profile()], "cursor-1", false)
+            .unwrap();
+        assert_eq!(added, 2);
+        assert_eq!(
+            store.backfill(ROOM).unwrap(),
+            ("cursor-1".to_owned(), false)
+        );
+        assert_eq!(store.event("$2").unwrap().remote_id, "remote-$2");
+        assert_eq!(store.profile("@them:test").unwrap().displayname, "Them");
+    }
+
+    #[test]
+    fn a_failed_backfill_page_leaves_nothing_behind() {
+        let store = store_with_room();
+        store
+            .conn()
+            .execute_batch(
+                "CREATE TRIGGER refuse_bad BEFORE INSERT ON event
+                 WHEN NEW.event_id = '$bad'
+                 BEGIN SELECT RAISE(ABORT, 'refused'); END;",
+            )
+            .unwrap();
+        let mut page = vec![event("$1"), event("$bad"), event("$3")];
+        let err = store.store_backfill_page(ROOM, &mut page, &[profile()], "cursor-9", true);
+        assert!(err.is_err());
+        assert!(matches!(store.event("$1"), Err(Error::NotFound)));
+        assert!(matches!(store.event("$3"), Err(Error::NotFound)));
+        assert_eq!(store.backfill(ROOM).unwrap(), (String::new(), false));
+        assert!(matches!(store.profile("@them:test"), Err(Error::NotFound)));
+    }
+}

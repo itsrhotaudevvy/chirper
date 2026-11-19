@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use chirper_bridge::model::{DeliveryStatus, SessionState};
 use chirper_bridge::runtime::{Routed, RoutedEvent};
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::Receiver;
 
 use crate::ids::{self, SELF_USER_ID};
 use crate::model::AccountState;
@@ -13,17 +13,24 @@ use crate::store::{Event, Member, Profile, Room, RoomFields};
 use super::convert;
 use super::{Inner, Result};
 
-/// Drain routed driver events until the runtime is gone.
-pub(super) async fn run(inner: Arc<Inner>, mut rx: UnboundedReceiver<RoutedEvent>) {
+/// Drain routed driver events until the runtime is gone. Waits for the shell to catch up when it
+/// has fallen far behind (see [`super::EVENT_BACKLOG`]).
+pub(super) async fn run(inner: Arc<Inner>, mut rx: Receiver<RoutedEvent>) {
     while let Some(event) = rx.recv().await {
         if inner.closed.load(std::sync::atomic::Ordering::SeqCst) {
             break;
         }
+        let shell = inner.events.clone();
+        inner
+            .backlog
+            .wait_below(super::EVENT_BACKLOG, || shell.is_closed())
+            .await;
         let network = event.network.clone();
         let login_id = event.login_id.clone();
         if let Err(err) = apply(&inner, &network, &login_id, event.routed) {
-            log::warn!("{network}/{login_id}: cannot apply event: {err}");
-            inner.error(format!("{network}: {err}"));
+            let text = chirper_bridge::redact(&err.to_string());
+            log::warn!("{network}/{login_id}: cannot apply event: {text}");
+            inner.error(format!("{network}: {text}"));
         }
     }
     log::debug!("bridge event stream ended");
@@ -323,8 +330,9 @@ fn message_event(
     }
 
     // The network echoed a message this device sent: attach it to the optimistic row.
-    if message.from_me && message.live {
-        if let Some(pending) = inner
+    if message.from_me
+        && message.live
+        && let Some(pending) = inner
             .store
             .pending_outgoing(room_id)?
             .into_iter()
@@ -342,32 +350,31 @@ fn message_event(
                     )
                     .body
             })
-        {
-            if !message.id.is_empty() {
-                inner
-                    .store
-                    .set_event_remote(&pending.event_id, &message.id)?;
-            }
+    {
+        if !message.id.is_empty() {
             inner
                 .store
-                .set_event_status(&pending.event_id, "delivered", "")?;
-            emit_message(inner, &pending.event_id)?;
-            emit_chat(inner, room_id)?;
-            return Ok(());
+                .set_event_remote(&pending.event_id, &message.id)?;
         }
+        inner
+            .store
+            .set_event_status(&pending.event_id, "delivered", "")?;
+        emit_message(inner, &pending.event_id)?;
+        emit_chat(inner, room_id)?;
+        return Ok(());
     }
 
     // The network confirmed a message this device sent: update it instead of duplicating it.
-    if !message.id.is_empty() {
-        if let Some(existing) = inner.store.event_by_remote(room_id, &message.id)? {
-            if message.from_me {
-                inner
-                    .store
-                    .set_event_status(&existing.event_id, "delivered", "")?;
-            }
-            emit_message(inner, &existing.event_id)?;
-            return Ok(());
+    if !message.id.is_empty()
+        && let Some(existing) = inner.store.event_by_remote(room_id, &message.id)?
+    {
+        if message.from_me {
+            inner
+                .store
+                .set_event_status(&existing.event_id, "delivered", "")?;
         }
+        emit_message(inner, &existing.event_id)?;
+        return Ok(());
     }
 
     let stored = convert::content_json(

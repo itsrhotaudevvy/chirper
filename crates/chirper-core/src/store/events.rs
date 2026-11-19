@@ -4,7 +4,8 @@ use rusqlite::types::Value as SqlValue;
 use rusqlite::{OptionalExtension, params};
 
 use super::media::{link_media_tx, remove_media_files, unlink_media_tx};
-use super::{Error, Result, Store, now_ms};
+use super::rooms::{set_backfill_tx, set_profile_tx};
+use super::{Error, Profile, Result, Store, now_ms};
 
 /// A stored timeline event.
 #[derive(Clone, Debug, Default)]
@@ -83,50 +84,32 @@ impl Store {
     /// Store a visible timeline event, idempotent on the event id. Returns whether it was inserted;
     /// `e.order` is always set to the assigned (or existing) order key.
     pub fn insert_event(&self, e: &mut Event) -> Result<bool> {
-        let inserted = self.write(|tx| {
-            let existing: Option<i64> = tx
-                .query_row(
-                    "SELECT ord FROM event WHERE event_id = ?1",
-                    params![e.event_id],
-                    |row| row.get(0),
-                )
-                .optional()?;
-            if let Some(order) = existing {
-                e.order = order;
-                return Ok(false);
+        self.write(|tx| insert_event_tx(tx, e))
+    }
+
+    /// Store one page of history, its profiles and its cursor in one transaction, so a page costs
+    /// one commit instead of one per message. Returns how many events were new.
+    pub fn store_backfill_page(
+        &self,
+        room_id: &str,
+        events: &mut [Event],
+        profiles: &[Profile],
+        cursor: &str,
+        done: bool,
+    ) -> Result<usize> {
+        self.write(|tx| {
+            for profile in profiles {
+                set_profile_tx(tx, profile)?;
             }
-            e.order = next_order_tx(tx, &e.room_id, e.ts)?;
-            let changed = tx.execute(
-                "INSERT INTO event (event_id, room_id, ord, sender, type, state_key, content_json,
-                     ts, txn_id, reply_to, status, error, part_index, remote_id)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-                 ON CONFLICT DO NOTHING",
-                params![
-                    e.event_id,
-                    e.room_id,
-                    e.order,
-                    e.sender,
-                    e.kind,
-                    e.state_key,
-                    e.content_json,
-                    e.ts,
-                    null_if_empty(&e.txn_id),
-                    e.reply_to,
-                    e.status,
-                    e.error,
-                    e.part_index,
-                    e.remote_id,
-                ],
-            )?;
-            if changed == 0 {
-                // Another row with the same transaction id exists under a different event id.
-                return Ok(false);
+            let mut added = 0;
+            for event in events.iter_mut() {
+                if insert_event_tx(tx, event)? {
+                    added += 1;
+                }
             }
-            link_media_tx(tx, &e.event_id, &e.room_id, &e.content_json)?;
-            touch_room_tx(tx, e)?;
-            Ok(true)
-        })?;
-        Ok(inserted)
+            set_backfill_tx(tx, room_id, cursor, done)?;
+            Ok(added)
+        })
     }
 
     pub fn event(&self, event_id: &str) -> Result<Event> {
@@ -145,10 +128,7 @@ impl Store {
         let conn = self.conn();
         Ok(conn
             .query_row(
-                &format!(
-                    "SELECT {EVENT_COLUMNS} FROM event
-                     WHERE room_id = ?1 AND remote_id = ?2 ORDER BY ord LIMIT 1"
-                ),
+                &sql_event_by_remote(),
                 params![room_id, remote_id],
                 scan_event,
             )
@@ -174,11 +154,7 @@ impl Store {
     pub fn event_by_txn(&self, room_id: &str, txn_id: &str) -> Result<Option<Event>> {
         let conn = self.conn();
         Ok(conn
-            .query_row(
-                &format!("SELECT {EVENT_COLUMNS} FROM event WHERE room_id = ?1 AND txn_id = ?2"),
-                params![room_id, txn_id],
-                scan_event,
-            )
+            .query_row(&sql_event_by_txn(), params![room_id, txn_id], scan_event)
             .optional()?)
     }
 
@@ -515,4 +491,64 @@ fn touch_room_tx(tx: &rusqlite::Transaction<'_>, e: &Event) -> Result<()> {
         params![e.room_id, e.ts, e.event_id],
     )?;
     Ok(())
+}
+
+/// Insert one event inside an open transaction; see [`Store::insert_event`].
+fn insert_event_tx(tx: &rusqlite::Transaction<'_>, e: &mut Event) -> Result<bool> {
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT ord FROM event WHERE event_id = ?1",
+            params![e.event_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(order) = existing {
+        e.order = order;
+        return Ok(false);
+    }
+    e.order = next_order_tx(tx, &e.room_id, e.ts)?;
+    let changed = tx.execute(
+        "INSERT INTO event (event_id, room_id, ord, sender, type, state_key, content_json,
+                 ts, txn_id, reply_to, status, error, part_index, remote_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+             ON CONFLICT DO NOTHING",
+        params![
+            e.event_id,
+            e.room_id,
+            e.order,
+            e.sender,
+            e.kind,
+            e.state_key,
+            e.content_json,
+            e.ts,
+            null_if_empty(&e.txn_id),
+            e.reply_to,
+            e.status,
+            e.error,
+            e.part_index,
+            e.remote_id,
+        ],
+    )?;
+    if changed == 0 {
+        // Another row with the same transaction id exists under a different event id.
+        return Ok(false);
+    }
+    link_media_tx(tx, &e.event_id, &e.room_id, &e.content_json)?;
+    touch_room_tx(tx, e)?;
+    Ok(true)
+}
+
+/// The lookup of an event by its remote id. A function so the query-plan test runs this exact text.
+pub(super) fn sql_event_by_remote() -> String {
+    // `INDEXED BY` pins the remote-id index. Without it the planner walks the room's events in
+    // `ord` order, because of the ORDER BY, and reads the whole room before it finds a match.
+    format!(
+        "SELECT {EVENT_COLUMNS} FROM event INDEXED BY event_remote_idx
+         WHERE room_id = ?1 AND remote_id = ?2 ORDER BY ord LIMIT 1"
+    )
+}
+
+/// The lookup of an event by the transaction id of an outgoing message.
+pub(super) fn sql_event_by_txn() -> String {
+    format!("SELECT {EVENT_COLUMNS} FROM event WHERE room_id = ?1 AND txn_id = ?2")
 }

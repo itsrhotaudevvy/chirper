@@ -78,10 +78,10 @@ pub(super) fn link_media_tx(
     // (`url`/`info.thumbnail_url`) name media that may live on this device.
     let mut uris: Vec<String> = Vec::new();
     let mut push = |u: Option<&str>| {
-        if let Some(u) = u {
-            if !u.is_empty() {
-                uris.push(u.to_owned());
-            }
+        if let Some(u) = u
+            && !u.is_empty()
+        {
+            uris.push(u.to_owned());
         }
     };
     push(value.pointer("/media/url").and_then(|v| v.as_str()));
@@ -159,10 +159,10 @@ pub(super) fn unlink_media_tx(
 /// already gone, so the file would otherwise leak forever.
 pub(super) fn remove_media_files(paths: &[String]) {
     for path in paths {
-        if let Err(err) = std::fs::remove_file(Path::new(path)) {
-            if err.kind() != std::io::ErrorKind::NotFound {
-                log::warn!("cannot delete media file: {err}");
-            }
+        if let Err(err) = std::fs::remove_file(Path::new(path))
+            && err.kind() != std::io::ErrorKind::NotFound
+        {
+            log::warn!("cannot delete media file: {err}");
         }
     }
 }

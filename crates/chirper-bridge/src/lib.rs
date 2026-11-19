@@ -13,6 +13,7 @@
 pub mod ids;
 pub mod model;
 pub mod network;
+pub mod redact;
 pub mod runtime;
 
 pub use ids::{ChatId, EventId, SenderId, chat_id, event_id_for, sender_id};
@@ -24,6 +25,7 @@ pub use model::{
 pub use network::{
     Command, Error, LoginCtx, LoginInput, LoginProcess, Network, Result, Secrets, Session,
 };
+pub use redact::redact;
 pub use runtime::{Routed, RoutedEvent, Runtime};
 
 /// Build the HTTP client every driver shares: rustls only, no redirects to other hosts, bounded

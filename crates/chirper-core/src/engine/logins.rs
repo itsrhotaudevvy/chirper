@@ -44,6 +44,7 @@ impl Core {
     ) -> Result<LoginState> {
         self.inner().require_open()?;
         validate::token(process_id)?;
+        validate::login_fields(values.len())?;
         for (field, value) in values {
             validate::token(field)?;
             if value.len() > 4096 || value.chars().any(|c| c == '\0') {
@@ -62,6 +63,7 @@ impl Core {
     ) -> Result<LoginState> {
         self.inner().require_open()?;
         validate::token(process_id)?;
+        validate::login_fields(cookies.len())?;
         for (field, value) in cookies {
             validate::token(field)?;
             if value.len() > 16 * 1024 || value.chars().any(|c| c == '\0') {
@@ -82,13 +84,13 @@ impl Core {
             let Some(active) = logins.get(process_id) else {
                 return Err(Error::NotFound);
             };
-            if let Some(step) = active.last_step.lock().expect("step").clone() {
-                if step.is_complete() {
-                    return Ok(LoginState {
-                        process_id: process_id.to_owned(),
-                        step: convert::wire_step(&step),
-                    });
-                }
+            if let Some(step) = active.last_step.lock().expect("step").clone()
+                && step.is_complete()
+            {
+                return Ok(LoginState {
+                    process_id: process_id.to_owned(),
+                    step: convert::wire_step(&step),
+                });
             }
         }
         self.advance(process_id, LoginInput::start()).await
@@ -118,12 +120,13 @@ impl Core {
         validate::token(login_id)?;
         let inner = self.inner();
         let driver = inner.runtime.network(network);
-        if let Some(driver) = driver {
-            if driver.supports_remote_logout() && inner.runtime.is_running(network, login_id) {
-                if let Err(err) = inner.runtime.logout_remote(network, login_id).await {
-                    log::debug!("{network}/{login_id}: remote logout: {err}");
-                }
-            }
+        if let Some(driver) = driver
+            && driver.supports_remote_logout()
+            && inner.runtime.is_running(network, login_id)
+            && let Err(err) = inner.runtime.logout_remote(network, login_id).await
+        {
+            let text = chirper_bridge::redact(&err.to_string());
+            log::debug!("{network}/{login_id}: remote logout: {text}");
         }
         inner.runtime.stop_login(network, login_id);
         for room_id in inner.store.purge_login(network, login_id)? {
@@ -189,6 +192,9 @@ impl Core {
             step: convert::wire_step(&step),
         };
         if let BridgeStep::Complete { login_id: final_id } = &step {
+            // The account id comes from the network and becomes a directory and a secret prefix.
+            validate::token(final_id)
+                .map_err(|_| Error::Failed("the network returned an unusable account id".into()))?;
             self.finish_login(process_id, &network, &login_id, final_id, &ctx)
                 .await;
         }
@@ -242,9 +248,9 @@ fn remove_login_dir(data_dir: &std::path::Path, network: &str, login_id: &str) {
     let dir = data_dir
         .join("logins")
         .join(format!("{network}.{login_id}"));
-    if let Err(err) = std::fs::remove_dir_all(&dir) {
-        if err.kind() != std::io::ErrorKind::NotFound {
-            log::warn!("cannot delete {dir:?}: {err}");
-        }
+    if let Err(err) = std::fs::remove_dir_all(&dir)
+        && err.kind() != std::io::ErrorKind::NotFound
+    {
+        log::warn!("cannot delete {dir:?}: {err}");
     }
 }

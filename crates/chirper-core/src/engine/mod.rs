@@ -13,7 +13,7 @@ pub mod validate;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -56,15 +56,59 @@ impl Options {
     }
 }
 
+/// Wire events the dispatcher may run ahead of the shell. Above this, the dispatcher stops taking
+/// driver events until the shell has drained some, so a flood cannot grow the queue without bound.
+const EVENT_BACKLOG: usize = 4096;
+
+/// How many wire events the shell has not taken yet.
+#[derive(Default)]
+pub(crate) struct Backlog {
+    pending: AtomicUsize,
+    drained: tokio::sync::Notify,
+}
+
+impl Backlog {
+    /// Count an event that is about to be queued.
+    fn queued(&self) {
+        self.pending.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Undo [`Backlog::queued`] for an event that could not be queued.
+    fn unqueued(&self) {
+        self.pending.fetch_sub(1, Ordering::SeqCst);
+    }
+
+    /// Count an event the shell has taken.
+    fn taken(&self) {
+        self.unqueued();
+        self.drained.notify_one();
+    }
+
+    /// Wait until at most `limit` events are pending, or until `gone` says the shell has left.
+    pub(crate) async fn wait_below(&self, limit: usize, gone: impl Fn() -> bool) {
+        while self.pending.load(Ordering::SeqCst) > limit && !gone() {
+            tokio::select! {
+                () = self.drained.notified() => {}
+                () = tokio::time::sleep(std::time::Duration::from_millis(50)) => {}
+            }
+        }
+    }
+}
+
 /// The event channel the shell drains. Batches are assembled by the shell.
 pub struct EventStream {
     rx: mpsc::UnboundedReceiver<CoreEvent>,
+    backlog: Arc<Backlog>,
 }
 
 impl EventStream {
     /// The next event, or `None` once the core is shut down.
     pub async fn recv(&mut self) -> Option<CoreEvent> {
-        self.rx.recv().await
+        let event = self.rx.recv().await;
+        if event.is_some() {
+            self.backlog.taken();
+        }
+        event
     }
 }
 
@@ -146,6 +190,7 @@ pub(crate) struct Inner {
     /// Display names of the people typing in a room, by room id.
     pub typing: Mutex<HashMap<String, Vec<String>>>,
     pub events: mpsc::UnboundedSender<CoreEvent>,
+    pub backlog: Arc<Backlog>,
     pub closed: AtomicBool,
 }
 
@@ -159,10 +204,14 @@ impl Inner {
                 return;
             }
         };
-        let _ = self.events.send(CoreEvent {
+        self.backlog.queued();
+        let sent = self.events.send(CoreEvent {
             kind: kind.to_owned(),
             payload,
         });
+        if sent.is_err() {
+            self.backlog.unqueued();
+        }
     }
 
     pub fn error(&self, message: impl Into<String>) {
@@ -202,19 +251,17 @@ impl Inner {
 
     /// Record an account state and tell the shell. Returns the account that was emitted.
     pub fn set_account(&self, mut account: Account) -> Account {
-        if account.name.is_empty() || account.avatar_url.is_empty() {
-            if let Ok(logins) = self.store.logins() {
-                if let Some(stored) = logins
-                    .iter()
-                    .find(|l| l.network == account.network && l.login_id == account.login_id)
-                {
-                    if account.name.is_empty() {
-                        account.name = stored.name.clone();
-                    }
-                    if account.avatar_url.is_empty() {
-                        account.avatar_url = stored.avatar_url.clone();
-                    }
-                }
+        if (account.name.is_empty() || account.avatar_url.is_empty())
+            && let Ok(logins) = self.store.logins()
+            && let Some(stored) = logins
+                .iter()
+                .find(|l| l.network == account.network && l.login_id == account.login_id)
+        {
+            if account.name.is_empty() {
+                account.name = stored.name.clone();
+            }
+            if account.avatar_url.is_empty() {
+                account.avatar_url = stored.avatar_url.clone();
             }
         }
         self.accounts.lock().expect("account map").insert(
@@ -239,18 +286,19 @@ impl Core {
     /// Must be called inside a Tokio runtime; the returned [`EventStream`] belongs to the caller.
     pub fn open(options: Options) -> Result<(Self, EventStream)> {
         let data_dir = options.data_dir.clone();
-        std::fs::create_dir_all(&data_dir)?;
-        crate::secure::tighten_dir(&data_dir)?;
+        crate::secure::create_private_dir(&data_dir)?;
 
-        let store = Arc::new(Store::open(
-            &data_dir.join("chirper.db"),
-            options.db_key.as_ref(),
-        )?);
+        // The database is owner-only from its first byte; SQLite gives its -wal and -shm files the
+        // same mode.
+        let db_path = data_dir.join("chirper.db");
+        crate::secure::ensure_private_file(&db_path)?;
+        let store = Arc::new(Store::open(&db_path, options.db_key.as_ref())?);
         let secrets = Arc::new(FileSecrets::new(&data_dir, options.db_key.as_ref())?);
         let settings = settings::load(&data_dir);
 
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        let (routed_tx, routed_rx) = mpsc::unbounded_channel();
+        let backlog = Arc::new(Backlog::default());
+        let (routed_tx, routed_rx) = mpsc::channel(chirper_bridge::runtime::EVENT_QUEUE);
         let drivers = networks::available(options.demo_network, &options.host_networks);
         let runtime = Arc::new(Runtime::new(drivers.clone(), routed_tx));
 
@@ -265,11 +313,18 @@ impl Core {
             logins: Mutex::new(HashMap::new()),
             typing: Mutex::new(HashMap::new()),
             events: event_tx,
+            backlog: Arc::clone(&backlog),
             closed: AtomicBool::new(false),
         });
 
         tokio::spawn(dispatch::run(inner.clone(), routed_rx));
-        Ok((Self { inner }, EventStream { rx: event_rx }))
+        Ok((
+            Self { inner },
+            EventStream {
+                rx: event_rx,
+                backlog,
+            },
+        ))
     }
 
     pub(crate) fn inner(&self) -> &Inner {
@@ -305,6 +360,10 @@ impl Core {
     /// `listChats`.
     pub async fn list_chats(&self, filter: &ChatFilter) -> Result<Vec<Chat>> {
         self.inner.require_open()?;
+        if !filter.network.is_empty() {
+            validate::network_id(&filter.network)?;
+        }
+        validate::query(&filter.query)?;
         Ok(self.inner.store.list_chats(filter)?)
     }
 
@@ -411,12 +470,14 @@ impl Inner {
         network: &str,
         login_id: &str,
     ) -> Result<chirper_bridge::LoginCtx> {
+        // The login id comes from the network. Anything that could leave the logins directory is
+        // refused before it becomes part of a path.
+        validate::token(login_id)?;
         let dir = self
             .data_dir
             .join("logins")
             .join(format!("{network}.{login_id}"));
-        std::fs::create_dir_all(&dir)?;
-        crate::secure::tighten_dir(&dir)?;
+        crate::secure::create_private_dir(&dir)?;
         Ok(chirper_bridge::LoginCtx {
             network: network.to_owned(),
             login_id: login_id.to_owned(),
@@ -457,3 +518,112 @@ pub fn secret_key(bytes: &[u8]) -> Zeroizing<Vec<u8>> {
 
 /// The settings file name, for the shell's documentation.
 pub const SETTINGS_FILE: &str = settings::FILE;
+
+#[cfg(test)]
+mod hardening_tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::model::ChatFilter;
+
+    fn data_dir(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("chirper-engine-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[tokio::test]
+    async fn login_ids_that_could_leave_the_logins_directory_are_refused() {
+        let dir = data_dir("ids");
+        let (core, _events) = Core::open(Options::new(&dir)).unwrap();
+        let inner = core.inner();
+        for hostile in ["../../escape", "a/b", "..\\x", "x\0y", ""] {
+            assert!(
+                inner.login_ctx("discord", hostile).is_err(),
+                "accepted {hostile:?}"
+            );
+        }
+        assert!(!dir.join("escape").exists());
+        let ctx = inner.login_ctx("discord", "discord_123").unwrap();
+        assert!(ctx.data_dir.starts_with(dir.join("logins")));
+        core.shutdown();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn the_database_and_login_directories_are_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = data_dir("modes");
+        let (core, _events) = Core::open(Options::new(&dir)).unwrap();
+        let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&dir), 0o700);
+        assert_eq!(mode(&dir.join("chirper.db")), 0o600);
+        let ctx = core.inner().login_ctx("discord", "discord_9").unwrap();
+        assert_eq!(mode(&ctx.data_dir), 0o700);
+        core.shutdown();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn list_chats_refuses_unvalidated_filters() {
+        let dir = data_dir("filters");
+        let (core, _events) = Core::open(Options::new(&dir)).unwrap();
+        let bad_network = ChatFilter {
+            network: "Not A Network".to_owned(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            core.list_chats(&bad_network).await,
+            Err(Error::InvalidInput(_))
+        ));
+        let long_query = ChatFilter {
+            query: "x".repeat(501),
+            ..Default::default()
+        };
+        assert!(matches!(
+            core.list_chats(&long_query).await,
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(core.list_chats(&ChatFilter::default()).await.is_ok());
+        core.shutdown();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn login_steps_with_too_many_fields_are_refused() {
+        let dir = data_dir("fields");
+        let (core, _events) = Core::open(Options::new(&dir)).unwrap();
+        let fields: BTreeMap<String, String> = (0..=validate::MAX_LOGIN_FIELDS)
+            .map(|i| (format!("f{i}"), "v".to_owned()))
+            .collect();
+        assert!(matches!(
+            core.submit_login_input("p-abc", &fields).await,
+            Err(Error::InvalidInput(_))
+        ));
+        assert!(matches!(
+            core.submit_login_cookies("p-abc", &fields).await,
+            Err(Error::InvalidInput(_))
+        ));
+        core.shutdown();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn the_dispatcher_waits_for_the_shell_to_drain() {
+        let backlog = Arc::new(Backlog::default());
+        for _ in 0..5 {
+            backlog.queued();
+        }
+        let waiter = {
+            let backlog = Arc::clone(&backlog);
+            tokio::spawn(async move { backlog.wait_below(2, || false).await })
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(!waiter.is_finished(), "went on with five events pending");
+        for _ in 0..3 {
+            backlog.taken();
+        }
+        waiter.await.unwrap();
+    }
+}

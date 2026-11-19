@@ -11,7 +11,7 @@ use super::{Core, Error, Inner, Result, validate};
 use crate::content;
 use crate::ids::{self, SELF_USER_ID};
 use crate::model::{Chat, ChatFlags, Message};
-use crate::store::{Event, Room, RoomFields};
+use crate::store::{Event, Profile, Room, RoomFields};
 
 /// A local file to send as an attachment.
 #[derive(Debug, Clone, Copy)]
@@ -189,7 +189,8 @@ impl Core {
         } else {
             Some(inner.remote_of(room_id, reply_to)?)
         };
-        let data = std::fs::read(&path)?;
+        // One copy of the file for the whole send: the store and the driver share it.
+        let data = Arc::new(std::fs::read(&path)?);
         let info = MediaInfo {
             mime: upload.mime_type.to_owned(),
             file_name: upload.file_name.to_owned(),
@@ -200,7 +201,7 @@ impl Core {
             &convert::media_dir(&inner.data_dir),
             &inner.store,
             &info,
-            &Arc::new(data.clone()),
+            &data,
             None,
         )?
         .ok_or_else(|| Error::InvalidInput("file is empty".to_owned()))?;
@@ -209,7 +210,7 @@ impl Core {
         let event_id = event.event_id.clone();
         let command = Command::SendMedia {
             portal: room_ref.portal,
-            data: Arc::new(data),
+            data: Arc::clone(&data),
             mime: upload.mime_type.to_owned(),
             file_name: upload.file_name.to_owned(),
             caption: upload.caption.to_owned(),
@@ -245,8 +246,9 @@ impl Core {
                 inner.finish_send(&room_id, &event_id, "sent", "");
             }
             Err(err) => {
-                log::warn!("{network}/{login_id}: send failed: {err}");
-                inner.finish_send(&room_id, &event_id, "failed", &err.to_string());
+                let text = chirper_bridge::redact(&err.to_string());
+                log::warn!("{network}/{login_id}: send failed: {text}");
+                inner.finish_send(&room_id, &event_id, "failed", &text);
             }
         }
     }
@@ -472,11 +474,19 @@ impl Core {
                 chirper_bridge::model::DEFAULT_BACKFILL_PAGE,
             )
             .await?;
+        let mut events = Vec::with_capacity(page.messages.len());
+        let mut profiles = Vec::with_capacity(page.messages.len());
         for message in &page.messages {
-            store_history(&inner, &room_ref, message);
+            if let Some((event, profile)) = history_row(&inner, &room_ref, message) {
+                events.push(event);
+                profiles.push(profile);
+            }
         }
-        inner.store.set_backfill(
+        // The page, its profiles and its cursor commit together: one write per page.
+        inner.store.store_backfill_page(
             room_id,
+            &mut events,
+            &profiles,
             page.cursor.as_deref().unwrap_or(""),
             !page.has_more,
         )?;
@@ -502,7 +512,11 @@ impl Core {
                     Ok(true) => continue,
                     Ok(false) => break,
                     Err(err) => {
-                        log::debug!("history of {}: {err}", chat.room_id);
+                        log::debug!(
+                            "history of {}: {}",
+                            chat.room_id,
+                            chirper_bridge::redact(&err.to_string())
+                        );
                         break;
                     }
                 }
@@ -527,10 +541,15 @@ fn media_kind(kind: &str) -> String {
     }
 }
 
-/// Insert one backfilled message. History never becomes unread and never moves the chat.
-fn store_history(inner: &Inner, room: &RoomRef, message: &chirper_bridge::model::RemoteMessage) {
+/// The row of one backfilled message, or `None` when it has no id or is already stored. History
+/// never becomes unread and never moves the chat; the caller writes the row in one transaction.
+fn history_row(
+    inner: &Inner,
+    room: &RoomRef,
+    message: &chirper_bridge::model::RemoteMessage,
+) -> Option<(Event, Profile)> {
     if message.id.is_empty() {
-        return;
+        return None;
     }
     if inner
         .store
@@ -539,21 +558,21 @@ fn store_history(inner: &Inner, room: &RoomRef, message: &chirper_bridge::model:
         .flatten()
         .is_some()
     {
-        return;
+        return None;
     }
     let sender = ids::sender_id(&room.network, &message.sender.id);
-    let _ = inner.store.set_profile(&crate::store::Profile {
+    let profile = Profile {
         user_id: sender.as_str().to_owned(),
         displayname: message.sender.display_name.clone(),
         avatar_url: message.sender.avatar_url.clone(),
         extra_json: String::new(),
-    });
+    };
     let stored = convert::content_json(
         &message.content,
         &convert::media_dir(&inner.data_dir),
         &inner.store,
     );
-    let mut event = Event {
+    let event = Event {
         event_id: ids::event_id_for(
             &room.network,
             &room.room.room_id,
@@ -574,5 +593,5 @@ fn store_history(inner: &Inner, room: &RoomRef, message: &chirper_bridge::model:
         remote_id: message.id.clone(),
         ..Default::default()
     };
-    let _ = inner.store.insert_event(&mut event);
+    Some((event, profile))
 }

@@ -232,20 +232,18 @@ pub fn save_media(
     if data.is_empty() {
         return Ok(None);
     }
-    std::fs::create_dir_all(media_dir)?;
+    crate::secure::create_private_dir(media_dir)?;
     let media_id = chirper_bridge::ids::random_hex(16);
     let extension = extension_for(&info.mime, &info.file_name);
     let path = media_dir.join(format!("{media_id}.{extension}"));
-    std::fs::write(&path, data.as_slice())?;
-    crate::secure::restrict_file(&path)?;
+    crate::secure::write_private(&path, data.as_slice())?;
     let mut thumbnail_uri = String::new();
-    if let Some(thumb) = thumbnail {
-        if !thumb.is_empty() {
-            let thumb_path = media_dir.join(format!("{media_id}.thumb.jpg"));
-            std::fs::write(&thumb_path, thumb)?;
-            crate::secure::restrict_file(&thumb_path)?;
-            thumbnail_uri = chirper_bridge::ids::media_uri(&format!("{media_id}.thumb"));
-        }
+    if let Some(thumb) = thumbnail
+        && !thumb.is_empty()
+    {
+        let thumb_path = media_dir.join(format!("{media_id}.thumb.jpg"));
+        crate::secure::write_private(&thumb_path, thumb)?;
+        thumbnail_uri = chirper_bridge::ids::media_uri(&format!("{media_id}.thumb"));
     }
     store
         .put_media(&StoredMedia {
@@ -370,4 +368,38 @@ pub fn portal_of(room: &Room) -> bridge::PortalRef {
 /// The media directory of a data directory.
 pub fn media_dir(data_dir: &Path) -> PathBuf {
     crate::store::media_dir(data_dir)
+}
+
+#[cfg(test)]
+mod media_tests {
+    use super::*;
+
+    #[test]
+    fn saved_media_is_owner_only_from_creation() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("chirper-media-modes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("media");
+        let store = Store::open_in_memory().unwrap();
+        let info = bridge::MediaInfo {
+            mime: "image/png".to_owned(),
+            file_name: "a.png".to_owned(),
+            size: 3,
+            ..Default::default()
+        };
+        let data = Arc::new(vec![1u8, 2, 3]);
+        let media = save_media(&dir, &store, &info, &data, Some(b"thumb"))
+            .unwrap()
+            .unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&dir), 0o700);
+        let stored = store.media(media.url.rsplit('/').next().unwrap()).unwrap();
+        assert_eq!(mode(Path::new(&stored.path)), 0o600);
+        let thumb = dir.join(format!(
+            "{}.thumb.jpg",
+            media.url.rsplit('/').next().unwrap()
+        ));
+        assert_eq!(mode(&thumb), 0o600);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 }

@@ -134,6 +134,16 @@ pub fn mxc_url(value: &str) -> Result<()> {
     Ok(())
 }
 
+/// Most fields one login step may carry. A driver asks for a handful; more is not a real form.
+pub const MAX_LOGIN_FIELDS: usize = 32;
+
+pub fn login_fields(count: usize) -> Result<()> {
+    if count > MAX_LOGIN_FIELDS {
+        return Err(Error::InvalidInput("too many login fields".to_owned()));
+    }
+    Ok(())
+}
+
 pub fn query(value: &str) -> Result<()> {
     if value.len() > 500 {
         return Err(Error::InvalidInput("query".to_owned()));

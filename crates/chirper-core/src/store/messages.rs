@@ -7,6 +7,13 @@ use super::{Result, Store, like_pattern};
 use crate::content::{self, Described};
 use crate::model::{ChatPreview, Message, MessageStatus, Reaction as MessageReaction, ReplyTo};
 
+/// One page of a room's events, newest first. Served by `event_room_ord_idx`; the query-plan test
+/// keeps it that way.
+pub(super) const LIST_MESSAGES_SQL: &str = "SELECT event_id, room_id, ord, sender, type, state_key, \
+     content_json, ts, COALESCE(txn_id, ''), reply_to, edit_content_json, edited_ts, redacted, \
+     status, error, part_index, remote_id \
+     FROM event WHERE room_id = ?1 AND (?2 = 0 OR ord < ?2) ORDER BY ord DESC LIMIT ?3";
+
 /// The sender of the local user; messages from it are "mine" and never unread.
 use crate::ids::SELF_USER_ID;
 
@@ -31,13 +38,7 @@ impl Store {
     ) -> Result<Vec<Message>> {
         let events = {
             let conn = self.conn();
-            let mut stmt = conn.prepare(
-                "SELECT event_id, room_id, ord, sender, type, state_key, content_json, ts,
-                     COALESCE(txn_id, ''), reply_to, edit_content_json, edited_ts, redacted,
-                     status, error, part_index, remote_id
-                 FROM event WHERE room_id = ?1 AND (?2 = 0 OR ord < ?2)
-                 ORDER BY ord DESC LIMIT ?3",
-            )?;
+            let mut stmt = conn.prepare(LIST_MESSAGES_SQL)?;
             let rows = stmt.query_map(params![room_id, before_order, limit as i64], |row| {
                 Ok(Event {
                     event_id: row.get(0)?,

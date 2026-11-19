@@ -264,32 +264,7 @@ impl Store {
 
     /// Read the chats matching a filter, pinned first, then most recently active.
     pub fn list_chats(&self, filter: &ChatFilter) -> Result<Vec<Chat>> {
-        let mut query = format!(
-            "{CHAT_SELECT} WHERE room.deleted = false AND room.is_space = false AND room.archived = ?1"
-        );
-        let mut args: Vec<SqlValue> = vec![SqlValue::Integer(filter.archived as i64)];
-        if !filter.network.is_empty() {
-            args.push(SqlValue::Text(filter.network.clone()));
-            query.push_str(&format!(" AND room.bridge_id = ?{}", args.len()));
-        }
-        if filter.direct_only {
-            query.push_str(" AND (room.parent_id = '' OR room.is_dm = true)");
-        } else if filter.servers_only {
-            query.push_str(" AND room.parent_id <> '' AND room.is_dm = false");
-        }
-        if filter.unread_only {
-            query.push_str(" AND room.unread_count > 0");
-        }
-        if !filter.query.is_empty() {
-            args.push(SqlValue::Text(like_pattern(&filter.query)));
-            query.push_str(&format!(
-                " AND (room.name LIKE ?{n} ESCAPE '\\' OR {PARENT_NAME} LIKE ?{n} ESCAPE '\\')",
-                n = args.len(),
-                PARENT_NAME = PARENT_NAME
-            ));
-        }
-        query.push_str(" ORDER BY room.pinned DESC, room.last_activity_ts DESC, room.room_id");
-
+        let (query, args) = chat_list_query(filter);
         let conn = self.conn();
         let mut stmt = conn.prepare(&query)?;
         let rows = stmt.query_map(params_from_iter(args.iter()), scan_chat)?;
@@ -399,22 +374,7 @@ impl Store {
 
     /// Store a global profile and copy its name and avatar onto the user's member rows.
     pub fn set_profile(&self, p: &Profile) -> Result<()> {
-        self.write(|tx| {
-            tx.execute(
-                "INSERT INTO profile (user_id, displayname, avatar_url, extra_json)
-                 VALUES (?1, ?2, ?3, ?4)
-                 ON CONFLICT (user_id) DO UPDATE SET
-                     displayname = excluded.displayname,
-                     avatar_url = excluded.avatar_url,
-                     extra_json = excluded.extra_json",
-                params![p.user_id, p.displayname, p.avatar_url, p.extra_json],
-            )?;
-            tx.execute(
-                "UPDATE member SET displayname = ?2, avatar_url = ?3 WHERE user_id = ?1",
-                params![p.user_id, p.displayname, p.avatar_url],
-            )?;
-            Ok(())
-        })
+        self.write(|tx| set_profile_tx(tx, p))
     }
 
     /// The name shown for a user in a room: member name, then profile name, then the id.
@@ -431,14 +391,14 @@ impl Store {
             name = member.displayname;
             avatar = member.avatar_url;
         }
-        if name.is_empty() || avatar.is_empty() {
-            if let Ok(profile) = self.profile(user_id) {
-                if name.is_empty() {
-                    name = profile.displayname;
-                }
-                if avatar.is_empty() {
-                    avatar = profile.avatar_url;
-                }
+        if (name.is_empty() || avatar.is_empty())
+            && let Ok(profile) = self.profile(user_id)
+        {
+            if name.is_empty() {
+                name = profile.displayname;
+            }
+            if avatar.is_empty() {
+                avatar = profile.avatar_url;
             }
         }
         if name.is_empty() {
@@ -606,13 +566,7 @@ impl Store {
     }
 
     pub fn set_backfill(&self, room_id: &str, cursor: &str, done: bool) -> Result<()> {
-        let conn = self.conn();
-        conn.execute(
-            "INSERT INTO backfill (room_id, cursor, done) VALUES (?1, ?2, ?3)
-             ON CONFLICT (room_id) DO UPDATE SET cursor = excluded.cursor, done = excluded.done",
-            params![room_id, cursor, done],
-        )?;
-        Ok(())
+        self.write(|tx| set_backfill_tx(tx, room_id, cursor, done))
     }
 }
 
@@ -687,4 +641,68 @@ fn scan_chat(row: &rusqlite::Row<'_>) -> rusqlite::Result<Chat> {
         );
     }
     Ok(chat)
+}
+
+/// [`Store::set_profile`] inside an open transaction.
+pub(super) fn set_profile_tx(tx: &rusqlite::Transaction<'_>, p: &Profile) -> Result<()> {
+    tx.execute(
+        "INSERT INTO profile (user_id, displayname, avatar_url, extra_json)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (user_id) DO UPDATE SET
+             displayname = excluded.displayname,
+             avatar_url = excluded.avatar_url,
+             extra_json = excluded.extra_json",
+        params![p.user_id, p.displayname, p.avatar_url, p.extra_json],
+    )?;
+    tx.execute(
+        "UPDATE member SET displayname = ?2, avatar_url = ?3 WHERE user_id = ?1",
+        params![p.user_id, p.displayname, p.avatar_url],
+    )?;
+    Ok(())
+}
+
+/// [`Store::set_backfill`] inside an open transaction.
+pub(super) fn set_backfill_tx(
+    tx: &rusqlite::Transaction<'_>,
+    room_id: &str,
+    cursor: &str,
+    done: bool,
+) -> Result<()> {
+    tx.execute(
+        "INSERT INTO backfill (room_id, cursor, done) VALUES (?1, ?2, ?3)
+         ON CONFLICT (room_id) DO UPDATE SET cursor = excluded.cursor, done = excluded.done",
+        params![room_id, cursor, done],
+    )?;
+    Ok(())
+}
+
+/// The chat list query for a filter, and its arguments. A function so the query-plan test runs the
+/// exact text the list runs.
+pub(super) fn chat_list_query(filter: &ChatFilter) -> (String, Vec<SqlValue>) {
+    let mut query = format!(
+        "{CHAT_SELECT} WHERE room.deleted = false AND room.is_space = false AND room.archived = ?1"
+    );
+    let mut args: Vec<SqlValue> = vec![SqlValue::Integer(filter.archived as i64)];
+    if !filter.network.is_empty() {
+        args.push(SqlValue::Text(filter.network.clone()));
+        query.push_str(&format!(" AND room.bridge_id = ?{}", args.len()));
+    }
+    if filter.direct_only {
+        query.push_str(" AND (room.parent_id = '' OR room.is_dm = true)");
+    } else if filter.servers_only {
+        query.push_str(" AND room.parent_id <> '' AND room.is_dm = false");
+    }
+    if filter.unread_only {
+        query.push_str(" AND room.unread_count > 0");
+    }
+    if !filter.query.is_empty() {
+        args.push(SqlValue::Text(like_pattern(&filter.query)));
+        query.push_str(&format!(
+            " AND (room.name LIKE ?{n} ESCAPE '\\' OR {PARENT_NAME} LIKE ?{n} ESCAPE '\\')",
+            n = args.len(),
+            PARENT_NAME = PARENT_NAME
+        ));
+    }
+    query.push_str(" ORDER BY room.pinned DESC, room.last_activity_ts DESC, room.room_id");
+    (query, args)
 }

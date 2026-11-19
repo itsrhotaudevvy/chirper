@@ -69,10 +69,7 @@ pub mod vault {
         let mut key = Zeroizing::new([0u8; KEY_LEN]);
         getrandom::fill(key.as_mut()).map_err(std::io::Error::other)?;
         let mut input = std::io::BufReader::new(fs::File::open(src)?);
-        let mut out = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(dst)?;
+        let mut out = create_private_file(dst, true)?;
         let result = (|| {
             let aead = cipher(key.as_ref())?;
             let mut prefix = [0u8; PREFIX_LEN];
@@ -137,11 +134,7 @@ pub mod vault {
         }
         let prefix = &header[MAGIC.len()..];
         let aead = cipher(key)?;
-        let mut out = fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(dst)?;
+        let mut out = create_private_file(dst, false)?;
         let result = (|| {
             let mut sealed = vec![0u8; CHUNK + TAG];
             let mut index: u32 = 0;
@@ -267,25 +260,22 @@ impl std::fmt::Debug for FileSecrets {
 impl FileSecrets {
     pub fn new(data_dir: &Path, key: Option<&[u8; 32]>) -> std::io::Result<Self> {
         let root = data_dir.join("credentials");
-        fs::create_dir_all(&root)?;
-        tighten_dir(&root)?;
+        create_private_dir(&root)?;
         Ok(Self {
             root,
             key: key.map(|k| Zeroizing::new(*k)),
         })
     }
 
-    /// A filesystem-safe file name for a secret key (`network/login/name`).
+    /// The file a secret key is stored in.
     fn path_of(&self, key: &str) -> PathBuf {
-        let mut name = String::with_capacity(key.len());
-        for ch in key.chars() {
-            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
-                name.push(ch);
-            } else {
-                name.push('~');
-            }
-        }
-        self.root.join(format!("{name}.bin"))
+        self.root.join(format!("{}.bin", file_stem(key)))
+    }
+
+    /// The file a key had under the scheme that mapped every other character to `~`. Only differs
+    /// from [`path_of`](Self::path_of) for keys with such characters, and is read as a fallback.
+    fn legacy_path_of(&self, key: &str) -> PathBuf {
+        self.root.join(format!("{}.bin", legacy_stem(key)))
     }
 
     fn encode(&self, value: &[u8]) -> std::io::Result<Vec<u8>> {
@@ -328,51 +318,120 @@ impl FileSecrets {
 }
 
 impl FileSecrets {
-    /// Delete every secret of a login. Secret files are named after their key, so a prefix delete
-    /// needs no index.
+    /// Delete every secret whose key starts with `prefix`. The prefix is compared on whole keys, so
+    /// `discord/1/` never reaches `discord/12/`.
     pub fn delete_prefix(&self, prefix: &str) -> Result<(), std::io::Error> {
-        let stem = sanitize_prefix(prefix);
-        let Ok(entries) = fs::read_dir(&self.root) else {
-            return Ok(());
-        };
-        for entry in entries.flatten() {
-            if entry.file_name().to_string_lossy().starts_with(&stem) {
-                if let Err(err) = fs::remove_file(entry.path()) {
-                    if err.kind() != std::io::ErrorKind::NotFound {
-                        return Err(err);
-                    }
-                }
+        for (name, file) in self.entries() {
+            if matches_prefix(&name, prefix)
+                && let Err(err) = fs::remove_file(file)
+                && err.kind() != std::io::ErrorKind::NotFound
+            {
+                return Err(err);
             }
         }
         Ok(())
     }
-}
 
-impl FileSecrets {
     /// Move every secret of `from` to `to`, keeping the suffix after the prefix.
     pub fn move_prefix(&self, from: &str, to: &str) -> Result<(), std::io::Error> {
-        let from_stem = sanitize_prefix(from);
-        let to_stem = sanitize_prefix(to);
-        let Ok(entries) = fs::read_dir(&self.root) else {
-            return Ok(());
-        };
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let Some(suffix) = name.strip_prefix(&from_stem) else {
+        for (name, file) in self.entries() {
+            if !matches_prefix(&name, from) {
                 continue;
-            };
-            let target = self.root.join(format!("{to_stem}{suffix}"));
-            fs::rename(entry.path(), &target)?;
+            }
+            let suffix = suffix_after(&name, from);
+            let target = self.path_of(&format!("{to}{suffix}"));
+            fs::rename(&file, &target)?;
             restrict_file(&target)?;
         }
         Ok(())
     }
+
+    /// Every secret file, as `(key, path)`. The key is the decoded name, or the raw legacy name when
+    /// the file predates the current scheme; [`matches_prefix`] knows how to compare the two.
+    fn entries(&self) -> Vec<(String, PathBuf)> {
+        let Ok(entries) = fs::read_dir(&self.root) else {
+            return Vec::new();
+        };
+        entries
+            .flatten()
+            .filter_map(|entry| {
+                let file = entry.file_name().to_string_lossy().into_owned();
+                let stem = file.strip_suffix(".bin")?.to_owned();
+                Some((stem, entry.path()))
+            })
+            .collect()
+    }
 }
 
-/// The file-name form of a secret key prefix.
-fn sanitize_prefix(prefix: &str) -> String {
-    prefix
-        .chars()
+/// Whether the secret stored under file stem `stem` belongs to a key that starts with `prefix`.
+fn matches_prefix(stem: &str, prefix: &str) -> bool {
+    if stem.contains('%') {
+        return decode_stem(stem).starts_with(prefix);
+    }
+    // Clean and legacy names carry `~` where a `/` was; compare on that form.
+    stem.starts_with(&legacy_stem(prefix))
+}
+
+/// The part of a stem's key after `prefix`, in the form [`file_stem`] expects.
+fn suffix_after(stem: &str, prefix: &str) -> String {
+    if stem.contains('%') {
+        return decode_stem(stem)
+            .strip_prefix(prefix)
+            .unwrap_or_default()
+            .to_owned();
+    }
+    stem.get(legacy_stem(prefix).len()..)
+        .unwrap_or_default()
+        .replace('~', "/")
+}
+
+fn read_optional(path: &Path) -> std::io::Result<Option<Vec<u8>>> {
+    match fs::read(path) {
+        Ok(raw) => Ok(Some(raw)),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+/// Write `bytes` to a new owner-only file. The mode is set at creation, so there is no moment
+/// when the file is readable by others.
+pub(crate) fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = create_private_file(path, false)?;
+    file.write_all(bytes)?;
+    file.sync_all()
+}
+
+/// A key is "clean" when every character is a letter, digit, `-`, `_`, `.` or `/`. Clean keys keep
+/// the file name they always had (`/` becomes `~`), which is injective for them: `~` cannot occur
+/// in a clean key.
+fn is_clean(key: &str) -> bool {
+    key.chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '/'))
+}
+
+/// The file stem of a secret key. Keys that are not clean are percent-encoded byte by byte, so
+/// distinct keys never share a file and no key can name a path. Percent-encoded stems contain `%`,
+/// clean ones never do, so the two forms cannot collide.
+fn file_stem(key: &str) -> String {
+    if is_clean(key) {
+        return key.replace('/', "~");
+    }
+    let mut out = String::with_capacity(key.len() * 3);
+    for byte in key.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.') {
+            out.push(byte as char);
+        } else {
+            out.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    out
+}
+
+/// The stem the scheme before percent-encoding used: every character outside the safe set became
+/// `~`. Equal to [`file_stem`] for clean keys.
+fn legacy_stem(key: &str) -> String {
+    key.chars()
         .map(|ch| {
             if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
                 ch
@@ -383,17 +442,54 @@ fn sanitize_prefix(prefix: &str) -> String {
         .collect()
 }
 
+/// The key a percent-encoded stem stands for.
+fn decode_stem(stem: &str) -> String {
+    let bytes = stem.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let decoded = stem
+                .get(i + 1..i + 3)
+                .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+            match decoded {
+                Some(byte) => {
+                    out.push(byte);
+                    i += 3;
+                }
+                None => {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 impl chirper_bridge::Secrets for FileSecrets {
     fn get(&self, key: &str) -> chirper_bridge::Result<Option<Zeroizing<Vec<u8>>>> {
         let path = self.path_of(key);
-        let raw = match fs::read(&path) {
-            Ok(raw) => raw,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(err) => return Err(chirper_bridge::Error::Internal(err.to_string())),
+        let legacy = self.legacy_path_of(key);
+        let internal = |err: std::io::Error| chirper_bridge::Error::Internal(err.to_string());
+        let (raw, from) = match read_optional(&path).map_err(internal)? {
+            Some(raw) => (raw, path.clone()),
+            None => match read_optional(&legacy).map_err(internal)? {
+                Some(raw) => (raw, legacy.clone()),
+                None => return Ok(None),
+            },
         };
         let plain = self
             .decode(&raw)
             .map_err(|e| chirper_bridge::Error::Internal(e.to_string()))?;
+        if from != path {
+            // Migrate on read: the secret moves to the name the current scheme uses.
+            self.set(key, &plain)?;
+            let _ = fs::remove_file(&from);
+        }
         Ok(Some(plain))
     }
 
@@ -403,8 +499,7 @@ impl chirper_bridge::Secrets for FileSecrets {
             .encode(value)
             .map_err(|e| chirper_bridge::Error::Internal(e.to_string()))?;
         let tmp = path.with_extension("tmp");
-        fs::write(&tmp, &encoded)
-            .and_then(|()| restrict_file(&tmp))
+        write_private(&tmp, &encoded)
             .and_then(|()| fs::rename(&tmp, &path))
             .map_err(|e| chirper_bridge::Error::Internal(e.to_string()))
     }
@@ -415,12 +510,59 @@ impl chirper_bridge::Secrets for FileSecrets {
     }
 
     fn delete(&self, key: &str) -> chirper_bridge::Result<()> {
-        match fs::remove_file(self.path_of(key)) {
-            Ok(()) => Ok(()),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(err) => Err(chirper_bridge::Error::Internal(err.to_string())),
+        for path in [self.path_of(key), self.legacy_path_of(key)] {
+            if let Err(err) = fs::remove_file(path)
+                && err.kind() != std::io::ErrorKind::NotFound
+            {
+                return Err(chirper_bridge::Error::Internal(err.to_string()));
+            }
         }
+        Ok(())
     }
+}
+
+/// Create a directory, and any missing parent, owner-only from the start (0700 on unix).
+pub fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    let mut builder = fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(path)?;
+    tighten_dir(path)
+}
+
+/// Open a file for writing, owner-only from the start (0600 on unix). With `create_new` the file
+/// must not exist; otherwise an existing file is truncated.
+pub fn create_private_file(path: &Path, create_new: bool) -> std::io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true);
+    if create_new {
+        options.create_new(true);
+    } else {
+        options.create(true).truncate(true);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
+}
+
+/// Make sure a file exists and is owner-only, without touching its contents.
+pub fn ensure_private_file(path: &Path) -> std::io::Result<()> {
+    let mut options = fs::OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)?;
+    restrict_file(path)
 }
 
 /// Restrict a directory to its owner (0700).
@@ -461,54 +603,7 @@ pub fn tighten_tree(root: &Path) -> std::io::Result<()> {
 }
 
 /// Remove anything that looks like a token, a key or a session from a string before it is logged.
-pub fn redact(input: &str) -> String {
-    const MARKERS: &[&str] = &[
-        "token",
-        "secret",
-        "password",
-        "passwd",
-        "cookie",
-        "session",
-        "authorization",
-        "api_key",
-        "apikey",
-    ];
-    const SEPARATORS: &[u8] = b" \"':=";
-    const DELIMITERS: &[u8] = b" ,}\"')\r\n";
-
-    let lower = input.to_ascii_lowercase();
-    if !MARKERS.iter().any(|marker| lower.contains(marker)) {
-        return input.to_owned();
-    }
-    let bytes = input.as_bytes();
-    let mut out = String::with_capacity(input.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        let marker = MARKERS
-            .iter()
-            .find(|marker| lower[i..].starts_with(**marker));
-        if let Some(marker) = marker {
-            out.push_str(&input[i..i + marker.len()]);
-            i += marker.len();
-            while i < bytes.len() && SEPARATORS.contains(&bytes[i]) {
-                out.push(bytes[i] as char);
-                i += 1;
-            }
-            let start = i;
-            while i < bytes.len() && !DELIMITERS.contains(&bytes[i]) {
-                i += 1;
-            }
-            if i > start {
-                out.push_str("[redacted]");
-            }
-        } else {
-            let ch = input[i..].chars().next().unwrap_or(' ');
-            out.push(ch);
-            i += ch.len_utf8();
-        }
-    }
-    out
-}
+pub use chirper_bridge::redact;
 
 /// The file a private secrets cache is keyed by. Kept here so tests can clean up.
 pub fn credentials_dir(data_dir: &Path) -> PathBuf {
@@ -518,20 +613,6 @@ pub fn credentials_dir(data_dir: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn redacts_values_after_a_marker() {
-        let out = redact("login failed token=abc123 code=1");
-        assert!(!out.contains("abc123"), "{out}");
-        assert!(out.contains("code=1"), "{out}");
-        let json = redact(r#"{"access_token":"xyz","ok":true}"#);
-        assert!(!json.contains("xyz"), "{json}");
-    }
-
-    #[test]
-    fn leaves_ordinary_lines_alone() {
-        assert_eq!(redact("connected to discord"), "connected to discord");
-    }
 
     #[test]
     fn file_secrets_round_trip_and_are_owner_only() {
@@ -551,6 +632,219 @@ mod tests {
         assert!(!String::from_utf8_lossy(&raw).contains("super-secret"));
         secrets.delete("discord/1/token").unwrap();
         assert!(secrets.get("discord/1/token").unwrap().is_none());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod hardening_tests {
+    use super::*;
+    use chirper_bridge::Secrets;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("chirper-harden-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn files_in(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn distinct_keys_never_share_a_secret_file() {
+        let dir = scratch("collide");
+        let secrets = FileSecrets::new(&dir, None).unwrap();
+        // Under the old scheme all three names became `net~a~b~token.bin`.
+        for (key, value) in [
+            ("net/a/b/token", "slash"),
+            ("net/a~b/token", "tilde"),
+            ("net/a:b/token", "colon"),
+        ] {
+            secrets.set(key, value.as_bytes()).unwrap();
+        }
+        for (key, value) in [
+            ("net/a/b/token", "slash"),
+            ("net/a~b/token", "tilde"),
+            ("net/a:b/token", "colon"),
+        ] {
+            assert_eq!(
+                secrets.get(key).unwrap().unwrap().as_slice(),
+                value.as_bytes(),
+                "{key}"
+            );
+        }
+        assert_eq!(files_in(&credentials_dir(&dir)).len(), 3);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_hostile_key_stays_inside_the_credentials_directory() {
+        let dir = scratch("traversal");
+        let secrets = FileSecrets::new(&dir, None).unwrap();
+        let hostile = "net/../../../escape\\..\\..\0/token";
+        secrets.set(hostile, b"contained").unwrap();
+        assert_eq!(
+            secrets.get(hostile).unwrap().unwrap().as_slice(),
+            b"contained"
+        );
+        assert_eq!(files_in(&dir), vec!["credentials".to_owned()]);
+        let entries = files_in(&credentials_dir(&dir));
+        assert_eq!(entries.len(), 1, "{entries:?}");
+        assert!(!entries[0].contains('/') && !entries[0].contains('\\'));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_secret_written_under_the_legacy_name_is_read_and_migrated() {
+        let dir = scratch("legacy");
+        let secrets = FileSecrets::new(&dir, None).unwrap();
+        // The file the old scheme wrote for `net/a:b/token`.
+        let legacy = credentials_dir(&dir).join("net~a~b~token.bin");
+        fs::write(&legacy, b"old-secret").unwrap();
+
+        let got = secrets.get("net/a:b/token").unwrap().unwrap();
+        assert_eq!(got.as_slice(), b"old-secret");
+        assert!(!legacy.exists(), "the legacy file should have moved");
+        assert_eq!(
+            secrets.get("net/a:b/token").unwrap().unwrap().as_slice(),
+            b"old-secret"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn clean_keys_keep_the_file_names_they_always_had() {
+        let dir = scratch("clean");
+        let secrets = FileSecrets::new(&dir, None).unwrap();
+        secrets.set("discord/123/token", b"x").unwrap();
+        assert_eq!(
+            files_in(&credentials_dir(&dir)),
+            vec!["discord~123~token.bin".to_owned()]
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn prefix_operations_compare_whole_keys() {
+        let dir = scratch("prefix");
+        let secrets = FileSecrets::new(&dir, None).unwrap();
+        secrets.set("net/1/token", b"one").unwrap();
+        secrets.set("net/12/token", b"twelve").unwrap();
+        secrets.set("net/1:x/token", b"odd").unwrap();
+
+        secrets.delete_prefix("net/1/").unwrap();
+        assert!(secrets.get("net/1/token").unwrap().is_none());
+        assert_eq!(
+            secrets.get("net/12/token").unwrap().unwrap().as_slice(),
+            b"twelve",
+            "deleting login 1 must not touch login 12"
+        );
+        assert_eq!(
+            secrets.get("net/1:x/token").unwrap().unwrap().as_slice(),
+            b"odd"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn move_prefix_moves_one_login_and_keeps_the_suffix() {
+        let dir = scratch("move");
+        let secrets = FileSecrets::new(&dir, None).unwrap();
+        secrets.set("net/provisional/token", b"t").unwrap();
+        secrets.set("net/provisional/cookie", b"c").unwrap();
+        secrets.set("net/provisional2/token", b"other").unwrap();
+
+        secrets
+            .move_prefix("net/provisional/", "net/final/")
+            .unwrap();
+        assert_eq!(
+            secrets.get("net/final/token").unwrap().unwrap().as_slice(),
+            b"t"
+        );
+        assert_eq!(
+            secrets.get("net/final/cookie").unwrap().unwrap().as_slice(),
+            b"c"
+        );
+        assert!(secrets.get("net/provisional/token").unwrap().is_none());
+        assert_eq!(
+            secrets
+                .get("net/provisional2/token")
+                .unwrap()
+                .unwrap()
+                .as_slice(),
+            b"other"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn secret_files_and_directories_are_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = scratch("modes");
+        let secrets = FileSecrets::new(&dir, None).unwrap();
+        secrets.set("net/1/token", b"x").unwrap();
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode(&credentials_dir(&dir)), 0o700);
+        assert_eq!(mode(&credentials_dir(&dir).join("net~1~token.bin")), 0o600);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn private_files_are_owner_only_from_creation() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = scratch("private");
+        let path = dir.join("made.bin");
+        let file = create_private_file(&path, true).unwrap();
+        drop(file);
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(
+            create_private_file(&path, true).is_err(),
+            "create_new must refuse"
+        );
+
+        let sub = dir.join("a").join("b");
+        create_private_dir(&sub).unwrap();
+        assert_eq!(
+            fs::metadata(&sub).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        ensure_private_file(&dir.join("db")).unwrap();
+        fs::write(dir.join("db"), b"keep me").unwrap();
+        ensure_private_file(&dir.join("db")).unwrap();
+        assert_eq!(fs::read(dir.join("db")).unwrap(), b"keep me");
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn vault_output_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = scratch("vault-mode");
+        let plain = dir.join("plain.bin");
+        let sealed = dir.join("sealed.ocv");
+        fs::write(&plain, b"hello").unwrap();
+        let key = vault::encrypt_file(&plain, &sealed).unwrap();
+        assert_eq!(
+            fs::metadata(&sealed).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        let back = dir.join("back.bin");
+        vault::decrypt_to_file(&sealed, &back, key.as_ref()).unwrap();
+        assert_eq!(
+            fs::metadata(&back).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
         fs::remove_dir_all(&dir).unwrap();
     }
 }
