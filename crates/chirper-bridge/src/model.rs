@@ -331,7 +331,10 @@ impl SessionState {
     }
 
     pub fn is_terminal(self) -> bool {
-        matches!(self, Self::NeedsReauth | Self::LoggedOut | Self::BadCredentials)
+        matches!(
+            self,
+            Self::NeedsReauth | Self::LoggedOut | Self::BadCredentials
+        )
     }
 
     pub fn should_retry(self) -> bool {
@@ -350,7 +353,10 @@ pub enum Event {
     /// A message arrived, or a redaction of one.
     Message(RemoteMessage),
     /// A message is gone.
-    Redact { portal: PortalRef, event: RemoteEventRef },
+    Redact {
+        portal: PortalRef,
+        event: RemoteEventRef,
+    },
     /// Reactions on a message changed. The full set replaces the stored one for this message.
     Reactions {
         portal: PortalRef,

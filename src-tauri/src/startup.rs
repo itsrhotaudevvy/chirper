@@ -34,7 +34,8 @@ fn open(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let key = crate::platform::load_db_key(app)?;
     let dir = state.core_dir().to_path_buf();
-    let (core, events) = tauri::async_runtime::block_on(open_core(dir, key))?;
+    let (core, events) =
+        tauri::async_runtime::block_on(open_core(dir, key, crate::platform::host_networks(app)))?;
     crate::events::spawn_pump(app.clone(), events);
     tauri::async_runtime::block_on(core.start())
         .map_err(|e| format!("cannot start the core: {e}"))?;
@@ -46,16 +47,19 @@ fn open(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Open the database, recreating the data directory when the file is unreadable or the key does not
-/// match. Losing local history is bad; refusing to start forever is worse.
+/// Open the database. When the file is unreadable or the key does not match, the old data directory
+/// is moved aside (never deleted: the key may come back, for example once the OS keyring unlocks)
+/// and a fresh one is created. Refusing to start forever is worse than starting empty.
 async fn open_core(
     dir: std::path::PathBuf,
     key: Option<Zeroizing<[u8; 32]>>,
+    host_networks: chirper_core::HostNetworks,
 ) -> Result<(Core, chirper_core::EventStream), String> {
     let options = Options {
         data_dir: dir.clone(),
         db_key: key.as_ref().map(|k| **k),
         demo_network: cfg!(feature = "mock"),
+        host_networks,
     };
     match Core::open(options.clone()) {
         Ok(res) => Ok(res),
@@ -68,11 +72,49 @@ async fn open_core(
             if !unreadable {
                 return Err(format!("cannot open the core: {message}"));
             }
-            log::warn!("database unreadable or key mismatched ({message}), recreating the data directory");
-            let _ = std::fs::remove_dir_all(&dir);
+            let aside = set_aside(&dir)
+                .map_err(|e2| format!("cannot move the unreadable data directory aside: {e2}"))?;
+            log::warn!(
+                "database unreadable or key mismatched ({message}); the old data directory was \
+                 moved to {}",
+                aside.display()
+            );
             Core::open(options).map_err(|e2| format!("cannot open the core after reset: {e2}"))
         }
     }
+}
+
+/// Rename `dir` to a sibling `<name>.unreadable-<unix seconds>` and return the new path. At most
+/// [`KEEP_ASIDE`] such copies are kept; older ones are removed, so a key that never comes back does
+/// not fill the disk.
+fn set_aside(dir: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+    const KEEP_ASIDE: usize = 2;
+    let parent = dir.parent().unwrap_or(std::path::Path::new("."));
+    let name = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "core".to_owned());
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_default();
+    let prefix = format!("{name}.unreadable-");
+    let target = parent.join(format!("{prefix}{stamp}"));
+    std::fs::rename(dir, &target)?;
+    if let Ok(entries) = std::fs::read_dir(parent) {
+        let mut old = entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().starts_with(&prefix))
+            .map(|e| e.path())
+            .collect::<Vec<_>>();
+        // Names end in a unix timestamp of equal width for centuries, so they sort by age.
+        old.sort();
+        let excess = old.len().saturating_sub(KEEP_ASIDE);
+        for path in old.into_iter().take(excess) {
+            let _ = std::fs::remove_dir_all(path);
+        }
+    }
+    Ok(target)
 }
 
 /// Keeps the background service in step with the accounts: Android runs it while at least one

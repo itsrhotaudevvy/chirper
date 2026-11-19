@@ -74,7 +74,10 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
                 let _ = std::fs::remove_file(path);
             }
             inner.typing.lock().expect("typing").remove(chat.as_str());
-            inner.emit("chat_removed", serde_json::json!({ "roomId": chat.as_str() }));
+            inner.emit(
+                "chat_removed",
+                serde_json::json!({ "roomId": chat.as_str() }),
+            );
             Ok(())
         }
         Routed::Message {
@@ -86,8 +89,16 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
             edit_target,
             reply_to,
         } => message_event(
-            inner, network, login_id, chat.as_str(), &portal, event.as_str(), sender.as_str(),
-            &message, edit_target, reply_to,
+            inner,
+            network,
+            login_id,
+            chat.as_str(),
+            &portal,
+            event.as_str(),
+            sender.as_str(),
+            &message,
+            edit_target,
+            reply_to,
         ),
         Routed::Redact { chat, target, .. } => {
             let redaction = inner.store.redact(target.as_str())?;
@@ -116,9 +127,7 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
                     let senders = reaction
                         .senders
                         .iter()
-                        .map(|user| {
-                            ids::sender_id(network, &user.id).into_inner()
-                        })
+                        .map(|user| ids::sender_id(network, &user.id).into_inner())
                         .collect::<Vec<_>>();
                     (reaction.key, reaction.count, reaction.from_me, senders)
                 })
@@ -130,7 +139,10 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
             Ok(())
         }
         Routed::Typing {
-            chat, senders, names, ..
+            chat,
+            senders,
+            names,
+            ..
         } => {
             let room_id = chat.as_str().to_owned();
             let payload = if senders.is_empty() {
@@ -173,7 +185,11 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
             emit_chat(inner, chat.as_str())?;
             Ok(())
         }
-        Routed::ReadReceipt { chat, sender, target } => {
+        Routed::ReadReceipt {
+            chat,
+            sender,
+            target,
+        } => {
             if sender.as_str() == SELF_USER_ID {
                 let _ = inner.store.mark_read_up_to(chat.as_str(), target.as_str());
                 emit_chat(inner, chat.as_str())?;
@@ -196,7 +212,9 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
                 DeliveryStatus::Read => "read",
                 DeliveryStatus::Failed => "failed",
             };
-            inner.store.set_event_status(&event.event_id, status, &error)?;
+            inner
+                .store
+                .set_event_status(&event.event_id, status, &error)?;
             emit_message(inner, &event.event_id)?;
             Ok(())
         }
@@ -292,7 +310,11 @@ fn message_event(
     };
 
     if let Some(target) = edit_target {
-        let stored = convert::content_json(&message.content, &convert::media_dir(&inner.data_dir), &inner.store);
+        let stored = convert::content_json(
+            &message.content,
+            &convert::media_dir(&inner.data_dir),
+            &inner.store,
+        );
         inner
             .store
             .apply_edit(room_id, target.as_str(), &stored.json, ts)?;
@@ -322,9 +344,13 @@ fn message_event(
             })
         {
             if !message.id.is_empty() {
-                inner.store.set_event_remote(&pending.event_id, &message.id)?;
+                inner
+                    .store
+                    .set_event_remote(&pending.event_id, &message.id)?;
             }
-            inner.store.set_event_status(&pending.event_id, "delivered", "")?;
+            inner
+                .store
+                .set_event_status(&pending.event_id, "delivered", "")?;
             emit_message(inner, &pending.event_id)?;
             emit_chat(inner, room_id)?;
             return Ok(());
@@ -335,14 +361,20 @@ fn message_event(
     if !message.id.is_empty() {
         if let Some(existing) = inner.store.event_by_remote(room_id, &message.id)? {
             if message.from_me {
-                inner.store.set_event_status(&existing.event_id, "delivered", "")?;
+                inner
+                    .store
+                    .set_event_status(&existing.event_id, "delivered", "")?;
             }
             emit_message(inner, &existing.event_id)?;
             return Ok(());
         }
     }
 
-    let stored = convert::content_json(&message.content, &convert::media_dir(&inner.data_dir), &inner.store);
+    let stored = convert::content_json(
+        &message.content,
+        &convert::media_dir(&inner.data_dir),
+        &inner.store,
+    );
     let mut event = Event {
         event_id: event_id.to_owned(),
         room_id: room.room_id.clone(),

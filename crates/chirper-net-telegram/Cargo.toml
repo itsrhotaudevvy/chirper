@@ -1,0 +1,18 @@
+[package]
+name = "chirper-net-telegram"
+description = "Telegram driver for Chirper's unified bridge runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+chirper-bridge = { path = "../chirper-bridge" }
+async-trait = "=0.1.92"
+log = "=0.4.35"
+tokio = { version = "=1.54.1", features = ["sync", "time", "macros", "rt"] }
+zeroize = "=1.9.2"
+
+[dev-dependencies]
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "time"] }

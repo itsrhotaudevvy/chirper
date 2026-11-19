@@ -20,7 +20,8 @@ pub mod secure;
 pub mod store;
 
 pub use engine::{
-    Core, Error, EventStream, MediaUpload, Options, Result, SETTINGS_FILE, validate,
+    Core, Error, EventStream, MediaUpload, Options, Result, SETTINGS_FILE, networks::HostNetworks,
+    validate,
 };
 
 /// The crate's place in the version line, for the shell's diagnostics.

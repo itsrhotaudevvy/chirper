@@ -7,7 +7,7 @@ mod chats;
 mod convert;
 mod dispatch;
 mod logins;
-mod networks;
+pub mod networks;
 mod settings;
 pub mod validate;
 
@@ -23,7 +23,9 @@ use zeroize::Zeroizing;
 
 use chirper_bridge::Runtime;
 
-use crate::model::{Account, AccountState, Chat, ChatFilter, CoreEvent, CoreSettings, Message, Network};
+use crate::model::{
+    Account, AccountState, Chat, ChatFilter, CoreEvent, CoreSettings, Message, Network,
+};
 use crate::secure::FileSecrets;
 use crate::store::{Login, Store};
 
@@ -39,6 +41,8 @@ pub struct Options {
     pub db_key: Option<[u8; 32]>,
     /// Show the offline demo network.
     pub demo_network: bool,
+    /// Drivers the host provides because they need the platform (the Android SMS provider).
+    pub host_networks: networks::HostNetworks,
 }
 
 impl Options {
@@ -47,6 +51,7 @@ impl Options {
             data_dir: data_dir.into(),
             db_key: None,
             demo_network: false,
+            host_networks: networks::HostNetworks::default(),
         }
     }
 }
@@ -94,9 +99,10 @@ impl From<chirper_bridge::Error> for Error {
         match err {
             E::Unsupported(what) => Self::Unsupported(what.to_owned()),
             E::NotConnected => Self::NotConnected,
-            E::Auth(message) | E::Network(message) | E::Protocol(message) | E::Internal(message) => {
-                Self::Failed(message)
-            }
+            E::Auth(message)
+            | E::Network(message)
+            | E::Protocol(message)
+            | E::Internal(message) => Self::Failed(message),
             E::RateLimited { retry_after_ms } => {
                 Self::Failed(format!("rate limited, retry in {retry_after_ms} ms"))
             }
@@ -131,7 +137,8 @@ pub(crate) struct Inner {
     pub store: Arc<Store>,
     pub secrets: Arc<FileSecrets>,
     pub runtime: Arc<Runtime>,
-    pub demo_network: bool,
+    /// Every driver of this build, in registry order.
+    pub drivers: Vec<Arc<dyn chirper_bridge::Network>>,
     pub settings: Mutex<CoreSettings>,
     /// Live account state, by network and login.
     pub accounts: Mutex<HashMap<(String, String), Account>>,
@@ -152,11 +159,17 @@ impl Inner {
                 return;
             }
         };
-        let _ = self.events.send(CoreEvent { kind: kind.to_owned(), payload });
+        let _ = self.events.send(CoreEvent {
+            kind: kind.to_owned(),
+            payload,
+        });
     }
 
     pub fn error(&self, message: impl Into<String>) {
-        self.emit("core_error", serde_json::json!({ "message": message.into() }));
+        self.emit(
+            "core_error",
+            serde_json::json!({ "message": message.into() }),
+        );
     }
 
     pub fn account(&self, network: &str, login_id: &str) -> Account {
@@ -174,7 +187,10 @@ impl Inner {
             network: network.to_owned(),
             login_id: login_id.to_owned(),
             name: stored.as_ref().map(|l| l.name.clone()).unwrap_or_default(),
-            avatar_url: stored.as_ref().map(|l| l.avatar_url.clone()).unwrap_or_default(),
+            avatar_url: stored
+                .as_ref()
+                .map(|l| l.avatar_url.clone())
+                .unwrap_or_default(),
             state: if self.runtime.is_running(network, login_id) {
                 AccountState::Connected
             } else {
@@ -201,10 +217,10 @@ impl Inner {
                 }
             }
         }
-        self.accounts
-            .lock()
-            .expect("account map")
-            .insert((account.network.clone(), account.login_id.clone()), account.clone());
+        self.accounts.lock().expect("account map").insert(
+            (account.network.clone(), account.login_id.clone()),
+            account.clone(),
+        );
         self.emit("account", &account);
         account
     }
@@ -235,15 +251,15 @@ impl Core {
 
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let (routed_tx, routed_rx) = mpsc::unbounded_channel();
-        let drivers = networks::available(options.demo_network);
-        let runtime = Arc::new(Runtime::new(drivers, routed_tx));
+        let drivers = networks::available(options.demo_network, &options.host_networks);
+        let runtime = Arc::new(Runtime::new(drivers.clone(), routed_tx));
 
         let inner = Arc::new(Inner {
             data_dir,
             store,
             secrets,
             runtime,
-            demo_network: options.demo_network,
+            drivers,
             settings: Mutex::new(settings),
             accounts: Mutex::new(HashMap::new()),
             logins: Mutex::new(HashMap::new()),
@@ -273,15 +289,7 @@ impl Core {
     /// `networks`: every network of this build, with the reason when it cannot be used.
     pub async fn networks(&self) -> Result<Vec<Network>> {
         self.inner.require_open()?;
-        let mut out = networks::all(self.inner.demo_network);
-        for network in &mut out {
-            if network.available {
-                if let Some(driver) = self.inner.runtime.network(&network.id) {
-                    *network = convert::wire_network(driver.as_ref());
-                }
-            }
-        }
-        Ok(out)
+        Ok(networks::all(&self.inner.drivers))
     }
 
     /// `accounts`: every stored login, with its live state.
@@ -398,7 +406,11 @@ impl Inner {
     }
 
     /// The context of one login: its private directory and its secrets.
-    pub(crate) fn login_ctx(&self, network: &str, login_id: &str) -> Result<chirper_bridge::LoginCtx> {
+    pub(crate) fn login_ctx(
+        &self,
+        network: &str,
+        login_id: &str,
+    ) -> Result<chirper_bridge::LoginCtx> {
         let dir = self
             .data_dir
             .join("logins")

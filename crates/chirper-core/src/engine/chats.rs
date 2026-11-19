@@ -7,7 +7,7 @@ use chirper_bridge::model::{MediaInfo, PortalRef};
 use chirper_bridge::network::Command;
 
 use super::convert;
-use super::{validate, Core, Error, Inner, Result};
+use super::{Core, Error, Inner, Result, validate};
 use crate::content;
 use crate::ids::{self, SELF_USER_ID};
 use crate::model::{Chat, ChatFlags, Message};
@@ -107,7 +107,9 @@ impl Inner {
     fn remote_of(&self, room_id: &str, event_id: &str) -> Result<String> {
         let event = self.store.event(event_id)?;
         if event.room_id != room_id {
-            return Err(Error::InvalidInput("event does not belong to this chat".to_owned()));
+            return Err(Error::InvalidInput(
+                "event does not belong to this chat".to_owned(),
+            ));
         }
         Ok(event.remote_id)
     }
@@ -157,7 +159,8 @@ impl Core {
         let (network, login_id) = (room_ref.network, room_ref.login_id);
         let room = room_id.to_owned();
         tokio::spawn(async move {
-            core.deliver(room, event_id, network, login_id, command).await;
+            core.deliver(room, event_id, network, login_id, command)
+                .await;
         });
         Ok(event.event_id)
     }
@@ -219,7 +222,8 @@ impl Core {
         let core = self.clone();
         let spawned_id = event_id.clone();
         tokio::spawn(async move {
-            core.deliver(room, spawned_id, network, login_id, command).await;
+            core.deliver(room, spawned_id, network, login_id, command)
+                .await;
         });
         Ok(event_id)
     }
@@ -257,7 +261,9 @@ impl Core {
         let room_ref = inner.room_ref(room_id)?;
         let target = inner.remote_of(room_id, event_id)?;
         if target.is_empty() {
-            return Err(Error::Failed("this message has not reached the network yet".to_owned()));
+            return Err(Error::Failed(
+                "this message has not reached the network yet".to_owned(),
+            ));
         }
         inner.store.apply_edit(
             room_id,
@@ -289,10 +295,13 @@ impl Core {
             inner.emit_message(&redaction.target_event_id);
             return Ok(());
         }
-        inner.emit("message_removed", serde_json::json!({
-            "roomId": room_id,
-            "eventId": event_id,
-        }));
+        inner.emit(
+            "message_removed",
+            serde_json::json!({
+                "roomId": room_id,
+                "eventId": event_id,
+            }),
+        );
         inner.emit_chat(room_id);
         if target.is_empty() {
             return Ok(());
@@ -466,9 +475,11 @@ impl Core {
         for message in &page.messages {
             store_history(&inner, &room_ref, message);
         }
-        inner
-            .store
-            .set_backfill(room_id, page.cursor.as_deref().unwrap_or(""), !page.has_more)?;
+        inner.store.set_backfill(
+            room_id,
+            page.cursor.as_deref().unwrap_or(""),
+            !page.has_more,
+        )?;
         if !page.messages.is_empty() {
             inner.emit_chat(room_id);
         }
@@ -481,13 +492,10 @@ impl Core {
         if !network.is_empty() {
             validate::network_id(network)?;
         }
-        let rooms = self
-            .inner()
-            .store
-            .list_chats(&crate::model::ChatFilter {
-                network: network.to_owned(),
-                ..Default::default()
-            })?;
+        let rooms = self.inner().store.list_chats(&crate::model::ChatFilter {
+            network: network.to_owned(),
+            ..Default::default()
+        })?;
         for chat in rooms {
             for _ in 0..20 {
                 match self.load_older(&chat.room_id).await {
@@ -503,12 +511,7 @@ impl Core {
         Ok(())
     }
 
-    async fn run_command(
-        &self,
-        network: String,
-        login_id: String,
-        command: Command,
-    ) -> Result<()> {
+    async fn run_command(&self, network: String, login_id: String, command: Command) -> Result<()> {
         self.inner()
             .runtime
             .command(&network, &login_id, command)

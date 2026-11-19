@@ -20,6 +20,10 @@ mock = []
 chirper-bridge = { path = "../chirper-bridge" }
 chirper-net-testnet = { path = "../chirper-net-testnet" }
 chirper-net-discord = { path = "../chirper-net-discord" }
+chirper-net-fluxer = { path = "../chirper-net-fluxer" }
+chirper-net-telegram = { path = "../chirper-net-telegram" }
+chirper-net-whatsapp = { path = "../chirper-net-whatsapp" }
+chirper-net-sms = { path = "../chirper-net-sms" }
 aes-gcm = "=0.11.1"
 async-trait = "=0.1.92"
 getrandom = "=0.4.3"

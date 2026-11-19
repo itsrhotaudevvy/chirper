@@ -285,7 +285,11 @@ mod tests {
 
     #[test]
     fn reads_the_new_format() {
-        let d = describe("message", &text_content("hello", Some("<b>hello</b>")), None);
+        let d = describe(
+            "message",
+            &text_content("hello", Some("<b>hello</b>")),
+            None,
+        );
         assert_eq!(d.kind, "text");
         assert_eq!(d.body, "hello");
         assert_eq!(d.formatted, "<b>hello</b>");
@@ -312,11 +316,7 @@ mod tests {
         assert_eq!(media.mime, "image/png");
         assert_eq!((media.width, media.height), (3, 4));
 
-        let member = describe(
-            "m.room.member",
-            r#"{"membership":"leave"}"#,
-            None,
-        );
+        let member = describe("m.room.member", r#"{"membership":"leave"}"#, None);
         assert_eq!(member.kind, "system");
         assert_eq!(member.body, "left");
     }

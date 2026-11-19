@@ -64,7 +64,10 @@ impl Api {
         self.http
             .request(method, url)
             .header(reqwest::header::AUTHORIZATION, auth)
-            .header(reqwest::header::USER_AGENT, "Chirper (https://chirper.app, 1.0)")
+            .header(
+                reqwest::header::USER_AGENT,
+                "Chirper (https://chirper.app, 1.0)",
+            )
     }
 
     async fn send<T: DeserializeOwned>(
@@ -123,7 +126,11 @@ impl Api {
     }
 
     /// One page of messages, newest first.
-    pub async fn history(&self, channel: &str, before: Option<&str>) -> Result<Vec<super::map::Message>> {
+    pub async fn history(
+        &self,
+        channel: &str,
+        before: Option<&str>,
+    ) -> Result<Vec<super::map::Message>> {
         let mut path = format!("/channels/{channel}/messages?limit=50");
         if let Some(before) = before {
             path.push_str("&before=");
@@ -234,13 +241,7 @@ impl Api {
     }
 
     /// Add or remove the user's own reaction.
-    pub async fn react(
-        &self,
-        channel: &str,
-        message: &str,
-        key: &str,
-        add: bool,
-    ) -> Result<()> {
+    pub async fn react(&self, channel: &str, message: &str, key: &str, add: bool) -> Result<()> {
         let emoji = encode_reaction(key);
         let method = if add {
             reqwest::Method::PUT
@@ -266,7 +267,10 @@ impl Api {
 
     pub async fn typing(&self, channel: &str) -> Result<()> {
         let response = self
-            .request(reqwest::Method::POST, &format!("/channels/{channel}/typing"))
+            .request(
+                reqwest::Method::POST,
+                &format!("/channels/{channel}/typing"),
+            )
             .send()
             .await
             .map_err(network_error)?;
@@ -289,7 +293,10 @@ impl Api {
                 response.status()
             )));
         }
-        if response.content_length().is_some_and(|len| len > limit as u64) {
+        if response
+            .content_length()
+            .is_some_and(|len| len > limit as u64)
+        {
             return Err(Error::Protocol("attachment is too large".to_owned()));
         }
         let bytes = response.bytes().await.map_err(network_error)?;

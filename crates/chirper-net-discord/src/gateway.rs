@@ -178,14 +178,21 @@ async fn dispatch(kind: &str, data: Value, api: &Api, tx: &UnboundedSender<Event
             if let Ok(guild) = serde_json::from_value::<map::Guild>(data.clone()) {
                 if !guild.unavailable {
                     let _ = tx.send(Event::Chat(map::guild_meta(&guild)));
-                    spawn_guild_channels(api.clone(), tx.clone(), guild.id.clone(), guild.name.clone());
+                    spawn_guild_channels(
+                        api.clone(),
+                        tx.clone(),
+                        guild.id.clone(),
+                        guild.name.clone(),
+                    );
                 }
             }
         }
         "MESSAGE_CREATE" | "MESSAGE_UPDATE" => {
             if let Ok(message) = serde_json::from_value::<map::Message>(data) {
                 if map::is_system(&message)
-                    || (message.author.bot && message.content.is_empty() && message.attachments.is_empty())
+                    || (message.author.bot
+                        && message.content.is_empty()
+                        && message.attachments.is_empty())
                 {
                     return;
                 }
@@ -199,7 +206,10 @@ async fn dispatch(kind: &str, data: Value, api: &Api, tx: &UnboundedSender<Event
             }
         }
         "MESSAGE_DELETE" => {
-            let channel = data.get("channel_id").and_then(|c| c.as_str()).unwrap_or_default();
+            let channel = data
+                .get("channel_id")
+                .and_then(|c| c.as_str())
+                .unwrap_or_default();
             let id = data.get("id").and_then(|i| i.as_str()).unwrap_or_default();
             if !channel.is_empty() && !id.is_empty() {
                 let _ = tx.send(Event::Redact {
@@ -209,8 +219,14 @@ async fn dispatch(kind: &str, data: Value, api: &Api, tx: &UnboundedSender<Event
             }
         }
         "MESSAGE_REACTION_ADD" | "MESSAGE_REACTION_REMOVE" => {
-            let channel = data.get("channel_id").and_then(|c| c.as_str()).unwrap_or_default();
-            let id = data.get("message_id").and_then(|m| m.as_str()).unwrap_or_default();
+            let channel = data
+                .get("channel_id")
+                .and_then(|c| c.as_str())
+                .unwrap_or_default();
+            let id = data
+                .get("message_id")
+                .and_then(|m| m.as_str())
+                .unwrap_or_default();
             if channel.is_empty() || id.is_empty() {
                 return;
             }
@@ -230,7 +246,10 @@ async fn dispatch(kind: &str, data: Value, api: &Api, tx: &UnboundedSender<Event
             });
         }
         "TYPING_START" => {
-            let channel = data.get("channel_id").and_then(|c| c.as_str()).unwrap_or_default();
+            let channel = data
+                .get("channel_id")
+                .and_then(|c| c.as_str())
+                .unwrap_or_default();
             if channel.is_empty() {
                 return;
             }
@@ -266,7 +285,10 @@ async fn dispatch(kind: &str, data: Value, api: &Api, tx: &UnboundedSender<Event
             }
         }
         "GUILD_MEMBER_ADD" | "GUILD_MEMBER_REMOVE" | "GUILD_MEMBER_UPDATE" => {
-            let guild = data.get("guild_id").and_then(|g| g.as_str()).unwrap_or_default();
+            let guild = data
+                .get("guild_id")
+                .and_then(|g| g.as_str())
+                .unwrap_or_default();
             if guild.is_empty() {
                 return;
             }
@@ -316,7 +338,12 @@ fn ready(data: &Value, api: &Api, tx: &UnboundedSender<Event>) {
                 continue;
             }
             let _ = tx.send(Event::Chat(map::guild_meta(&guild)));
-            spawn_guild_channels(api.clone(), tx.clone(), guild.id.clone(), guild.name.clone());
+            spawn_guild_channels(
+                api.clone(),
+                tx.clone(),
+                guild.id.clone(),
+                guild.name.clone(),
+            );
         }
     }
     if let Some(channels) = data.get("private_channels").and_then(|c| c.as_array()) {
@@ -330,7 +357,12 @@ fn ready(data: &Value, api: &Api, tx: &UnboundedSender<Event>) {
     }
 }
 
-fn spawn_guild_channels(api: Api, tx: UnboundedSender<Event>, guild_id: String, guild_name: String) {
+fn spawn_guild_channels(
+    api: Api,
+    tx: UnboundedSender<Event>,
+    guild_id: String,
+    guild_name: String,
+) {
     tokio::spawn(async move {
         match api.guild_channels(&guild_id).await {
             Ok(channels) => {
@@ -351,4 +383,3 @@ fn portal(channel: impl Into<String>) -> PortalRef {
         receiver: String::new(),
     }
 }
-

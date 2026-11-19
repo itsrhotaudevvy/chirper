@@ -85,9 +85,17 @@ pub(super) fn link_media_tx(
         }
     };
     push(value.pointer("/media/url").and_then(|v| v.as_str()));
-    push(value.pointer("/media/thumbnailUrl").and_then(|v| v.as_str()));
+    push(
+        value
+            .pointer("/media/thumbnailUrl")
+            .and_then(|v| v.as_str()),
+    );
     push(value.get("url").and_then(|v| v.as_str()));
-    push(value.pointer("/info/thumbnail_url").and_then(|v| v.as_str()));
+    push(
+        value
+            .pointer("/info/thumbnail_url")
+            .and_then(|v| v.as_str()),
+    );
     for uri in uris {
         let Some(media_id) = chirper_bridge::ids::media_id_of(&uri) else {
             continue;

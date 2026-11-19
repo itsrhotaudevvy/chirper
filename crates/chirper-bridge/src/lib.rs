@@ -17,8 +17,8 @@ pub mod runtime;
 
 pub use ids::{ChatId, EventId, SenderId, chat_id, event_id_for, sender_id};
 pub use model::{
-    Ack, BackfillPage, Capabilities, ChatMeta, Content, DeliveryStatus, Event, LoginFlow, LoginStep,
-    MediaInfo, Member, PortalRef, Reaction, RemoteEventRef, RemoteMessage, RemoteUser,
+    Ack, BackfillPage, Capabilities, ChatMeta, Content, DeliveryStatus, Event, LoginFlow,
+    LoginStep, MediaInfo, Member, PortalRef, Reaction, RemoteEventRef, RemoteMessage, RemoteUser,
     SessionState,
 };
 pub use network::{

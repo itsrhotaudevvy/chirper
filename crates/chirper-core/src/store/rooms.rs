@@ -348,7 +348,13 @@ impl Store {
                  displayname = excluded.displayname,
                  avatar_url = excluded.avatar_url,
                  membership = excluded.membership",
-            params![m.room_id, m.user_id, m.displayname, m.avatar_url, m.membership],
+            params![
+                m.room_id,
+                m.user_id,
+                m.displayname,
+                m.avatar_url,
+                m.membership
+            ],
         )?;
         Ok(())
     }
@@ -573,9 +579,8 @@ impl Store {
     pub fn purge_login(&self, network: &str, login_id: &str) -> Result<Vec<String>> {
         let rooms = {
             let conn = self.conn();
-            let mut stmt = conn.prepare(
-                "SELECT room_id FROM room WHERE bridge_id = ?1 AND login_id = ?2",
-            )?;
+            let mut stmt =
+                conn.prepare("SELECT room_id FROM room WHERE bridge_id = ?1 AND login_id = ?2")?;
             let rows = stmt.query_map(params![network, login_id], |row| row.get::<_, String>(0))?;
             rows.collect::<std::result::Result<Vec<_>, _>>()?
         };
@@ -683,4 +688,3 @@ fn scan_chat(row: &rusqlite::Row<'_>) -> rusqlite::Result<Chat> {
     }
     Ok(chat)
 }
-

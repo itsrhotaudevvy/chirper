@@ -149,7 +149,13 @@ pub fn content_json(content: &bridge::Content, media_dir: &Path, store: &Store) 
             data,
             thumbnail,
         } => {
-            let media = save_media(media_dir, store, info, data, thumbnail.as_ref().map(|t| t.as_slice()));
+            let media = save_media(
+                media_dir,
+                store,
+                info,
+                data,
+                thumbnail.as_ref().map(|t| t.as_slice()),
+            );
             match media {
                 Ok(Some(media)) => Some((kind.clone(), caption.clone(), media)),
                 Ok(None) => None,
@@ -294,7 +300,10 @@ pub fn room_from_meta(
     login_id: &str,
     chat: &chirper_bridge::ids::ChatId,
     meta: &bridge::ChatMeta,
-) -> (Room, Option<(chirper_bridge::ids::ChatId, bridge::PortalRef)>) {
+) -> (
+    Room,
+    Option<(chirper_bridge::ids::ChatId, bridge::PortalRef)>,
+) {
     let parent = meta.parent.as_ref().map(|parent| {
         (
             chirper_bridge::ids::chat_id(network, &parent.id, &parent.receiver),

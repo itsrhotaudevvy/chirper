@@ -266,9 +266,10 @@ impl Runtime {
     fn gate(driver: &dyn Network, cmd: &Command) -> Result<()> {
         let caps = driver.capabilities();
         let missing = match cmd {
-            Command::SendText { reply_to, .. } | Command::SendMedia { reply_to, .. } => {
-                reply_to.as_ref().filter(|_| !caps.replies).map(|_| "replies")
-            }
+            Command::SendText { reply_to, .. } | Command::SendMedia { reply_to, .. } => reply_to
+                .as_ref()
+                .filter(|_| !caps.replies)
+                .map(|_| "replies"),
             Command::Edit { .. } => (!caps.edits).then_some("edits"),
             Command::Redact { .. } => (!caps.redactions).then_some("redactions"),
             Command::React { .. } | Command::Unreact { .. } => {
@@ -362,7 +363,9 @@ async fn supervise(
                     state: SessionState::Running,
                     error: String::new(),
                     message: String::new(),
-                    profile: session.user().map(|user| (ids::sender_id(&network, &user.id), user)),
+                    profile: session
+                        .user()
+                        .map(|user| (ids::sender_id(&network, &user.id), user)),
                 });
 
                 let reason = serve(&network, &mut ops, &mut *session, &emit).await;
@@ -479,12 +482,7 @@ fn route(network: &str, event: Event, emit: &impl Fn(Routed) -> bool) {
         }
         Event::Message(message) => {
             let chat = chat_of(&message.portal);
-            let event = ids::event_id_for(
-                network,
-                chat.as_str(),
-                &message.id,
-                &message.part,
-            );
+            let event = ids::event_id_for(network, chat.as_str(), &message.id, &message.part);
             let sender = ids::sender_id(network, &message.sender.id);
             let edit_target = message.edit_of.as_ref().map(|target| {
                 // An edit names the message it replaces; parts are not involved.
@@ -556,7 +554,11 @@ fn route(network: &str, event: Event, emit: &impl Fn(Routed) -> bool) {
                 user: member.user,
             }
         }
-        Event::ReadReceipt { portal, user, event } => {
+        Event::ReadReceipt {
+            portal,
+            user,
+            event,
+        } => {
             let chat = chat_of(&portal);
             Routed::ReadReceipt {
                 target: event_of(&chat, &event),

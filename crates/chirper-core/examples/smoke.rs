@@ -73,7 +73,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // The database must really be encrypted, not merely named SQLCipher.
     if encrypted {
-        let header = std::fs::read(dir.join("chirper.db")).map(|b| b.starts_with(b"SQLite format 3"));
+        let header =
+            std::fs::read(dir.join("chirper.db")).map(|b| b.starts_with(b"SQLite format 3"));
         if header.is_ok_and(|plaintext| plaintext) {
             return Err("smoke: the database file is plaintext".into());
         }

@@ -175,9 +175,7 @@ impl Store {
         let conn = self.conn();
         Ok(conn
             .query_row(
-                &format!(
-                    "SELECT {EVENT_COLUMNS} FROM event WHERE room_id = ?1 AND txn_id = ?2"
-                ),
+                &format!("SELECT {EVENT_COLUMNS} FROM event WHERE room_id = ?1 AND txn_id = ?2"),
                 params![room_id, txn_id],
                 scan_event,
             )
@@ -215,7 +213,10 @@ impl Store {
                 )
                 .optional()?;
             if let Some((room_id, target_event_id)) = reaction {
-                tx.execute("DELETE FROM reaction WHERE event_id = ?1", params![event_id])?;
+                tx.execute(
+                    "DELETE FROM reaction WHERE event_id = ?1",
+                    params![event_id],
+                )?;
                 return Ok(Redaction {
                     room_id,
                     event_id: event_id.to_owned(),
@@ -264,7 +265,10 @@ impl Store {
             ..Default::default()
         };
         let conn = self.conn();
-        conn.execute("DELETE FROM reaction WHERE event_id = ?1", params![event_id])?;
+        conn.execute(
+            "DELETE FROM reaction WHERE event_id = ?1",
+            params![event_id],
+        )?;
         Ok(r)
     }
 
@@ -356,12 +360,7 @@ impl Store {
                     };
                     let event_id = format!(
                         "$rx.{}",
-                        chirper_bridge::ids::hash_hex(&[
-                            room_id,
-                            target,
-                            key,
-                            &index.to_string()
-                        ])
+                        chirper_bridge::ids::hash_hex(&[room_id, target, key, &index.to_string()])
                     );
                     tx.execute(
                         "INSERT OR IGNORE INTO reaction
@@ -466,11 +465,7 @@ impl Store {
     /// Delete the media links of an event and any media row left unreferenced.
     pub fn release_event_media(&self, event_id: &str) -> Result<()> {
         let paths = self.write(|tx| {
-            unlink_media_tx(
-                tx,
-                "event_id = ?1",
-                &[SqlValue::Text(event_id.to_owned())],
-            )
+            unlink_media_tx(tx, "event_id = ?1", &[SqlValue::Text(event_id.to_owned())])
         })?;
         remove_media_files(&paths);
         Ok(())

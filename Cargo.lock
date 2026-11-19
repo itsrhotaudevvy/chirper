@@ -685,7 +685,11 @@ dependencies = [
  "async-trait",
  "chirper-bridge",
  "chirper-net-discord",
+ "chirper-net-fluxer",
+ "chirper-net-sms",
+ "chirper-net-telegram",
  "chirper-net-testnet",
+ "chirper-net-whatsapp",
  "getrandom 0.4.3",
  "hex",
  "log",
@@ -715,11 +719,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "chirper-net-fluxer"
+version = "0.2.1"
+dependencies = [
+ "async-trait",
+ "chirper-bridge",
+ "log",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "chirper-net-sms"
+version = "0.2.1"
+dependencies = [
+ "async-trait",
+ "chirper-bridge",
+ "log",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "chirper-net-telegram"
+version = "0.2.1"
+dependencies = [
+ "async-trait",
+ "chirper-bridge",
+ "log",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
 name = "chirper-net-testnet"
 version = "0.2.1"
 dependencies = [
  "async-trait",
  "chirper-bridge",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "chirper-net-whatsapp"
+version = "0.2.1"
+dependencies = [
+ "async-trait",
+ "chirper-bridge",
+ "log",
  "tokio",
  "zeroize",
 ]

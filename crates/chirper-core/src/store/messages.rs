@@ -38,30 +38,27 @@ impl Store {
                  FROM event WHERE room_id = ?1 AND (?2 = 0 OR ord < ?2)
                  ORDER BY ord DESC LIMIT ?3",
             )?;
-            let rows = stmt.query_map(
-                params![room_id, before_order, limit as i64],
-                |row| {
-                    Ok(Event {
-                        event_id: row.get(0)?,
-                        room_id: row.get(1)?,
-                        order: row.get(2)?,
-                        sender: row.get(3)?,
-                        kind: row.get(4)?,
-                        state_key: row.get(5)?,
-                        content_json: row.get(6)?,
-                        ts: row.get(7)?,
-                        txn_id: row.get(8)?,
-                        reply_to: row.get(9)?,
-                        edit_json: row.get(10)?,
-                        edited_ts: row.get(11)?,
-                        redacted: row.get(12)?,
-                        status: row.get(13)?,
-                        error: row.get(14)?,
-                        part_index: row.get(15)?,
-                        remote_id: row.get(16)?,
-                    })
-                },
-            )?;
+            let rows = stmt.query_map(params![room_id, before_order, limit as i64], |row| {
+                Ok(Event {
+                    event_id: row.get(0)?,
+                    room_id: row.get(1)?,
+                    order: row.get(2)?,
+                    sender: row.get(3)?,
+                    kind: row.get(4)?,
+                    state_key: row.get(5)?,
+                    content_json: row.get(6)?,
+                    ts: row.get(7)?,
+                    txn_id: row.get(8)?,
+                    reply_to: row.get(9)?,
+                    edit_json: row.get(10)?,
+                    edited_ts: row.get(11)?,
+                    redacted: row.get(12)?,
+                    status: row.get(13)?,
+                    error: row.get(14)?,
+                    part_index: row.get(15)?,
+                    remote_id: row.get(16)?,
+                })
+            })?;
             let mut out = Vec::new();
             for event in rows {
                 out.push(event?);
@@ -217,7 +214,8 @@ impl Store {
                 ..Default::default()
             };
         };
-        let described = content::describe(&event.kind, &event.content_json, event.edit_json.as_deref());
+        let described =
+            content::describe(&event.kind, &event.content_json, event.edit_json.as_deref());
         ReplyTo {
             event_id: target.to_owned(),
             sender_name: self.display_name(&event.room_id, &event.sender),

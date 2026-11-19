@@ -10,8 +10,8 @@ use std::fs;
 use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
 
-use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::Aes256Gcm;
+use aes_gcm::aead::{Aead, KeyInit, Payload};
 
 /// AES-GCM uses 96-bit nonces.
 type NonceBytes = [u8; 12];

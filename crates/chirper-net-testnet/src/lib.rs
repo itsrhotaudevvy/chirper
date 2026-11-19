@@ -206,7 +206,11 @@ struct DemoSession {
 
 impl DemoSession {
     fn push(&self, event: Event) {
-        self.state.lock().expect("demo state").queue.push_back(event);
+        self.state
+            .lock()
+            .expect("demo state")
+            .queue
+            .push_back(event);
     }
 
     fn create(&self, portal: PortalRef, content: Content) -> (String, RemoteMessage) {

@@ -82,7 +82,12 @@ async fn demo_login_stores_chats_and_sends_a_message() {
     assert!(!dm.room_id.is_empty());
 
     // History is fetched on demand and fills the empty chat.
-    assert!(core.list_messages(&dm.room_id, 0, 50).await.unwrap().is_empty());
+    assert!(
+        core.list_messages(&dm.room_id, 0, 50)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     let more = core.load_older(&dm.room_id).await.unwrap();
     assert!(!more);
     let history = core.list_messages(&dm.room_id, 0, 50).await.unwrap();
@@ -153,8 +158,14 @@ async fn history_and_settings_survive_a_restart() {
     let (core, _stream) = open(&dir).await;
     let chats = core.list_chats(&ChatFilter::default()).await.unwrap();
     assert_eq!(chats.len(), 2);
-    assert_eq!(core.settings().await.unwrap().send_typing["testnet"], Value::Bool(false));
-    assert_eq!(core.list_messages(&room, 0, 50).await.unwrap().len(), before);
+    assert_eq!(
+        core.settings().await.unwrap().send_typing["testnet"],
+        Value::Bool(false)
+    );
+    assert_eq!(
+        core.list_messages(&room, 0, 50).await.unwrap().len(),
+        before
+    );
     core.shutdown();
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -164,10 +175,18 @@ async fn invalid_input_is_rejected_before_it_reaches_the_store() {
     let dir = temp_dir("invalid");
     let (core, _stream) = open(&dir).await;
     assert!(core.get_chat("not-a-room").await.is_err());
-    assert!(core.send_text("!x:chirper.local", "  ", None, "t").await.is_err());
+    assert!(
+        core.send_text("!x:chirper.local", "  ", None, "t")
+            .await
+            .is_err()
+    );
     assert!(core.react("!x:chirper.local", "$e", "").await.is_err());
     assert!(core.media_file("https://example.invalid/x").await.is_err());
-    assert!(core.list_messages("!x:chirper.local", -1, 10).await.is_err());
+    assert!(
+        core.list_messages("!x:chirper.local", -1, 10)
+            .await
+            .is_err()
+    );
     assert!(core.search("ok", 0).await.is_err());
     assert!(core.start_login("nope", "demo").await.is_err());
     core.shutdown();

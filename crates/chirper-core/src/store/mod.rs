@@ -133,9 +133,11 @@ fn read_version(conn: &Connection) -> Result<i64> {
     let mut version: i64 = 0;
     if table_exists(conn, "chirper_version")? {
         version = version.max(
-            conn.query_row("SELECT COALESCE(MAX(version), 0) FROM chirper_version", [], |r| {
-                r.get(0)
-            })
+            conn.query_row(
+                "SELECT COALESCE(MAX(version), 0) FROM chirper_version",
+                [],
+                |r| r.get(0),
+            )
             .unwrap_or(0),
         );
     }
@@ -213,7 +215,9 @@ fn ensure_column(
     if names.iter().any(|name| name == column) {
         return Ok(());
     }
-    tx.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"))?;
+    tx.execute_batch(&format!(
+        "ALTER TABLE {table} ADD COLUMN {column} {definition}"
+    ))?;
     Ok(())
 }
 

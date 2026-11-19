@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use chirper_bridge::network::{LoginInput, Network};
 use chirper_bridge::model::LoginStep as BridgeStep;
+use chirper_bridge::network::{LoginInput, Network};
 
 use super::convert;
-use super::{validate, ActiveLogin, Core, Error, Result};
+use super::{ActiveLogin, Core, Error, Result, validate};
 use crate::model::{Account, AccountState, LoginState};
 
 impl Core {
@@ -130,7 +130,10 @@ impl Core {
             inner.typing.lock().expect("typing").remove(&room_id);
             inner.emit("chat_removed", serde_json::json!({ "roomId": room_id }));
         }
-        if let Err(err) = inner.secrets.delete_prefix(&format!("{network}/{login_id}/")) {
+        if let Err(err) = inner
+            .secrets
+            .delete_prefix(&format!("{network}/{login_id}/"))
+        {
             log::warn!("{network}/{login_id}: cannot delete credentials: {err}");
         }
         remove_login_dir(&inner.data_dir, network, login_id);
@@ -146,11 +149,9 @@ impl Core {
 
     /// The driver of an available network.
     fn driver(&self, network: &str) -> Result<Arc<dyn Network>> {
-        let driver = self
-            .inner()
-            .runtime
-            .network(network)
-            .ok_or_else(|| Error::Unsupported(format!("{network} is not available in this build")))?;
+        let driver = self.inner().runtime.network(network).ok_or_else(|| {
+            Error::Unsupported(format!("{network} is not available in this build"))
+        })?;
         if let Some(reason) = driver.unavailable() {
             return Err(Error::Unsupported(reason));
         }
@@ -238,7 +239,9 @@ impl std::fmt::Debug for ActiveLogin {
 
 /// Delete the private directory of a login.
 fn remove_login_dir(data_dir: &std::path::Path, network: &str, login_id: &str) {
-    let dir = data_dir.join("logins").join(format!("{network}.{login_id}"));
+    let dir = data_dir
+        .join("logins")
+        .join(format!("{network}.{login_id}"));
     if let Err(err) = std::fs::remove_dir_all(&dir) {
         if err.kind() != std::io::ErrorKind::NotFound {
             log::warn!("cannot delete {dir:?}: {err}");

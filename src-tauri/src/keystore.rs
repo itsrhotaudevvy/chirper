@@ -52,8 +52,8 @@ fn hex_value(b: u8) -> Option<u8> {
 /// The key in the platform credential store: Keychain (macOS), Credential Manager (Windows) or the
 /// Secret Service (Linux), under service `app.chirper` and user `db-key`.
 pub fn load_or_create() -> Result<Zeroizing<[u8; KEY_LEN]>, String> {
-    let entry = keyring::Entry::new(KEY_SERVICE, KEY_USER)
-        .map_err(|e| format!("credential store: {e}"))?;
+    let entry =
+        keyring::Entry::new(KEY_SERVICE, KEY_USER).map_err(|e| format!("credential store: {e}"))?;
     match entry.get_password() {
         Ok(stored) => decode_hex(&Zeroizing::new(stored)),
         // Overwriting an unreadable key would make the database unrecoverable, so only a missing

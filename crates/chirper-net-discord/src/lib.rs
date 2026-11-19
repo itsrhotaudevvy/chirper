@@ -16,9 +16,7 @@ use chirper_bridge::model::{
     Ack, BackfillPage, Capabilities, Content, LoginFlow, LoginStep, PortalRef, RemoteUser,
 };
 use chirper_bridge::network::LoginInput;
-use chirper_bridge::{
-    Command, Error, Event, LoginCtx, LoginProcess, Network, Result, Session,
-};
+use chirper_bridge::{Command, Error, Event, LoginCtx, LoginProcess, Network, Result, Session};
 
 pub use api::API;
 
@@ -131,8 +129,9 @@ impl LoginProcess for TokenLogin {
         if input.values.is_empty() {
             return Ok(LoginStep::UserInput {
                 step_id: "token".to_owned(),
-                instructions: "Paste your Discord token. It is stored in the system credential store."
-                    .to_owned(),
+                instructions:
+                    "Paste your Discord token. It is stored in the system credential store."
+                        .to_owned(),
                 fields: vec![chirper_bridge::model::InputField {
                     id: "token".to_owned(),
                     name: "Token".to_owned(),

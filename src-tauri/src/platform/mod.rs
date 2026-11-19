@@ -205,3 +205,9 @@ pub fn main_window(app: &AppHandle) -> CmdResult<WebviewWindow> {
 pub fn unsupported<T>(feature: &str) -> CmdResult<T> {
     Err(CmdError::unsupported(feature))
 }
+
+/// Drivers this platform provides to the core because they need the OS (the Android SMS provider).
+/// Desktop and iOS provide none; the core then lists those networks with their reason.
+pub fn host_networks(_app: &AppHandle) -> chirper_core::HostNetworks {
+    chirper_core::HostNetworks::default()
+}

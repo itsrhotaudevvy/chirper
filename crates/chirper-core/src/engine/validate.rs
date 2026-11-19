@@ -43,7 +43,12 @@ pub fn token(value: &str) -> Result<()> {
 }
 
 pub fn network_id(value: &str) -> Result<()> {
-    if value.is_empty() || value.len() > 40 || !value.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-') {
+    if value.is_empty()
+        || value.len() > 40
+        || !value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-')
+    {
         return Err(Error::InvalidInput("network".to_owned()));
     }
     Ok(())

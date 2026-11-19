@@ -2,7 +2,9 @@
 
 use serde::Deserialize;
 
-use chirper_bridge::model::{ChatMeta, Content, MediaInfo, PortalRef, Reaction, RemoteMessage, RemoteUser};
+use chirper_bridge::model::{
+    ChatMeta, Content, MediaInfo, PortalRef, Reaction, RemoteMessage, RemoteUser,
+};
 
 use crate::api::{Api, CDN};
 
@@ -285,7 +287,9 @@ pub async fn to_remote_message(api: &Api, message: &Message, live: bool) -> Remo
         let kind = media_kind(&mime);
         let oversized = attachment.size > MAX_ATTACHMENT as i64;
         let downloaded = if oversized {
-            Err(chirper_bridge::Error::Protocol("attachment is too large".to_owned()))
+            Err(chirper_bridge::Error::Protocol(
+                "attachment is too large".to_owned(),
+            ))
         } else {
             api.download(&attachment.url, MAX_ATTACHMENT).await
         };
@@ -294,10 +298,7 @@ pub async fn to_remote_message(api: &Api, message: &Message, live: bool) -> Remo
                 content = Content::Media {
                     kind: kind.to_owned(),
                     caption: if message.content.is_empty() {
-                        attachment
-                            .description
-                            .clone()
-                            .unwrap_or_default()
+                        attachment.description.clone().unwrap_or_default()
                     } else {
                         message.content.clone()
                     },
@@ -425,12 +426,27 @@ pub fn ts_ms(value: &str) -> i64 {
         None => return 0,
     };
     let mut date_parts = date.split('-');
-    let year = date_parts.next().and_then(|y| y.parse::<i64>().ok()).unwrap_or(1970);
-    let month = date_parts.next().and_then(|m| m.parse::<u32>().ok()).unwrap_or(1);
-    let day = date_parts.next().and_then(|d| d.parse::<u32>().ok()).unwrap_or(1);
+    let year = date_parts
+        .next()
+        .and_then(|y| y.parse::<i64>().ok())
+        .unwrap_or(1970);
+    let month = date_parts
+        .next()
+        .and_then(|m| m.parse::<u32>().ok())
+        .unwrap_or(1);
+    let day = date_parts
+        .next()
+        .and_then(|d| d.parse::<u32>().ok())
+        .unwrap_or(1);
     let mut time_parts = rest.split([':', '+', '-', 'Z']);
-    let hour = time_parts.next().and_then(|h| h.parse::<i64>().ok()).unwrap_or(0);
-    let minute = time_parts.next().and_then(|m| m.parse::<i64>().ok()).unwrap_or(0);
+    let hour = time_parts
+        .next()
+        .and_then(|h| h.parse::<i64>().ok())
+        .unwrap_or(0);
+    let minute = time_parts
+        .next()
+        .and_then(|m| m.parse::<i64>().ok())
+        .unwrap_or(0);
     let seconds = time_parts.next().unwrap_or("0");
     let (second, fraction) = match seconds.split_once('.') {
         Some((s, f)) => (s.parse::<i64>().unwrap_or(0), f),

@@ -5,6 +5,10 @@ members = [
     "crates/chirper-core",
     "crates/chirper-net-testnet",
     "crates/chirper-net-discord",
+    "crates/chirper-net-fluxer",
+    "crates/chirper-net-telegram",
+    "crates/chirper-net-whatsapp",
+    "crates/chirper-net-sms",
     "plugins/chirper-native",
     "src-tauri",
 ]

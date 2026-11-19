@@ -203,7 +203,10 @@ mod tests {
 
     #[test]
     fn hash_matches_the_go_core_vectors() {
-        assert_eq!(hash_hex(&["discord_123", ""]), "fbacdbf3e6fedc9259e8e085049c8eca");
+        assert_eq!(
+            hash_hex(&["discord_123", ""]),
+            "fbacdbf3e6fedc9259e8e085049c8eca"
+        );
         assert_eq!(
             event_id_for("discord", "!discord.abc:chirper.local", "m-1", "").as_str(),
             "$discord.b8fe0d74568f60c943054ee95fd1cb03"
@@ -239,7 +242,10 @@ mod tests {
     #[test]
     fn sender_ids_round_trip_the_external_id() {
         let sender = sender_id("whatsapp", "15551234@s.whatsapp.net");
-        assert_eq!(sender.as_str(), "@whatsapp_15551234=40s.whatsapp.net:chirper.local");
+        assert_eq!(
+            sender.as_str(),
+            "@whatsapp_15551234=40s.whatsapp.net:chirper.local"
+        );
         assert_eq!(
             external_sender_id("whatsapp", sender.as_str()),
             Some("15551234=40s.whatsapp.net")
