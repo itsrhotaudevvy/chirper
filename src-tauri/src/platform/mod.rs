@@ -206,8 +206,21 @@ pub fn unsupported<T>(feature: &str) -> CmdResult<T> {
     Err(CmdError::unsupported(feature))
 }
 
-/// Drivers this platform provides to the core because they need the OS (the Android SMS provider).
-/// Desktop and iOS provide none; the core then lists those networks with their reason.
+/// Drivers this platform provides to the core because they need the OS: on Android the SMS driver,
+/// which reads and sends through the phone's own provider. The core lists the others with their
+/// reason.
+#[cfg(target_os = "android")]
+pub fn host_networks(app: &AppHandle) -> chirper_core::HostNetworks {
+    use std::sync::Arc;
+
+    let platform = Arc::new(imp::AndroidSms::new(app.clone()));
+    let sms: Arc<dyn chirper_bridge::Network> =
+        Arc::new(chirper_net_sms::Sms::with_platform(platform));
+    chirper_core::HostNetworks(vec![sms])
+}
+
+/// Desktop and iOS provide no host drivers: there is no SMS API there.
+#[cfg(not(target_os = "android"))]
 pub fn host_networks(_app: &AppHandle) -> chirper_core::HostNetworks {
     chirper_core::HostNetworks::default()
 }

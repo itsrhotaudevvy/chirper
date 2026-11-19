@@ -4,11 +4,18 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
+use chirper_bridge::{Error as BridgeError, Result as BridgeResult};
+use chirper_net_sms::{
+    MmsPart, SmsAddress, SmsMessage, SmsPermissions, SmsPlatform, SmsPlatformEvent, SmsThread,
+};
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_chirper_native::{ChirperNativeExt, MessageNotice, ReplyEvent};
+use tauri_plugin_chirper_native::{
+    ChirperNativeExt, MessageNotice, ReplyEvent, SmsNativeAddress, SmsNativeEvent,
+    SmsNativeMessage, SmsNativePart, SmsNativePermissions, SmsNativeThread,
+};
 use tauri_plugin_dialog::FilePath;
 use zeroize::Zeroizing;
 
@@ -28,6 +35,12 @@ const MAX_PICKED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// The reply channel. The native side keeps only its id, so the channel must live as long as the
 /// process does.
 static REPLY_CHANNEL: OnceLock<Channel<ReplyEvent>> = OnceLock::new();
+/// Where the provider's events go: the live SMS session. A new session replaces it.
+type SmsSink = Arc<dyn Fn(SmsPlatformEvent) + Send + Sync>;
+static SMS_SINK: Mutex<Option<SmsSink>> = Mutex::new(None);
+/// The channel of the SMS provider watch. The native side keeps only its id, so the channel must
+/// live as long as the process does.
+static SMS_CHANNEL: Mutex<Option<Channel<SmsNativeEvent>>> = Mutex::new(None);
 /// The newest message notice that waits for the notification permission.
 static PENDING_NOTICE: Mutex<Option<MessageNotice>> = Mutex::new(None);
 /// Set while the permission dialog is open, so that a burst of messages asks only once.
@@ -197,4 +210,186 @@ pub async fn open_login_webview(
 
 fn native_error(err: tauri_plugin_chirper_native::Error) -> CmdError {
     CmdError::new(code::CORE, err.to_string())
+}
+
+/// The SMS platform of the Android app: the provider and `SmsManager`, through the chirper-native
+/// plugin. Calls block, so the driver runs them on the blocking pool.
+pub struct AndroidSms {
+    app: AppHandle,
+}
+
+impl AndroidSms {
+    pub fn new(app: AppHandle) -> Self {
+        Self { app }
+    }
+}
+
+impl SmsPlatform for AndroidSms {
+    fn permissions(&self) -> BridgeResult<SmsPermissions> {
+        self.app
+            .chirper_native()
+            .sms_permissions()
+            .map(permissions_from)
+            .map_err(sms_error)
+    }
+
+    fn request_permissions(&self) -> BridgeResult<SmsPermissions> {
+        self.app
+            .chirper_native()
+            .request_sms_permissions()
+            .map(permissions_from)
+            .map_err(sms_error)
+    }
+
+    fn threads(&self, limit: usize) -> BridgeResult<Vec<SmsThread>> {
+        let threads = self
+            .app
+            .chirper_native()
+            .sms_threads(limit)
+            .map_err(sms_error)?;
+        Ok(threads.into_iter().map(thread_from).collect())
+    }
+
+    fn messages(
+        &self,
+        thread_id: i64,
+        before_ms: Option<i64>,
+        limit: usize,
+    ) -> BridgeResult<Vec<SmsMessage>> {
+        let messages = self
+            .app
+            .chirper_native()
+            .sms_messages(thread_id, before_ms, limit)
+            .map_err(sms_error)?;
+        Ok(messages.into_iter().map(message_from).collect())
+    }
+
+    fn messages_since(&self, after_ms: i64, limit: usize) -> BridgeResult<Vec<SmsMessage>> {
+        let messages = self
+            .app
+            .chirper_native()
+            .sms_messages_since(after_ms, limit)
+            .map_err(sms_error)?;
+        Ok(messages.into_iter().map(message_from).collect())
+    }
+
+    fn send_text(
+        &self,
+        addresses: &[String],
+        text: &str,
+        subscription_id: Option<i32>,
+    ) -> BridgeResult<String> {
+        self.app
+            .chirper_native()
+            .sms_send(addresses, text, subscription_id)
+            .map_err(sms_error)
+    }
+
+    fn mms_part(&self, part_id: i64, max_bytes: u64) -> BridgeResult<Vec<u8>> {
+        self.app
+            .chirper_native()
+            .sms_mms_part(part_id, max_bytes)
+            .map_err(sms_error)
+    }
+
+    fn watch(&self, sink: SmsSink) -> BridgeResult<()> {
+        *SMS_SINK.lock().unwrap_or_else(PoisonError::into_inner) = Some(sink);
+        let mut channel = SMS_CHANNEL.lock().unwrap_or_else(PoisonError::into_inner);
+        if channel.is_none() {
+            let created: Channel<SmsNativeEvent> = Channel::new(|body| {
+                match body.deserialize::<SmsNativeEvent>() {
+                    Ok(event) => {
+                        let sink = SMS_SINK
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .clone();
+                        if let Some(sink) = sink {
+                            sink(platform_event(event));
+                        }
+                    }
+                    Err(_) => log::warn!("an SMS provider event has an unexpected shape"),
+                }
+                Ok(())
+            });
+            self.app
+                .chirper_native()
+                .set_sms_channel(&created)
+                .map_err(sms_error)?;
+            *channel = Some(created);
+        }
+        Ok(())
+    }
+}
+
+/// A plugin refusal as a driver error. A missing permission means the grant was revoked, which
+/// ends the login; anything else is a refused call. Messages carry no bodies or addresses.
+fn sms_error(err: tauri_plugin_chirper_native::Error) -> BridgeError {
+    let text = err.to_string();
+    if text.contains("SMS permission missing") {
+        BridgeError::Auth("SMS permission was revoked".to_owned())
+    } else {
+        BridgeError::Protocol(format!("the SMS provider refused the call: {text}"))
+    }
+}
+
+fn permissions_from(state: SmsNativePermissions) -> SmsPermissions {
+    SmsPermissions {
+        read: state.read,
+        send: state.send,
+        receive: state.receive,
+        contacts: state.contacts,
+    }
+}
+
+fn address_from(address: SmsNativeAddress) -> SmsAddress {
+    SmsAddress {
+        raw: address.raw,
+        e164: address.e164,
+        name: address.name,
+    }
+}
+
+fn thread_from(thread: SmsNativeThread) -> SmsThread {
+    SmsThread {
+        thread_id: thread.thread_id,
+        addresses: thread.addresses.into_iter().map(address_from).collect(),
+        snippet_date_ms: thread.snippet_date_ms,
+    }
+}
+
+fn part_from(part: SmsNativePart) -> MmsPart {
+    MmsPart {
+        part_id: part.part_id,
+        mime: part.mime,
+        name: part.name,
+        size: part.size,
+    }
+}
+
+fn message_from(message: SmsNativeMessage) -> SmsMessage {
+    SmsMessage {
+        id: message.id,
+        thread_id: message.thread_id,
+        sender: address_from(message.sender),
+        from_me: message.from_me,
+        date_ms: message.date_ms,
+        body: message.body,
+        parts: message.parts.into_iter().map(part_from).collect(),
+        status: message.status,
+    }
+}
+
+fn platform_event(event: SmsNativeEvent) -> SmsPlatformEvent {
+    match event {
+        SmsNativeEvent::Changed => SmsPlatformEvent::Changed,
+        SmsNativeEvent::SendStatus {
+            send_id,
+            status,
+            error,
+        } => SmsPlatformEvent::SendStatus {
+            send_id,
+            status,
+            error,
+        },
+    }
 }

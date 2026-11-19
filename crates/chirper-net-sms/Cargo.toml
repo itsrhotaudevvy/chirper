@@ -11,8 +11,9 @@ publish = false
 chirper-bridge = { path = "../chirper-bridge" }
 async-trait = "=0.1.92"
 log = "=0.4.35"
+serde = { version = "=1.0.229", features = ["derive"] }
 tokio = { version = "=1.54.1", features = ["sync", "time", "macros", "rt"] }
-zeroize = "=1.9.2"
 
 [dev-dependencies]
 tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "time"] }
+zeroize = "=1.9.2"

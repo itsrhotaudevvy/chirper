@@ -21,6 +21,11 @@ pub use mobile::{
     ChirperNative, ChirperNativeExt, FormFactor, LoginWebviewAnswer, LoginWebviewArg,
     MessageNotice, MessageOutcome, ReplyEvent, init,
 };
+#[cfg(target_os = "android")]
+pub use mobile::{
+    SmsNativeAddress, SmsNativeEvent, SmsNativeMessage, SmsNativePart, SmsNativePermissions,
+    SmsNativeThread,
+};
 
 /// Errors of the native calls. Messages never contain message bodies, keys or user data.
 #[cfg(any(target_os = "android", target_os = "ios"))]

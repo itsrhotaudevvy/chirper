@@ -79,6 +79,42 @@ class CopyArgs {
 }
 
 @InvokeArg
+class SmsThreadsArgs {
+    var limit: Int = 100
+}
+
+@InvokeArg
+class SmsMessagesArgs {
+    var threadId: Long = 0
+    var beforeMs: Long? = null
+    var limit: Int = 100
+}
+
+@InvokeArg
+class SmsSinceArgs {
+    var afterMs: Long = 0
+    var limit: Int = 100
+}
+
+@InvokeArg
+class SmsSendArgs {
+    var addresses: List<String> = emptyList()
+    var text: String = ""
+    var subscriptionId: Int? = null
+}
+
+@InvokeArg
+class SmsPartArgs {
+    var partId: Long = 0
+    var maxBytes: Long = 0
+}
+
+@InvokeArg
+class SmsWatchArgs {
+    lateinit var handler: Channel
+}
+
+@InvokeArg
 class LoginWebviewArgs {
     var url: String = ""
     var extractJs: String = ""
@@ -92,7 +128,19 @@ class LoginWebviewArgs {
  * thread, because the Rust caller may be blocking the main thread while it waits for the answer.
  */
 @TauriPlugin(
-    permissions = [Permission(strings = [Manifest.permission.POST_NOTIFICATIONS], alias = "notifications")],
+    permissions = [
+        Permission(strings = [Manifest.permission.POST_NOTIFICATIONS], alias = "notifications"),
+        Permission(
+            strings = [
+                Manifest.permission.READ_SMS,
+                Manifest.permission.SEND_SMS,
+                Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.RECEIVE_MMS,
+            ],
+            alias = "sms",
+        ),
+        Permission(strings = [Manifest.permission.READ_CONTACTS], alias = "contacts"),
+    ],
 )
 class ChirperNativePlugin(private val activity: Activity) : Plugin(activity) {
 
@@ -191,6 +239,88 @@ class ChirperNativePlugin(private val activity: Activity) : Plugin(activity) {
     @PermissionCallback
     fun onNotificationPermission(invoke: Invoke) {
         invoke.resolve(JSObject().put("granted", !notificationPermissionMissing()))
+    }
+
+    /** The SMS permission state, without asking. */
+    @Command
+    fun smsPermissions(invoke: Invoke) {
+        invoke.resolve(SmsProvider.permissions(activity))
+    }
+
+    /** Asks for the SMS and contacts permissions. The answer comes in a callback. */
+    @Command
+    fun requestSmsPermissions(invoke: Invoke) {
+        requestPermissionForAliases(arrayOf("sms", "contacts"), invoke, "onSmsPermissions")
+    }
+
+    @PermissionCallback
+    fun onSmsPermissions(invoke: Invoke) {
+        invoke.resolve(SmsProvider.permissions(activity))
+    }
+
+    @Command
+    fun smsThreads(invoke: Invoke) {
+        val args = invoke.parseArgs(SmsThreadsArgs::class.java)
+        guardSms(invoke) {
+            invoke.resolve(JSObject().put("threads", SmsProvider.threads(activity, args.limit)))
+        }
+    }
+
+    @Command
+    fun smsMessages(invoke: Invoke) {
+        val args = invoke.parseArgs(SmsMessagesArgs::class.java)
+        guardSms(invoke) {
+            val rows = SmsProvider.messages(activity, args.threadId, args.beforeMs, null, args.limit)
+            invoke.resolve(JSObject().put("messages", rows))
+        }
+    }
+
+    @Command
+    fun smsMessagesSince(invoke: Invoke) {
+        val args = invoke.parseArgs(SmsSinceArgs::class.java)
+        guardSms(invoke) {
+            val rows = SmsProvider.messages(activity, null, null, args.afterMs, args.limit)
+            invoke.resolve(JSObject().put("messages", rows))
+        }
+    }
+
+    @Command
+    fun smsSend(invoke: Invoke) {
+        val args = invoke.parseArgs(SmsSendArgs::class.java)
+        guardSms(invoke) {
+            val sendId = SmsProvider.send(activity, args.addresses, args.text, args.subscriptionId)
+            invoke.resolve(JSObject().put("sendId", sendId))
+        }
+    }
+
+    @Command
+    fun smsMmsPart(invoke: Invoke) {
+        val args = invoke.parseArgs(SmsPartArgs::class.java)
+        guardSms(invoke) {
+            val data = SmsProvider.mmsPart(activity, args.partId, args.maxBytes)
+            invoke.resolve(JSObject().put("data", data))
+        }
+    }
+
+    /** Registers the channel that receives provider changes and send results. */
+    @Command
+    fun smsWatch(invoke: Invoke) {
+        val args = invoke.parseArgs(SmsWatchArgs::class.java)
+        guardSms(invoke) {
+            SmsProvider.watch(activity, args.handler)
+            invoke.resolve()
+        }
+    }
+
+    /** Runs an SMS command and turns its failures into rejections without message content. */
+    private inline fun guardSms(invoke: Invoke, block: () -> Unit) {
+        try {
+            block()
+        } catch (_: SecurityException) {
+            invoke.reject("SMS permission missing")
+        } catch (e: Exception) {
+            invoke.reject("the SMS provider failed: ${e.javaClass.simpleName}")
+        }
     }
 
     @Command
