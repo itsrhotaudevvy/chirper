@@ -24,6 +24,14 @@ chirper-net-fluxer = { path = "../chirper-net-fluxer" }
 chirper-net-telegram = { path = "../chirper-net-telegram" }
 chirper-net-whatsapp = { path = "../chirper-net-whatsapp" }
 chirper-net-sms = { path = "../chirper-net-sms" }
+chirper-net-signal = { path = "../chirper-net-signal" }
+chirper-net-meta = { path = "../chirper-net-meta" }
+chirper-net-twitter = { path = "../chirper-net-twitter" }
+chirper-net-linkedin = { path = "../chirper-net-linkedin" }
+chirper-net-gmessages = { path = "../chirper-net-gmessages" }
+chirper-net-gvoice = { path = "../chirper-net-gvoice" }
+chirper-net-slack = { path = "../chirper-net-slack" }
+chirper-net-bluesky = { path = "../chirper-net-bluesky" }
 aes-gcm = "=0.11.1"
 async-trait = "=0.1.92"
 getrandom = "=0.4.3"
@@ -38,4 +46,4 @@ zeroize = { version = "=1.9.2", features = ["derive"] }
 
 
 [dev-dependencies]
-tokio = { version = "=1.54.1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "=1.54.1", features = ["macros", "rt", "rt-multi-thread", "test-util"] }

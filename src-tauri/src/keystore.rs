@@ -32,9 +32,10 @@ fn decode_hex(text: &str) -> Result<Zeroizing<[u8; KEY_LEN]>, String> {
     }
     let mut key = Zeroizing::new([0u8; KEY_LEN]);
     let bytes = text.as_bytes();
-    for (i, pair) in bytes.chunks_exact(2).enumerate() {
-        let hi = hex_value(pair[0]).ok_or_else(malformed)?;
-        let lo = hex_value(pair[1]).ok_or_else(malformed)?;
+    let (pairs, _) = bytes.as_chunks::<2>();
+    for (i, [high, low]) in pairs.iter().enumerate() {
+        let hi = hex_value(*high).ok_or_else(malformed)?;
+        let lo = hex_value(*low).ok_or_else(malformed)?;
         key[i] = (hi << 4) | lo;
     }
     Ok(key)

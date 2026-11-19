@@ -33,6 +33,15 @@ pub fn available(demo: bool, host: &HostNetworks) -> Vec<Arc<dyn Network>> {
     push(Arc::new(chirper_net_telegram::Telegram::new()));
     push(Arc::new(chirper_net_whatsapp::WhatsApp::new()));
     push(Arc::new(chirper_net_sms::Sms::new()));
+    push(Arc::new(chirper_net_signal::Signal::new()));
+    push(Arc::new(chirper_net_meta::Messenger::new()));
+    push(Arc::new(chirper_net_meta::Instagram::new()));
+    push(Arc::new(chirper_net_twitter::Twitter::new()));
+    push(Arc::new(chirper_net_linkedin::LinkedIn::new()));
+    push(Arc::new(chirper_net_gmessages::GMessages::new()));
+    push(Arc::new(chirper_net_gvoice::GVoice::new()));
+    push(Arc::new(chirper_net_slack::Slack::new()));
+    push(Arc::new(chirper_net_bluesky::Bluesky::new()));
     if demo {
         push(Arc::new(chirper_net_testnet::TestNet::new()));
     }
@@ -41,12 +50,7 @@ pub fn available(demo: bool, host: &HostNetworks) -> Vec<Arc<dyn Network>> {
 
 /// Networks the app lists but has no driver for. They keep their place in the UI and explain
 /// themselves instead of silently disappearing.
-const UNPORTED: &[(&str, &str, &str)] = &[
-    ("signal", "Signal", "#3A76F0"),
-    ("facebook", "Facebook", "#1877F2"),
-    ("instagram", "Instagram", "#E1306C"),
-    ("imessage", "iMessage", "#34C759"),
-];
+const UNPORTED: &[(&str, &str, &str)] = &[("imessage", "iMessage", "#34C759")];
 
 /// Every network of this build: the drivers first, usable ones before the others, then the
 /// networks without a driver, each with its reason.
@@ -91,7 +95,22 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), count, "a network is listed twice");
-        for id in ["discord", "fluxer", "telegram", "whatsapp", "sms", "signal"] {
+        for id in [
+            "discord",
+            "fluxer",
+            "telegram",
+            "whatsapp",
+            "sms",
+            "signal",
+            "messenger",
+            "instagram",
+            "twitter",
+            "linkedin",
+            "gmessages",
+            "gvoice",
+            "slack",
+            "bluesky",
+        ] {
             assert!(ids.contains(&id), "{id} is missing");
         }
     }
