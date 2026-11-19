@@ -3,6 +3,12 @@
 
 [advisories]
 version = 2
+ignore = [
+  # rsa: Marvin timing side channel in RSA decryption (no fixed release). Only Discord's QR login
+  # decrypts, with a fresh key per login and a handful of server-chosen ciphertexts, so an
+  # attacker cannot collect the many timed decryptions the attack needs.
+  { id = "RUSTSEC-2023-0071", reason = "per-login ephemeral key, a few decryptions; see comment" },
+]
 
 [licenses]
 version = 2

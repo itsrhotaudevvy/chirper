@@ -1,12 +1,17 @@
-//! The Discord driver: a user token or bot token, the v10 REST API and the gateway.
+//! The Discord driver: a user token or bot token, the v10 REST API, the gateway and QR login.
 //!
 //! It is a bridge runtime driver, not a bridge: it reports chats, messages and reactions as domain
 //! events and accepts commands, with no Matrix in between. Everything the old Go bridge did for
 //! Discord — portals, puppet ids, per-bridge databases — is now the runtime's and the engine's job.
 
+#![forbid(unsafe_code)]
+
 mod api;
 mod gateway;
 mod map;
+mod remoteauth;
+
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use log::debug;
@@ -27,18 +32,21 @@ pub const NETWORK_ID: &str = "discord";
 #[derive(Debug, Default, Clone)]
 pub struct Discord {
     base: String,
+    /// Resume state of every login, kept across the reconnects the runtime performs.
+    resume: gateway::ResumeStore,
 }
 
 impl Discord {
     pub fn new() -> Self {
-        Self {
-            base: API.to_owned(),
-        }
+        Self::with_base(API)
     }
 
     /// A driver pointed at another Discord-compatible API base (tests, self-hosted).
     pub fn with_base(base: impl Into<String>) -> Self {
-        Self { base: base.into() }
+        Self {
+            base: base.into(),
+            resume: Arc::default(),
+        }
     }
 }
 
@@ -71,23 +79,32 @@ impl Network for Discord {
     }
 
     fn login_flows(&self) -> Vec<LoginFlow> {
-        vec![LoginFlow {
-            id: "token".to_owned(),
-            name: "Account token".to_owned(),
-            description: "Paste a Discord user token, or a bot token starting with `Bot `."
-                .to_owned(),
-        }]
+        vec![
+            LoginFlow {
+                id: "token".to_owned(),
+                name: "Account token".to_owned(),
+                description: "Paste a Discord user token, or a bot token starting with `Bot `."
+                    .to_owned(),
+            },
+            LoginFlow {
+                id: "qr".to_owned(),
+                name: "QR code".to_owned(),
+                description: "Scan with the Discord mobile app: Settings → Scan QR Code."
+                    .to_owned(),
+            },
+        ]
     }
 
     async fn start_login(&self, flow_id: &str, ctx: LoginCtx) -> Result<Box<dyn LoginProcess>> {
-        if flow_id != "token" {
-            return Err(Error::Unsupported("this login flow"));
+        match flow_id {
+            "token" => Ok(Box::new(TokenLogin {
+                ctx,
+                base: self.base.clone(),
+                done: false,
+            })),
+            "qr" => Ok(Box::new(remoteauth::start(ctx))),
+            _ => Err(Error::Unsupported("this login flow")),
         }
-        Ok(Box::new(TokenLogin {
-            ctx,
-            base: self.base.clone(),
-            done: false,
-        }))
     }
 
     async fn connect(&self, ctx: LoginCtx) -> Result<Box<dyn Session>> {
@@ -100,7 +117,15 @@ impl Network for Discord {
         let me = api.me().await?;
         let gateway_url = api.gateway_url().await?;
         let (tx, rx) = mpsc::unbounded_channel();
-        tokio::spawn(gateway::run(api.clone(), gateway_url, token, tx));
+        let link = gateway::Link {
+            api: api.clone(),
+            token,
+            me_id: me.id.clone(),
+            login_id: ctx.login_id.clone(),
+            resume: self.resume.clone(),
+            tx,
+        };
+        tokio::spawn(gateway::run(link, gateway_url));
         Ok(Box::new(DiscordSession {
             api,
             me: map::to_remote_user(&me),
@@ -267,20 +292,23 @@ impl Session for DiscordSession {
         cursor: Option<String>,
         limit: usize,
     ) -> Result<BackfillPage> {
-        let page = self.api.history(&portal.id, cursor.as_deref()).await?;
-        let mut messages = Vec::with_capacity(page.len());
-        for message in page {
-            if map::is_system(&message) {
+        let page_size = limit.clamp(1, 100);
+        let raw = self
+            .api
+            .history(&portal.id, cursor.as_deref(), page_size)
+            .await?;
+        // The page is judged before filtering: system messages must not hide a full page.
+        let (has_more, next) = page_cursor(&raw, page_size);
+        let mut messages = Vec::with_capacity(raw.len());
+        for message in &raw {
+            if map::is_system(message) {
                 continue;
             }
-            messages.push(map::to_remote_message(&self.api, &message, false).await);
+            messages.push(map::to_remote_message(&self.api, message, false, &self.me.id).await);
         }
-        let has_more = messages.len() >= limit.min(50) && messages.len() >= 2;
-        let next = messages.last().map(|m| m.id.clone());
-        let _ = limit;
         Ok(BackfillPage {
             messages,
-            cursor: if has_more { next } else { None },
+            cursor: next,
             has_more,
         })
     }
@@ -294,7 +322,53 @@ impl Session for DiscordSession {
     }
 }
 
+/// Whether a raw history page is full, and the cursor for the next older page. Discord lists the
+/// newest message first, so a full page ends with its oldest message.
+fn page_cursor(raw: &[map::Message], page_size: usize) -> (bool, Option<String>) {
+    let has_more = raw.len() == page_size;
+    let cursor = if has_more {
+        raw.last().map(|message| message.id.clone())
+    } else {
+        None
+    };
+    (has_more, cursor)
+}
+
 /// Apply the caption-only rule of media messages: a caption is the body.
 pub fn caption_of(content: &Content) -> String {
     content.body().to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn message(id: &str) -> map::Message {
+        serde_json::from_value(serde_json::json!({
+            "id": id, "channel_id": "1", "author": {"id": "9", "username": "ada"}
+        }))
+        .expect("message fixture parses")
+    }
+
+    #[test]
+    fn a_full_raw_page_has_more_even_when_it_filters_down() {
+        // Discord returns newest first, so the last element is the oldest.
+        let raw: Vec<map::Message> = (1..=50).rev().map(|n| message(&n.to_string())).collect();
+        let (has_more, cursor) = page_cursor(&raw, 50);
+        assert!(has_more);
+        assert_eq!(cursor.as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn a_short_page_is_the_beginning_of_history() {
+        let raw: Vec<map::Message> = (1..=10).map(|n| message(&n.to_string())).collect();
+        assert_eq!(page_cursor(&raw, 50), (false, None));
+    }
+
+    #[test]
+    fn the_page_size_follows_the_requested_limit() {
+        let raw: Vec<map::Message> = (1..=5).map(|n| message(&n.to_string())).collect();
+        assert!(page_cursor(&raw, 5).0);
+        assert!(!page_cursor(&raw, 6).0);
+    }
 }
