@@ -28,7 +28,7 @@ log = "=0.4.35"
 percent-encoding = "=2.3.2"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = { version = "=1.0.154", features = ["raw_value"] }
-zeroize = "=1.9.1"
+zeroize = "=1.9.2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = { version = "=2.4.5", features = ["deep-link"] }
@@ -73,4 +73,4 @@ path = "../crates/chirper-core"
 features = ["dynamic-link"]
 
 [build-dependencies]
-tauri-build = { version = "=2.7.4", features = [] }
+tauri-build = { version = "=2.7.6", features = [] }
