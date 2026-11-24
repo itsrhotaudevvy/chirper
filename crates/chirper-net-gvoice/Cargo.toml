@@ -10,9 +10,16 @@ publish = false
 [dependencies]
 chirper-bridge = { path = "../chirper-bridge" }
 async-trait = "=0.1.92"
+base64 = "=0.23.1"
+getrandom = "=0.4.3"
+hex = "=0.4.3"
 log = "=0.4.35"
+prost = "=0.14.4"
+reqwest = { version = "=0.13.5", default-features = false, features = ["json", "query", "rustls"] }
+serde_json = "=1.0.154"
+sha1 = "=0.10.6"
 tokio = { version = "=1.54.1", features = ["sync", "time", "macros", "rt"] }
-zeroize = "=1.9.2"
+url = "=2.5.8"
 
 [dev-dependencies]
-tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "=1.54.1", features = ["rt-multi-thread", "macros", "time", "net", "io-util"] }
