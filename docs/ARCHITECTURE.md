@@ -1,108 +1,189 @@
 # Chirper Architecture
 
-Chirper is an on-device, zero-server universal messaging client built with **Tauri v2**, **Svelte 5**, **Rust**, and **Go**. It connects directly to multiple messaging protocols in-process without relying on third-party servers or intermediaries.
+Chirper is an on-device chat client built with **Tauri v2**, **Svelte 5** and **Rust**. There is no
+Chirper server. Each network is a Rust driver that runs in the app process and talks to that network
+directly. The core, the bridge runtime and every driver are Rust; there is no Go code, no cgo and no
+C ABI.
 
 ---
 
-## 1. High-Level System Overview
+## 1. Layers
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Webview Presentation Layer                      │
-│                  (Svelte 5 Runes + TypeScript + Vite)                  │
-│                                                                        │
-│   Screens: Inbox, Chat Timeline, Accounts, Settings, App Lock          │
-│   State: Svelte 5 reactive stores ($state, $derived)                   │
-│   CoreApi abstraction: TauriCore (production) | FakeCore (browser dev) │
-└───────────────────────────────────┬────────────────────────────────────┘
-          invoke("core_command", payload) │ ▲ event: "core-batch" (16ms throttle)
-                                          │ │
-┌───────────────────────────────────▼─┴──────────────────────────────────┐
-│                           Tauri v2 Host (Rust)                         │
-│                           crate: `chirper-app`                         │
-│                                                                        │
-│  - IPC Dispatcher & Schema Validator                                   │
-│  - Event Aggregator (batches Go events every 16ms to avoid IPC flood)  │
-│  - Custom Protocol Handler: `chirper-media://` (zero-copy disk stream) │
-│  - System Tray, Dock/Taskbar Badges, Notifications                     │
-│  - Platform Drivers: macOS, Windows, Linux, Android, iOS               │
-└──────────────────┬─────────────────────────────────┬───────────────────┘
-                   │                                 │
-┌──────────────────▼──────────────────┐   ┌──────────▼───────────────────┐
-│     Platform Native Integration     │   │      `crates/chirper-core`   │
-│     `plugins/chirper-native`        │   │      (Safe Rust FFI Wrapper) │
-│                                     │   │                              │
-│  Android (Kotlin):                  │   │  - Dynamic / Static C ABI    │
-│   • BiometricPrompt                 │   │  - Keystore abstraction      │
-│   • Foreground Sync Service         │   │  - JSON envelope marshaling  │
-│   • FLAG_SECURE window flag         │   │  - Thread-safe event queue   │
-│   • RemoteInput notification reply  │   └──────────────┬───────────────┘
-│  Apple (Swift/Obj-C):               │                  │
-│   • LocalAuthentication (Touch/Face)│                  │ C ABI (5 symbols)
-│   • Keychain Access                 │                  │ JSON envelopes
-│   • NSWindow sharingType privacy    │                  │
-└─────────────────────────────────────┘   ┌──────────────▼───────────────┐
-                                          │     Go Core (`go/core`)      │
-                                          │     module: chirper.dev/core │
-                                          │                              │
-                                          │  - CGO Entrypoints (`capi/`) │
-                                          │  - Core Facade & Engine      │
-                                          │  - In-memory event dispatch  │
-                                          │  - Local Matrix emulation    │
-                                          │  - Encrypted SQLCipher Store │
-                                          └──────────────┬───────────────┘
-                                                         │
-                                          ┌──────────────▼───────────────┐
-                                          │       Network Connectors     │
-                                          │                              │
-                                          │  Mautrix Bridgev2:           │
-                                          │   • WhatsApp, Signal         │
-                                          │   • Telegram, Discord        │
-                                          │   • Slack, Messenger, IG     │
-                                          │   • Bluesky, Twitter/X       │
-                                          │   • Google Messages & Voice  │
-                                          │   • LinkedIn, Fluxer         │
-                                          └──────────────────────────────┘
+Svelte UI (ui/)                         CoreApi: TauriCore in the app, FakeCore in a browser
+   │ invoke(command, args)               ▲ "core-batch" event, 16 ms or 256 items per batch
+src-tauri/ (crate chirper-app)           │ command handlers, lock, notifications, chirper-media://
+   │ direct Rust calls                   │
+chirper-core (crate)                     │ CoreEvent stream (EventStream)
+   │  engine: facade, dispatch, logins   │
+   │  store: chirper.db (SQLCipher)      │
+   │  secure: OCV1 vault, FileSecrets    │
+   │ RuntimeEvent (local ids)            │
+chirper-bridge (crate)                   │
+   │  Runtime: supervisors, queues,      │
+   │  backoff, capability gates, ids     │
+   │ Session / LoginProcess traits       │
+chirper-net-<network> (one per network)  │
+   │                                     │
+network servers (HTTPS, WebSocket, TCP)─┘
 ```
 
----
+Rules that the code follows:
 
-## 2. Component Breakdown
+- `src-tauri` depends only on `chirper-core` (plus `chirper-bridge` and the SMS driver for the host
+  driver). It never talks to a driver directly.
+- `chirper-bridge` has no database and no UI type. A driver reports domain events and receives
+  commands; it never sees SQL or a local id.
+- `chirper-core` persists what the runtime reports and emits the wire events the UI reads.
 
-### 2.1 Frontend (`ui/`)
-- **Framework**: Svelte 5 using the modern runes syntax (`$state`, `$derived`, `$effect`).
-- **Styling**: Single semantic design system defined in `tokens.css` with a color-coded rainbow hierarchy. Each network has a distinct hue across the visual spectrum for instant chat identification.
-- **Adaptive Shell**:
-  - Small screens (<900px, phones): Stacked single-pane navigation (Inbox view transitions to full-screen Chat).
-  - Large screens (≥900px, desktop/tablets): Persistent master-detail split view with resizable panels.
-- **Media Pipeline**: Images, avatars, and audio are loaded via the custom `chirper-media://` protocol. This bypasses base64 encoding over IPC, avoiding memory bloat.
+## 2. Crates
 
-### 2.2 Tauri Rust Layer (`src-tauri/`)
-- Acts as the orchestration layer between the Webview and native platform APIs.
-- **Batching & Throttling**: Event traffic from bridge connectors can be heavy during initial sync. Rust aggregates incoming Go events and flushes them to the Webview every 16ms, aligning with 60 FPS display frames.
-- **Window Management**: Window state persistence, system tray icon with unread badges, and hardware acceleration controls.
+| Crate | Role |
+|---|---|
+| `chirper-app` (`src-tauri/`) | Tauri shell: commands, `core-batch` batching, app lock, preferences, notifications, `chirper-media://`, platform code. |
+| `chirper-core` | Store (SQLCipher or plain SQLite), engine and facade, OCV1 media vault, sealed per-login secrets, log redaction, JSON model. |
+| `chirper-bridge` | The unified bridge runtime and the traits a driver implements (`Network`, `Session`, `LoginProcess`, `Secrets`), the domain model, the id derivation and the error type. |
+| `chirper-net-testnet` | In-process demo network. Used by tests and by the `mock` build. |
+| `chirper-net-discord` | Discord: REST v10 and gateway. |
+| `chirper-net-fluxer` | Fluxer: instance discovery, REST, gateway. |
+| `chirper-net-telegram` | Telegram: MTProto client. Available only with the API id compiled in. |
+| `chirper-net-whatsapp` | WhatsApp: multi-device client. Linking only so far; messaging is not implemented. |
+| `chirper-signal-protocol` | Signal protocol primitives, written for the WhatsApp, Signal and Messenger drivers. No driver depends on it yet. |
+| `chirper-net-signal`, `chirper-net-meta`, `chirper-net-twitter`, `chirper-net-gmessages` | Networks that report `unavailable()` with a reason. |
+| `chirper-net-slack`, `chirper-net-linkedin`, `chirper-net-gvoice`, `chirper-net-bluesky` | Web and app protocol clients for these networks. |
+| `chirper-net-sms` | SMS driver. It has no platform on desktop and iOS, so it reports unavailable there. The Android app provides the platform. |
 
-### 2.3 Rust Core Wrapper (`crates/chirper-core/`)
-- Enforces memory safety over raw C pointers exposed by the Go runtime.
-- Handles differences in Go linking models:
-  - **macOS / iOS**: Static archive (`c-archive`, linked directly into binary).
-  - **Android / Linux / Windows**: Shared library (`c-shared`, dynamically loaded via `libloading`).
-- Exposes high-level async Rust functions matching the contract documented in `docs/CONTRACT.md`.
+`chirper-core` links every driver crate unconditionally: there are no per-network feature flags.
+The `mock` feature of `chirper-app` enables the demo network in the app
+(`Options::demo_network`).
 
-### 2.4 Go Core Engine (`go/core/`)
-- Embeds connector bridges without needing external Matrix homeservers or external bridge daemons.
-- Runs an in-memory local Matrix state emulator (`localmx/`) that translates Mautrix bridgev2 events into normalized Chirper events:
-  - Account state transitions (`connected`, `connecting`, `needs_reauth`, `disconnected`).
-  - Message lifecycle (`received`, `sent`, `delivered`, `read`).
-  - Typings, presence, and read receipts.
-- **Storage**: User databases, chat history, and cached credentials are encrypted on disk using SQLCipher. The database encryption key is protected by the host OS secure enclave / keystore.
+Plugins: `plugins/chirper-native` holds the Android (Kotlin) and iOS (Swift) code. It provides the
+keystore wrap, biometric prompts, the secure-screen cover, the Android connection service, and the
+SMS platform used by the host driver.
 
-### 2.5 Native Plugins (`plugins/chirper-native/`)
-- **Android**:
-  - `ForegroundSyncService`: Keeps socket connections alive when configured by the user.
-  - `FLAG_SECURE`: Prevents sensitive chat contents from appearing in the Android Recents switcher or screenshots.
-  - `BiometricPrompt`: Hardware-backed biometric authentication.
-  - `RemoteInput`: Inline reply directly from system notifications.
-- **macOS / iOS**:
-  - `LocalAuthentication`: Touch ID / Face ID integration for instant app unlocking.
-  - Secure screen capture prevention (`NSWindow.sharingType = .none`).
+## 3. Data flow
+
+### 3.1 Commands in
+
+1. The UI calls `invoke("<command>", args)`. Commands are listed in [CONTRACT.md](CONTRACT.md).
+2. The handler in `src-tauri/src/commands.rs` checks that the app is unlocked and that the core is
+   open, then calls the matching `chirper-core` method.
+3. For a chat action, `chirper-core` checks the input (`engine/validate.rs`) and calls
+   `Runtime::command`. The runtime refuses commands the network's capabilities do not allow
+   (`Error::Unsupported`), queues the command on that login's queue, and waits for the network's
+   command gap (40 ms per network) before the driver runs it.
+4. The result goes back to the caller. Message state changes come back as events, below.
+
+### 3.2 Events out
+
+1. A driver's `Session::next` returns an `Event` with remote ids (chat, message, reaction, typing,
+   member, read receipt, delivery, session state, error).
+2. The runtime turns remote ids into local ids (`ChatId`, `EventId`, `SenderId`) and sends a
+   `RoutedEvent` to the engine.
+3. The engine's dispatcher (`engine/dispatch.rs`) writes the store and emits `CoreEvent`s: `chat`,
+   `chat_removed`, `message`, `message_removed`, `typing`, `account` and `core_error`.
+4. The Tauri shell's pump (`src-tauri/src/events.rs`) collects the events for up to 16 ms or 256
+   items, keeps only the last `chat` event per room in a batch, and emits one `core-batch`. It
+   also posts OS notifications for new messages while the window is not focused, unless the
+   preferences hide the content.
+
+Channel sizes are fixed in code: 64 queued operations per login (`OPS_QUEUE`) and 256 queued driver
+events (`EVENT_QUEUE`). A full event queue makes the driver wait.
+
+## 4. The bridge runtime
+
+`chirper-bridge::Runtime` does the work that a driver must not repeat:
+
+- **Supervision.** One supervisor task per login. It runs `connect`, then `next` until the session
+  ends, then reconnects. The delay starts at 1 s, doubles up to 120 s, and has jitter.
+- **Rate limits.** A `RateLimited { retry_after_ms }` error makes the next reconnect wait for the
+  requested time, capped at 15 minutes. A command gap of 40 ms per network keeps a burst of user
+  actions from becoming a burst of requests. A driver still handles a real HTTP 429 itself.
+- **Auth failures.** A failure that is not retryable (for example bad credentials) is not retried.
+  The account state goes to the UI instead.
+- **Capability gates.** Edit, redact, react, reply, read receipt and typing commands fail with
+  `Unsupported` before they reach a driver when the driver's `capabilities()` is off.
+- **Secrets.** A driver reads and writes its secrets through `LoginCtx`, which uses the `Secrets`
+  trait. Secret values come back as `Zeroizing` buffers. The secret-bearing types the drivers define
+  print `[redacted]` in `Debug`; `LoginCtx` and `FileSecrets` do not print their secret values.
+- **Errors.** Error text from a driver passes through `redact` before it leaves the runtime. It
+  removes values after markers such as `token=` or `Bearer`, Discord-shaped tokens, and long
+  mixed letter-and-digit runs.
+
+## 5. Identity
+
+Drivers speak only remote ids. The runtime derives local ids with the same formats the Go core
+used, so an existing database keeps resolving (`chirper-bridge/src/ids.rs`):
+
+| Kind | Format | Derived from |
+|---|---|---|
+| Chat (`ChatId`) | `!<network>.<32 hex>:chirper.local` | network, login and remote portal id |
+| Event (`EventId`) | `$<network>.<32 hex>` | chat, remote message id and part |
+| Sender (`SenderId`) | `@<network>_<escaped>:chirper.local` | network and remote user id |
+| Local event | `$local.<32 hex>` | random, for messages the user sends |
+| Local user | `@me:chirper.local` | fixed |
+
+The hex digest is the first 16 bytes of SHA-256 over the parts, separated by NUL bytes. Each
+driver has unit tests that pin its remote id format.
+
+## 6. Storage
+
+Everything is in the app data directory. The core opens these paths (`engine/mod.rs`):
+
+| Path | Contents | Protection |
+|---|---|---|
+| `chirper.db` | Rooms, messages, events, reactions, logins, remote ids, backfill state. Schema version 6. | SQLCipher with a raw 256-bit key (`PRAGMA key = x'…'`). Plain SQLite only in development builds. |
+| `media/` | Media files, sealed one file at a time. | `OCV1` format (`secure::vault`): AES-256-GCM in 64 KiB chunks, a fresh key per file. |
+| `credentials/` | Per-login secrets (tokens, cookies, keys). | Sealed with the database key, owner-only permissions. |
+| `settings.json` | Core settings (`CoreSettings`). | Plain file. Holds no secrets. |
+| `prefs.json` | App preferences, in the Tauri app data directory. | Mode 0600. Holds no secrets. |
+
+Schema history: versions 1 to 5 are the schema the Go core wrote, with the same table and column
+names. Version 6 adds the remote-id columns (`room.remote_id`, `event.remote_id`) and the login and
+backfill tables that the runtime needs. There is one database per install; the per-bridge
+databases of the Go build are not created. Message rows written by the Go core are still read
+through a compatibility parser.
+
+The database key is 32 random bytes:
+
+- **Desktop** (macOS, Windows, Linux): created on first run and kept in the OS credential store
+  under service `app.chirper`, user `db-key` (`src-tauri/src/keystore.rs`).
+- **Android and iOS**: wrapped by the `chirper-native` plugin (Android Keystore, iOS Keychain).
+
+If the database cannot be opened because the file is unreadable or the key does not match, the
+startup code moves the data directory aside and starts with an empty one. It never deletes the old
+directory (`src-tauri/src/startup.rs`).
+
+## 7. How a driver plugs in
+
+A driver is a crate that implements the traits in `chirper-bridge/src/network.rs`:
+
+1. `Network`: `id`, `name`, `color`, `capabilities`, `login_flows`, `unavailable`, `start_login`,
+   `connect`. This is the static description; `unavailable` returns the reason the network is not
+   usable, or `None`.
+2. `LoginProcess`: `next(LoginInput) -> LoginStep` for each step of a login flow, and `cancel`.
+3. `Session`: `next` (the event stream), `command`, `backfill`, `logout_remote`.
+
+To register a driver, add it to `chirper-core/src/engine/networks.rs` (`available()`) and to the
+`[dependencies]` of `chirper-core`. The network id is written to the database and to settings, so
+it must not change once it has shipped.
+
+A driver that needs the operating system is provided by the host instead. The host passes a list
+in `Options::host_networks`; an entry with the same id replaces the built-in one. The Android SMS
+driver works this way: `host_networks` in `src-tauri/src/platform/mod.rs` builds it on Android, with
+a platform (`AndroidSms`, in `platform/android.rs`) that calls the `chirper-native` plugin.
+
+Networks with no driver, such as iMessage, come from a fixed list in `engine/networks.rs` and are
+shown as unavailable with a reason.
+
+## 8. Testing
+
+- `chirper-core/tests/golden.rs` checks the JSON envelopes against fixtures in
+  `chirper-core/tests/golden/`. The fixtures were captured from the Go core before it was removed.
+- `chirper-core/tests/demo.rs` runs the engine end to end against the demo driver.
+- `chirper-core/examples/smoke.rs` logs into the demo network, sends a message, and reopens the
+  encrypted database with the same key.
+- Each driver tests its codecs, crypto steps and state machines with fixed vectors and fake
+  transports. No test in the workspace uses the network.
+
+See [BUILDING.md](BUILDING.md) for the commands.

@@ -1,127 +1,106 @@
-# Chirper — Tauri rewrite plan
+# Chirper — plan and status
 
-Chirper is an on-device universal messenger (AGPL-3.0). It is a rewrite of the Openchirp Android
-app (Kotlin/Compose + Go core) as one Tauri v2 app for **iOS, Android, macOS, Windows and Linux**.
-There is still no Chirper server: the mautrix bridgev2 connectors run in-process and talk only to
-the networks.
+Chirper is an on-device chat client (AGPL-3.0) for **iOS, Android, macOS, Windows and Linux**. It is
+one Tauri v2 app: a Svelte 5 UI, a Rust shell, a Rust core, and one Rust protocol client per network.
+There is no Chirper server. The network drivers run in the app process and talk only to the
+networks.
 
-## Goals (from the product owner)
+This document records the goals, the layout and the status. The architecture is in
+[ARCHITECTURE.md](ARCHITECTURE.md), the per-network state in [NETWORKS.md](NETWORKS.md), and the
+open engineering work in [rust-core-port.md](rust-core-port.md).
+
+## Goals
 
 | # | Goal | How |
 |---|---|---|
-| G1 | Consistent, enhanced design, independent of Android widgets | Own component set in Svelte; one token file; banner-first colour coding (`docs/DESIGN.md`) |
-| G2 | One interface on 2 mobile + 3 desktop OSs | Tauri v2; adaptive layout: stack on phones, split view ≥ 900 px |
-| G3 | Little friction: show only what is needed, when it is needed | Progressive disclosure rules in `docs/DESIGN.md` §6 |
-| G4 | Deep system integration on all 5 platforms | `src-tauri/src/platform/*` + `plugins/chirper-native` (Kotlin/Swift); matrix in §4 |
-| G5 | Performance + hardened security/privacy, Go code included | §5 |
-| G6 | Better icon and animations | `assets/brand/`, motion tokens in `docs/DESIGN.md` §5 |
-| G7 | GitHub ready | README, LICENSE, community files, CI + release workflows, Dependabot |
+| G1 | Consistent design, independent of platform widgets | Own component set in Svelte; one token set; banner-first colour coding ([DESIGN.md](DESIGN.md)) |
+| G2 | One interface on two mobile and three desktop systems | Tauri v2; stacked navigation on phones, split view from 900 px |
+| G3 | Little friction: show only what is needed, when it is needed | Progressive disclosure rules in [DESIGN.md](DESIGN.md) |
+| G4 | System integration on all five platforms | `src-tauri/src/platform/*` and `plugins/chirper-native`; see section 4 |
+| G5 | Performance and privacy | Batched events, a custom media protocol, SQLCipher, no telemetry; see [SECURITY_MODEL.md](SECURITY_MODEL.md) |
+| G6 | Icon and motion | `assets/brand/`; motion tokens in [DESIGN.md](DESIGN.md) |
+| G7 | Public project | README, LICENSE, community files, CI, CodeQL, release workflow, Dependabot |
 
-## 1. Architecture
-
-```
-┌──────────── Webview (ui/, Svelte 5 + TypeScript + Vite) ────────────┐
-│ screens ── stores ── CoreApi (TauriCore | FakeCore for browser dev)  │
-└───────────────┬────────────────────────────────▲─────────────────────┘
-        invoke(cmd, args)                  event "core-batch" (16 ms batches)
-┌───────────────▼────────────────────────────────┴─────────────────────┐
-│ src-tauri/ (crate chirper-app): commands, validation, event batching, │
-│   platform/{macos,windows,linux,android,ios}.rs, tray, lock, badge    │
-│ plugins/chirper-native/: Kotlin + Swift (haptics, keystore,           │
-│   foreground service, share target, secure screen, notification reply)│
-│ crates/chirper-core/: safe Rust wrapper over the Go C ABI, keystore   │
-└───────────────┬──────────────────────────────────────────────────────┘
-                │ C ABI (5 functions, JSON envelopes) — docs/CONTRACT.md
-┌───────────────▼──────────── go/core (module chirper.dev/core) ───────┐
-│ capi/ (cgo exports) → facade/ → engine/ → localmx/ → store/          │
-│ connectors: third_party/mautrix-* + go/connectors/{discord,fluxer}   │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-Go linking: `c-archive` (static) on macOS/iOS, `c-shared` loaded with `libloading` on
-Windows/Linux/Android. Built by `scripts/build-go.sh <rust-target-triple>`.
-
-## 2. Repository layout
+## 1. Layout
 
 ```
-ui/                    Svelte app (pnpm)          src-tauri/      Tauri app crate
-crates/chirper-core/   Rust FFI + keystore        plugins/chirper-native/  mobile native code
-go/core, go/connectors Go (from Openchirp)        third_party/    pinned mautrix clones (gitignored)
-scripts/               build/fetch scripts        assets/brand/   icon sources
-docs/                  PLAN, CONTRACT, DESIGN, AGENTS, SECURITY model
-.github/               workflows, templates
+ui/                        Svelte 5 app (pnpm, Vite)
+src-tauri/                 Tauri shell, crate chirper-app
+crates/chirper-bridge/     unified bridge runtime and driver traits
+crates/chirper-core/       store, engine, vault, secrets, JSON model
+crates/chirper-net-*/      one protocol client per network
+crates/chirper-signal-protocol/   Signal protocol primitives
+plugins/chirper-native/    Android (Kotlin) and iOS (Swift) code
+scripts/                   build-android.sh, fetch-third-party.sh
+third_party/pins.txt      pinned mautrix commits for reference (clones are gitignored)
+assets/brand/              icon and splash sources
+docs/                      these documents, DESIGN.md, specs/ (briefs for driver work)
+.github/                   CI, CodeQL, release and browser-build workflows, templates
 ```
 
-## 3. Waves (Haiku 5.5 implementation agents, lead reviews each)
+## 2. Driver work
 
-| Wave | Task | Owns |
-|---|---|---|
-| 1 | W1a Go C ABI + cross-target build script | `go/core/capi`, `scripts/build-go.sh` |
-| 1 | W1b Rust core wrapper + keystore | `crates/chirper-core` |
-| 1 | W1c UI foundation: tokens, components, CoreApi, FakeCore | `ui/` (foundation dirs) |
-| 1 | W1d GitHub readiness | root community files, `.github/` |
-| 1 | W1e Brand: icon + splash sources | `assets/brand/` |
-| 2 | W2a Tauri shell: commands, events, config, capabilities, CSP | `src-tauri/` |
-| 2 | W2b Inbox + adaptive shell | `ui/src/screens/inbox`, `ui/src/App.svelte` |
-| 2 | W2c Chat | `ui/src/screens/chat` |
-| 2 | W2d Accounts/login, settings, onboarding, lock | `ui/src/screens/{settings,login,onboarding,lock}` |
-| 2 | W2e Go hardening | `go/core/{engine,store,localmx,media,security,facade}`, `go/connectors` |
-| 3 | W3a Desktop integration | `src-tauri/src/platform/{macos,windows,linux}.rs` |
-| 3 | W3b Mobile integration + `tauri android/ios init` | `plugins/chirper-native`, `src-tauri/gen` |
-| 4 | Lead: integration, builds per platform, review, docs | all |
+Each network is a separate crate that implements the traits in `chirper-bridge`. Their state is
+listed in [NETWORKS.md](NETWORKS.md) and [rust-core-port.md](rust-core-port.md). A driver is listed
+as unavailable, with its reason, until its login, receive and send paths work end to end.
 
-## 4. System integration matrix
+## 3. Platform integration
+
+What the code implements, per platform (`src-tauri/src/platform/` and `plugins/chirper-native`).
+"Plugin" means the Kotlin or Swift code in `chirper-native`.
 
 | Capability | macOS | Windows | Linux | Android | iOS |
 |---|---|---|---|---|---|
-| Haptics | NSHapticFeedbackManager (trackpad) | — (no-op) | — | VibrationEffect / HapticFeedbackConstants | UIImpact/Selection/NotificationFeedbackGenerator |
-| Notifications + inline reply | UNUserNotification | Toast | libnotify | NotificationCompat + RemoteInput | UNNotification (foreground/refresh only) |
-| Unread badge | Dock badge | Taskbar overlay icon | Unity launcher entry (best effort) | notification badge | app badge |
-| App lock | Touch ID (LocalAuthentication) | Windows Hello | — (passphrase) | BiometricPrompt | Face/Touch ID |
-| Secret storage (DB key) | Keychain | Credential Manager | Secret Service | Android Keystore (AES-GCM wrap) | Keychain (ThisDeviceOnly) |
-| Screen privacy | `NSWindow.sharingType = none` | `SetWindowDisplayAffinity` | — | `FLAG_SECURE` | blur on app-switcher snapshot |
-| Background | tray, launch at login | tray, autostart | tray, autostart | foreground service | BGAppRefreshTask (no push: no server) |
-| Window material | vibrancy, overlay titlebar | Mica | — | edge-to-edge | safe areas |
-| Deep links | `chirper://` | `chirper://` | `chirper://` | `chirper://` | `chirper://` |
-| Share into Chirper | — | — | — | share target | share extension (later) |
-| Single instance | yes | yes | yes | n/a | n/a |
+| App lock | Touch ID or password (LocalAuthentication) | Windows Hello (UserConsentVerifier) | Not available | BiometricPrompt, plugin | Face ID or Touch ID, plugin |
+| Database key storage | OS credential store (`keyring`) | OS credential store (`keyring`) | OS credential store (`keyring`) | Android Keystore wrap, plugin | Keychain, plugin |
+| Screen privacy | Excluded from capture | Excluded from capture | Not available | `FLAG_SECURE`, plugin | Cover in the app switcher, plugin |
+| Unread badge | Dock label | Taskbar overlay icon | Unity launcher over D-Bus, best effort | Yes | Through the plugin |
+| Haptics | Trackpad haptics (NSHapticFeedback) | Not verified | No-op | Plugin | Plugin |
+| Tray and background | Tray; close to tray | Tray; close to tray | Tray; close to tray | Connection service, plugin | Background refresh, plugin |
+| Launch at login | Yes | Yes | Yes | Not applicable | Not applicable |
+| Single instance | Yes | Yes | Yes | Not applicable | Not applicable |
+| Notifications | Yes | Yes | Yes | Yes; inline reply | Not verified |
+| Deep links `chirper://` | Yes | Yes | Yes | Yes | Yes |
 
-## 5. Performance and security
+Settings that persist are in `prefs.json`; see [CONTRACT.md](CONTRACT.md) section C.
 
-Performance
-- One generic FFI entry point; events batched every 16 ms into one IPC message.
-- Virtualised lists (inbox and timeline), stable keys, no layout thrash; images lazy-decoded,
-  served via the `chirper-media://` custom protocol (no base64 over IPC).
-- Svelte 5 runes, no runtime CSS-in-JS; JS budget < 150 kB gzip; release `opt-level=3`, LTO, strip.
-- Go: `-trimpath -ldflags "-s -w"`, connectors started lazily per account.
+## 4. Performance
 
-Security and privacy
-- No telemetry, no crash reporting, no remote fonts or CDNs; strict CSP; Tauri capabilities scoped
-  per window to the exact commands used; `withGlobalTauri` off.
-- DB key: 32 random bytes in the OS keystore, never in files or logs. SQLCipher where built,
-  media encrypted with the existing AES-GCM vault.
-- All FFI inputs validated in Rust (ids, lengths, paths canonicalised inside the data dir); Go
-  re-validates; panics recovered on both sides of the boundary.
-- Files `0700`/`0600`; no message bodies, tokens, cookies or phone numbers in logs.
-- CI: `cargo audit`, `cargo deny`, `govulncheck`, `pnpm audit`, CodeQL.
+- Each command is one call into the core. Events from every login go through one channel and reach
+  the webview as `core-batch` messages, flushed every 16 ms or at 256 items (`src-tauri/src/events.rs`).
+- Chat events for the same room in one batch are coalesced.
+- Images, avatars and audio are served by the `chirper-media://` protocol, not as base64 over IPC.
+- The release profile is `opt-level = 3`, fat LTO, one codegen unit, and `strip` (root `Cargo.toml`).
+- Each login has its own supervisor task and its own command queue.
 
-## 6. Status (2026-11-16)
+## 5. Status
 
-All waves above are implemented. Verified on the lead's Mac: Go vet/tests (plain and
-`sqlcipher` tags), Rust fmt/clippy `-D warnings`/tests for the workspace and the Android target,
-UI check/92 tests/build (68 kB gzip JS), screenshot review of every screen at 390×844 and
-1280×800 in dark and light, a real-core Rust→Go smoke run (`cargo run -p chirper-core --example
-smoke --features static-link`: demo login, send, events, encrypted reopen, no plaintext header),
-the macOS `.app` with the encrypted Go core linked, and a debug arm64 APK.
+Status for this refresh, on branch `rust-core-port`. The builds were not run for this document; it
+describes the code and the checks that CI runs.
 
-Not yet verified — needs hardware or CI:
-- Runtime on Android/iOS devices (keystore wrap, foreground service, notification reply,
-  FLAG_SECURE, app-switcher blur, BGAppRefreshTask). iOS has not been compiled (no Xcode here).
-- Windows and Linux builds (type-checked only), Windows Hello, taskbar overlay, Unity badge.
-- Touch ID prompt, real network logins (all connectors were exercised only via the demo network).
-- SQLCipher for Windows/Linux (`scripts/build-sqlcipher.sh` paths unexecuted); Windows ARM64
-  has no OpenSSL 3.5.9 mingw target.
+What CI checks on every push to `main` and on every pull request (`.github/workflows/ci.yml`):
 
-Open decisions: Signal is opt-in (`CHIRPER_LIBSIGNAL_DIR`) until libsignal is built in CI; iOS
-export-compliance key (`ITSAppUsesNonExemptEncryption`); CODEOWNERS / code-of-conduct contact
-placeholders; voice-note recording (mic hidden until built).
+- `cargo fmt --check` and `cargo clippy --workspace --all-targets -- -D warnings`, with the
+  `chirper-core/mock` feature;
+- `cargo test --workspace --features chirper-core/mock`, which includes the golden wire-contract tests, the end-to-end demo tests,
+  the bridge runtime tests and the per-driver id and codec tests;
+- `cargo deny check`;
+- `pnpm -C ui check`, `pnpm -C ui test` and `pnpm -C ui build`.
+
+Not verified in the repository, and only checked by hand or not at all:
+
+- Live logins, receiving and sending on any network. No driver has been run against a real account
+  in the repository's checks. Discord is the first to be exercised next (see
+  [rust-core-port.md](rust-core-port.md)).
+- Android and iOS device runtime: the key wrap, the connection service, notification reply,
+  `FLAG_SECURE`, the app-switcher cover and background refresh.
+- Windows and Linux runtime. The release workflow builds them; nothing in the repository runs them.
+- Touch ID and Windows Hello prompts, the Windows taskbar overlay and the Linux Unity badge.
+- The iOS build. It runs only in the `iOS` job of the release workflow.
+
+## 6. Open decisions
+
+- iOS export compliance: `ITSAppUsesNonExemptEncryption` is not set in `src-tauri/Info.ios.plist`.
+- Owners and contacts: `.github/CODEOWNERS` names `@chirper-app/maintainers` as a placeholder, and the
+  conduct contact in `CODE_OF_CONDUCT.md` is marked "to be set by the maintainers".
+- Voice-note recording: the UI has audio playback for voice messages but no recording.

@@ -4,7 +4,7 @@
 
 <h1 align="center">Chirper</h1>
 
-<p align="center">One on-device universal messenger for all your chat networks.</p>
+<p align="center">One on-device inbox for the chat networks you already use.</p>
 
 <p align="center">
   <a href="https://github.com/itsrhotaudevvy/chirper/releases/latest"><img src="https://img.shields.io/github/v/release/itsrhotaudevvy/chirper?color=blue&label=release" alt="Latest Release"></a>
@@ -14,156 +14,141 @@
   <a href="https://v2.tauri.app"><img src="https://img.shields.io/badge/Tauri-v2-orange.svg" alt="Tauri v2"></a>
 </p>
 
-Chirper signs in to the chat networks you already use and shows them side by side in one app.
-It is an on-device universal client built with Tauri v2, Svelte 5, Rust, and Go for **Android, iOS, macOS, Windows, and Linux**.
+Chirper signs in to chat networks and shows their chats in one app. The app is built with Tauri v2,
+Svelte 5 and Rust. The whole core, including every network client, is Rust: there is no Go runtime
+and no Matrix server. Each network is an unofficial client that talks to that network directly from
+the app process.
 
 ---
 
-## Downloads & Releases
+## Downloads
 
-Pre-compiled release packages are available on the [GitHub Releases](https://github.com/itsrhotaudevvy/chirper/releases/latest) page:
-
-| Platform | Format | Architecture | Download |
-|---|---|---|---|
-| **Android** | `.apk` (Universal) | ARM64, ARMv7, x86_64 | [chirper_0.1.0_android_universal.apk](https://github.com/itsrhotaudevvy/chirper/releases/latest) |
-| **macOS** | `.dmg` Installer | Apple Silicon (aarch64) | [Chirper_0.1.0_macos_aarch64.dmg](https://github.com/itsrhotaudevvy/chirper/releases/latest) |
-| **macOS** | `.zip` Portable | Apple Silicon (aarch64) | [Chirper_0.1.0_macos_aarch64.zip](https://github.com/itsrhotaudevvy/chirper/releases/latest) |
-| **Windows** | `.msi` / `.exe` | x64 | *Built via CI Release Pipeline* |
-| **Linux** | `.AppImage` / `.deb` | x64 | *Built via CI Release Pipeline* |
-| **iOS** | `.ipa` / TestFlight | arm64 | *Built via CI Release Pipeline* |
+Release packages are on the [GitHub Releases](https://github.com/itsrhotaudevvy/chirper/releases/latest)
+page. The release workflow (`.github/workflows/release.yml`) builds desktop bundles for macOS,
+Windows and Linux, an Android APK set, and an iOS build for App Store Connect and the simulator.
 
 ---
 
 ## Documentation
 
-Comprehensive technical and user documentation is available in [`docs/`](docs/):
-
-- 📖 **[Getting Started Guide](docs/GETTING_STARTED.md)** — Installation, initial vault setup, pairing accounts, shortcuts.
-- 🏗️ **[Architecture Deep Dive](docs/ARCHITECTURE.md)** — Component decomposition, IPC bridge, Go engine, memory flow.
-- 🛠️ **[Building & Packaging](docs/BUILDING.md)** — Complete toolchain setup, compiling Go C-ABI, building desktop & mobile packages.
-- 🌐 **[Supported Networks Matrix](docs/NETWORKS.md)** — Protocols, pairing flows, E2EE status, media capabilities.
-- 🔒 **[Security & Privacy Model](docs/SECURITY_MODEL.md)** — Zero-server guarantees, SQLCipher encryption, OS Keystore integration, CSP.
-- 🎨 **[Design System & Tokens](docs/DESIGN.md)** — Color-coded rainbow spectrum, progressive disclosure, typography, motion tokens.
-- 📜 **[FFI & IPC Contract](docs/CONTRACT.md)** — Low-level C ABI signatures, JSON schemas, event batching specs.
-- 🗺️ **[Development Roadmap](docs/PLAN.md)** — Rewrite specifications, platform integration matrix, performance budgets.
+- [Getting started](docs/GETTING_STARTED.md): installing, adding accounts, the inbox.
+- [Architecture](docs/ARCHITECTURE.md): crates, data flow, storage, how a network driver plugs in.
+- [Building](docs/BUILDING.md): toolchains, desktop and Android builds, iOS in CI, tests.
+- [Supported networks](docs/NETWORKS.md): per-network driver, login flows, capabilities and status.
+- [Security and privacy model](docs/SECURITY_MODEL.md): keys, storage, webview policy, screen privacy.
+- [Wire contract](docs/CONTRACT.md): the JSON model and the commands and events the UI uses.
+- [Plan and status](docs/PLAN.md): goals, layout, what is verified and what is not.
+- [Rust core port](docs/rust-core-port.md): decisions, current state and remaining work.
+- [Design system](docs/DESIGN.md) and [privacy notes](PRIVACY.md).
 
 ## Why Chirper
 
-- **No server.** There is no Chirper backend. The bridge code runs inside the app and talks only to
-  the networks you log in to.
-- **Everything on device.** Messages, media and keys live on your device. Keys sit in the OS keystore.
-- **13 networks in one inbox.** See [Supported networks](#supported-networks).
-- **Colour-coded rainbow design.** Every network has its own colour on one spectrum, so you can tell
-  chats apart at a glance. The design rules are in [docs/DESIGN.md](docs/DESIGN.md).
+- **No Chirper server.** The app has no backend. Network traffic goes only to the networks you log in to.
+- **Data stays on the device.** Chat history is in one SQLCipher database. Media is sealed with the
+  `OCV1` vault format. Per-login credentials are sealed with the database key.
+- **One colour per network.** Each network has a fixed colour from the design system, so chats can
+  be told apart at a glance. See [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Supported platforms
 
-| Platform | Packaging | Planned integration (see [docs/PLAN.md](docs/PLAN.md) §4) |
-|---|---|---|
-| iOS | Xcode build, App Store Connect (`.ipa`) | Background refresh only, no push (there is no server) |
-| Android | APK and AAB | Foreground service for sync, `FLAG_SECURE` screen privacy |
-| macOS | Universal `.dmg` (Apple silicon and Intel) | Dock badge, Touch ID app lock |
-| Windows | `.msi` and NSIS `.exe` | Taskbar badge, Windows Hello app lock |
-| Linux | `.AppImage`, `.deb`, `.rpm` | Secret Service keystore, passphrase app lock |
+| Platform | Packaging in the release workflow | App lock | Screen privacy |
+|---|---|---|---|
+| macOS | `.app`, `.dmg`; universal, arm64 and x64 | Touch ID or password | Excluded from capture (`set_content_protected`) |
+| Windows | `.msi`, NSIS `.exe`; x64, x86, arm64 | Windows Hello | Excluded from capture |
+| Linux | `.AppImage`, `.deb`, `.rpm`; x64, arm64 | Not available | Not available |
+| Android | APK (universal and per-ABI) | BiometricPrompt, through `chirper-native` | `FLAG_SECURE` |
+| iOS | App Store Connect build and simulator build, in CI only | Face ID or Touch ID, through `chirper-native` | Cover in the app switcher |
 
 ## Supported networks
 
-Bridged with the mautrix bridgev2 connectors (`third_party/`) or the Chirper connectors in
-`go/connectors/` (Discord and Fluxer):
+The list below is what each driver's `unavailable()` reports in this repository. A network marked
+available has no reason attached; it has not been verified against live accounts (see
+[docs/PLAN.md](docs/PLAN.md) section 6).
 
-Instagram, Messenger, WhatsApp, Signal, Telegram, Discord, Slack, X (Twitter), LinkedIn, Bluesky,
-Google Messages, Google Voice, Fluxer.
+| Network | Status in this build |
+|---|---|
+| Discord | Available. Account token or QR code. |
+| Fluxer | Available. Session token, bot token, or e-mail or username with password. |
+| Slack | Available. E-mail, browser token, or app token. |
+| Bluesky | Available. Handle and app password. |
+| Google Voice | Available. Browser cookies. |
+| LinkedIn | Available. Browser cookies. |
+| Telegram | Available only in builds compiled with `CHIRPER_TELEGRAM_API_ID` and `CHIRPER_TELEGRAM_API_HASH`. Otherwise listed as unavailable. |
+| SMS | Available on Android only, through the phone's own SMS service. Listed as unavailable elsewhere. |
+| WhatsApp | Unavailable: messaging is not implemented yet. The QR link flow exists. |
+| Signal | Unavailable. |
+| Messenger | Unavailable. |
+| Instagram | Unavailable. |
+| X (Twitter) | Unavailable. |
+| Google Messages | Unavailable. |
+| iMessage | Listed with a reason. There is no driver. |
 
-Each network is an unofficial client built on its web or app protocol. Availability and features
-depend on the network. Check the network picker in the app for the current state.
+Each network's login flows, capabilities and protocol notes are in [docs/NETWORKS.md](docs/NETWORKS.md).
 
 ## Architecture
 
 ```
-┌──────────── Webview (ui/, Svelte 5 + TypeScript + Vite) ────────────┐
-│ screens ── stores ── CoreApi (TauriCore | FakeCore for browser dev)  │
-└───────────────┬────────────────────────────────▲─────────────────────┘
-        invoke(cmd, args)                  event "core-batch" (16 ms batches)
-┌───────────────▼────────────────────────────────┴─────────────────────┐
-│ src-tauri/ (crate chirper-app): commands, validation, event batching, │
-│   platform/{macos,windows,linux,android,ios}.rs, tray, lock, badge    │
-│ plugins/chirper-native/: Kotlin + Swift (haptics, keystore,           │
-│   foreground service, share target, secure screen, notification reply)│
-│ crates/chirper-core/: safe Rust wrapper over the Go C ABI, keystore   │
-└───────────────┬──────────────────────────────────────────────────────┘
-                │ C ABI (5 functions, JSON envelopes) — docs/CONTRACT.md
-┌───────────────▼──────────── go/core (module chirper.dev/core) ───────┐
-│ capi/ (cgo exports) → facade/ → engine/ → localmx/ → store/          │
-│ connectors: third_party/mautrix-* + go/connectors/{discord,fluxer}   │
-└──────────────────────────────────────────────────────────────────────┘
+Svelte UI (ui/)
+   │ invoke(command)                 ▲ "core-batch" events (batched every 16 ms)
+src-tauri/ (chirper-app)              │ commands, lock, notifications, media protocol
+   │ plain Rust calls                 │
+chirper-core  (store, engine, vault, secrets, facade)
+   │ Command / Event
+chirper-bridge  (runtime: supervision, backoff, ids, capability gates)
+   │ Session / LoginProcess
+chirper-net-<network>  (one protocol client per network)
 ```
 
-The full design is in [docs/PLAN.md](docs/PLAN.md). The binding JSON and FFI contracts are in
-[docs/CONTRACT.md](docs/CONTRACT.md).
+The full picture, including the data flow and storage, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Build from source
 
 ### Prerequisites
 
-- **Rust 1.85 or newer** (`rust-toolchain.toml` selects the stable channel and the targets)
-- **Go 1.27**
-- **Node.js 22 or newer** and **pnpm**
-- **Tauri prerequisites** for your OS, see <https://v2.tauri.app/start/prerequisites/>
-  - Linux: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libsecret-1-dev patchelf`
-    (plus the packages listed in the Tauri guide)
-  - macOS: Xcode command line tools. Windows: MSVC build tools and MinGW (`msys2`, for cgo)
-- **Android:** Android SDK and NDK `28.2.13676358`, `JAVA_HOME` pointing to JDK 21
-- **iOS:** full Xcode (iOS builds run on macOS only)
+- **Rust**, stable channel, through rustup. `rust-toolchain.toml` selects the channel and the targets.
+  `src-tauri` declares `rust-version = 1.90`.
+- **Node.js 22 or newer** and **pnpm** (CI uses pnpm 12).
+- **Tauri CLI 2.12.5**. See [docs/BUILDING.md](docs/BUILDING.md) for how to install it.
+- **Platform packages** for Tauri, listed in [docs/BUILDING.md](docs/BUILDING.md).
+- **Android:** SDK, NDK `28.2.13676358` and JDK 21. **iOS:** full Xcode on macOS.
 
-### Steps
+### Quick start
 
 ```sh
-# 1. Clone the pinned connector sources into third_party/ (gitignored)
-scripts/fetch-third-party.sh
-
-# 2. Install UI dependencies
 pnpm -C ui install
-
-# 3. Build the Go core for your target triple (for example aarch64-apple-darwin)
-scripts/build-go.sh aarch64-apple-darwin
-
-# 4. Run the desktop app in development, or build a release bundle
-cargo tauri dev
-cargo tauri build
+cargo tauri dev          # the desktop app, with the UI dev server
 ```
 
-Mobile:
+`pnpm -C ui dev` runs the UI alone in a browser, with an in-memory demo core in place of the Rust core.
+For the demo network inside the desktop app, add `--features mock`.
 
-```sh
-cargo tauri android dev
-cargo tauri ios dev
-```
-
-Run `scripts/build-go.sh` for each mobile triple before you build for that platform.
+Release bundles, Android builds and the iOS path are in [docs/BUILDING.md](docs/BUILDING.md).
 
 ### Tests and checks
+
+These are the commands CI runs:
 
 ```sh
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --features chirper-core/mock -- -D warnings
 cargo test --workspace --features chirper-core/mock
-(cd go/core && go vet ./... && go test -race ./...)
-pnpm -C ui check && pnpm -C ui test
+cargo deny check
+pnpm -C ui check && pnpm -C ui test && pnpm -C ui build
 ```
 
 ## Privacy
 
-Chirper has no telemetry, no crash reporting and no analytics. Your data is stored on your device,
-and the only outbound traffic goes to the networks you log in to. Read [PRIVACY.md](PRIVACY.md) for the
-full list of what is stored where.
+Chirper has no telemetry, crash reporting or analytics, and no analytics crate is in the lock file.
+Read [PRIVACY.md](PRIVACY.md) for what is stored and where.
 
 ## Security
 
 Report vulnerabilities privately through GitHub Security Advisories. See [SECURITY.md](SECURITY.md).
+The model is described in [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md).
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, repository layout, code style and the PR
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, code style and the pull request
 checklist. This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License

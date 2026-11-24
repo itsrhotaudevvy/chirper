@@ -1,13 +1,14 @@
-# Chirper — binding contracts
+# Chirper — wire contract
 
-Three boundaries. Each side must match exactly. Changing anything here needs the lead.
+Three boundaries: the JSON model, the core facade, and the Tauri commands and events the webview
+uses. The JSON shapes below are pinned by the golden fixtures in `crates/chirper-core/tests/golden/`
+(checked by `crates/chirper-core/tests/golden.rs`). A change to a shape must change the fixtures and
+the TypeScript mirror in the same pull request.
 
-## A. JSON model (unchanged from Openchirp, camelCase)
+## A. JSON model (camelCase)
 
-The JSON shapes `Network`, `Account`, `LoginState`, `Chat`, `Message`, `CoreSettings` and the core
-event kinds are exactly those of `go/core/facade` / `go/core/engine/types.go`. TypeScript mirrors
-live in `ui/src/lib/core/types.ts`; Rust mirrors in `crates/chirper-core/src/model.rs`.
-Summary (see engine/types.go for authority):
+The Rust types are in `crates/chirper-core/src/model.rs`; the TypeScript mirror is
+`ui/src/lib/core/types.ts`. Summary:
 
 ```jsonc
 Network  {"id","name","color","beta","available","reason","loginFlows":[{"id","name","description"}],
@@ -25,34 +26,15 @@ Message  {"eventId","roomId","order","sender","senderName","senderAvatar","fromM
           "replyTo":{"eventId","senderName","body"}|null,"edited","redacted",
           "reactions":[{"key","count","fromMe","senders"}],"status":"sending|sent|delivered|read|failed","error","live"}
 ```
-Event kinds: `chat`, `chat_removed`, `message`, `message_removed`, `typing`, `account`, `core_error`.
 
-## B. Go C ABI (`go/core/capi`, header `chirper.h`)
+Event kinds (`crates/chirper-core/src/model.rs`): `chat`, `chat_removed`, `message`,
+`message_removed`, `typing`, `account`, `core_error`.
 
-```c
-// Callback: kind and payload are NUL-terminated UTF-8, valid only during the call. Called from a
-// single Go goroutine; must not block (Rust copies and enqueues).
-typedef void (*chirper_event_cb)(void *ctx, const char *kind, const char *payload);
+## B. Core facade
 
-// Opens the core. key may be NULL/0 (no at-rest DB encryption) or exactly 32 bytes.
-// Returns a handle > 0, or 0 with *err_out set (free with chirper_free).
-int64_t chirper_open(const char *data_dir, const uint8_t *key, int32_t key_len,
-                     chirper_event_cb cb, void *ctx, char **err_out);
-
-// Calls a facade method. Returns a malloc'd envelope (free with chirper_free):
-//   {"ok":true,"value":<json>}  or  {"ok":false,"error":"<message>"}
-// May block (network I/O, waitLoginStep). Safe from any thread.
-char *chirper_call(int64_t handle, const char *method, const char *args_json);
-
-void chirper_free(char *p);
-void chirper_close(int64_t handle);          // Stop() + release; idempotent
-const char *chirper_version(void);           // static string, do not free
-```
-
-Rules: every export recovers panics into an error envelope; `args_json` max 1 MiB; unknown
-method → error; handle table guarded by a mutex; `key` bytes are copied and the copy zeroed on close.
-
-### Methods (`method` string → `args_json` object → `value`)
+The webview reaches these through the Tauri commands in section C. Each one is a method of
+`chirper_core::Core` (`crates/chirper-core/src/engine/`). Arguments are camelCase in JSON; the
+Rust method takes the same values.
 
 | method | args | value |
 |---|---|---|
@@ -84,58 +66,69 @@ method → error; handle table guarded by a mutex; `key` bytes are copied and th
 | `settings` | `{}` | `CoreSettings` |
 | `setSettings` | `{"settings":CoreSettings}` | `null` |
 
-## C. Rust ⇄ webview (Tauri)
+Input is checked in `crates/chirper-core/src/engine/validate.rs` before it reaches the store or a
+driver. Text is capped at 64 KiB and a list page at 500 messages.
+
+## C. Tauri commands and events
 
 Commands are `snake_case` versions of the methods above with the same args (Tauri converts
-camelCase arg keys), e.g. `invoke('list_messages', {roomId, beforeOrder, limit})`. All return the
-`value` or reject with `{ "code": string, "message": string }`.
+camelCase argument keys), e.g. `invoke('list_messages', {roomId, beforeOrder, limit})`. Each
+command returns its value or rejects with `{ "code": string, "message": string }`. Commands fail
+with `locked` while the app is locked and `not_ready` until the core has opened.
 
-Extra app commands:
+Every command registered in `src-tauri/src/lib.rs`:
 
 | command | args | notes |
 |---|---|---|
+| `start`, `networks`, `accounts`, `start_login`, `submit_login_input`, `submit_login_cookies`, `wait_login_step`, `cancel_login`, `logout` | as in section B | |
+| `list_chats`, `get_chat`, `list_messages`, `load_older`, `sync_history`, `mark_unread`, `send_text`, `send_media`, `edit`, `redact`, `react`, `unreact`, `mark_read`, `set_typing`, `set_chat_flags`, `media_file`, `search`, `settings`, `set_settings` | as in section B | |
 | `app_info` | `{}` | `{"version","platform":"macos|windows|linux|android|ios","formFactor":"phone|tablet|desktop"}` |
 | `haptic` | `{"kind":"selection|light|medium|heavy|success|warning|error"}` | no-op where unsupported |
-| `set_badge` | `{"count"}` | dock/taskbar/app badge |
-| `notify_message` | `{"roomId","title","body","avatarPath"}` | respects privacy setting (hide content) |
-| `lock_status` / `unlock` | `{}` | `unlock` runs biometrics/OS auth; returns `{"unlocked":bool}` |
-| `set_secure_screen` | `{"enabled"}` | screenshot/screen-share protection |
-| `open_external` | `{"url"}` | http(s) only, after user tap |
-| `set_app_prefs` | `{"prefs":{"hideNotificationContent","notifications","appLock","lockAfterSecs","secureScreen","closeToTray","launchAtLogin","haptics"}}` | persisted by Rust in `<appData>/prefs.json` (0600); Rust owns notification + lock decisions so they work while the webview is hidden |
-| `get_app_prefs` | `{}` | the same object (defaults: notifications true, hideNotificationContent false, appLock false, lockAfterSecs 60, secureScreen true on mobile/false on desktop, closeToTray true, launchAtLogin false, haptics true) |
-| `pick_files` | `{"kind":"media|file"}` | native file dialog → `[{"path","name","mime","size"}]`; paths returned here are the only ones `send_media` accepts |
+| `set_badge` | `{"count"}` | dock, taskbar or app badge |
+| `notify_message` | `{"roomId","title","body","avatarPath"}` | respects the hide-content preference |
+| `lock_status` / `unlock` | `{}` | `lock_status` returns `{"locked":bool}`; `unlock` runs the OS authentication and returns `{"unlocked":bool}` |
+| `set_secure_screen` | `{"enabled"}` | screenshot and screen-share protection for a temporary override, for example while a QR login is shown |
+| `open_external` | `{"url"}` | http(s) only, after a user tap |
+| `open_login_webview` | `{"url","extractJs","waitForPattern","userAgent","title"}` | opens a sign-in window for cookie login steps; returns `{"token","cancelled"}` |
+| `set_app_prefs` | `{"prefs":{"hideNotificationContent","notifications","appLock","lockAfterSecs","secureScreen","closeToTray","launchAtLogin","haptics","mutedNetworks"}}` | stored by Rust in `<appData>/prefs.json` (mode 0600). Rust owns the notification and lock decisions so they work while the webview is hidden. It applies the side effects itself (secure screen, autostart). |
+| `get_app_prefs` | `{}` | the same object. Defaults: notifications true, hideNotificationContent false, appLock false, lockAfterSecs 60, secureScreen true on Android and iOS and false on desktop, closeToTray true, launchAtLogin false, haptics true, mutedNetworks empty. |
+| `pick_files` | `{"kind":"media|file"}` | native file dialog, returns `[{"path","name","mime","size"}]`. Only paths returned here are accepted by `send_media`. |
 
 Events to the webview:
+
 - `core-batch`: `[{ "kind": string, "payload": object }]`, flushed every 16 ms or at 256 items.
-  Chat events for the same `roomId` inside one batch are coalesced (last wins).
+  Chat events for the same `roomId` in one batch are coalesced, the last one wins.
+- `core-ready` and `core-failed`: emitted once the core has opened or failed to open. A failure
+  message never contains user data.
 - `app-lock`: `{ "locked": bool }`.
-- `deep-link`: `{ "url": string }` (`chirper://chat/<roomId>`).
+- `deep-link`: `{ "url": string }`, for `chirper://chat/<roomId>`.
 - `notification-reply`: `{ "roomId", "text" }`.
 
-Media in the webview: `chirper-media://localhost/<urlencoded mxc uri>` resolved by Rust via
-`mediaFile`, served with the right MIME, only for paths inside the data dir.
+Media in the webview: `chirper-media://localhost/<urlencoded mxc uri>` is resolved by Rust through
+`mediaFile` and served with the right MIME type. Only paths inside the data directory are served.
 
-### Settled answers (lead, after W1c)
-- `lock_status` / `unlock` return `{"locked": bool}` / `{"unlocked": bool}`.
-- `set_app_prefs` applies its side effects itself (secure screen, autostart). `set_secure_screen`
-  stays for temporary per-screen overrides (e.g. forcing protection while a QR login is shown).
-- Typing payload: `{"roomId","names":[]}`. CookieField follows engine/types.go.
-- Webview subscriptions: `onEvents` (core-batch), `onAppLock`, `onDeepLink`, `onNotificationReply`.
-- Text on colour banners uses `--on-banner` (near-black) over the banner, which passes 4.5:1 on all
-  14 spectrum colours in every theme; `--on` is for page content.
+### Settled answers
 
-## D. UI screen entry points (ui/src/screens)
+- `set_secure_screen` stays for temporary per-screen overrides. Persistent state goes through
+  `set_app_prefs`.
+- Typing event payload: `{"roomId","names":[]}`.
+- Cookie fields follow the Rust model in `crates/chirper-core/src/model.rs`.
+- Webview subscriptions: `onEvents` (`core-batch`), `onAppLock`, `onDeepLink`, `onNotificationReply`.
+- Text on colour banners uses `--on-banner` (near-black), which passes 4.5:1 on all 14 spectrum
+  colours in every theme. `--on` is for text on page content.
 
-| file | props | owner |
-|---|---|---|
-| `inbox/InboxScreen.svelte` | `{}` (selection via `ui` store) | W2b |
-| `chat/ChatScreen.svelte` | `{ roomId: string; onback?: () => void }` | W2c |
-| `chat/EmptyChat.svelte` | `{}` (split-view placeholder) | W2c |
-| `settings/SettingsScreen.svelte` | `{ onclose: () => void }` | W2d |
-| `login/AddNetwork.svelte` | `{ network?: string; onclose: () => void }` | W2d |
-| `onboarding/Onboarding.svelte` | `{ ondone: () => void }` | W2d |
-| `lock/LockScreen.svelte` | `{}` (renders only while locked) | W2d |
+## D. UI screen entry points (`ui/src/screens`)
 
-Navigation lives in `ui/src/lib/router.svelte.ts` (W2b): `router.view` = `'inbox' | 'chat' |
-'settings' | 'add-network'`, `router.go(view, params?)`, `router.back()`; Escape and the Android
-back button call `router.back()`. Screens never import each other; they call the router.
+| file | props |
+|---|---|
+| `inbox/InboxScreen.svelte` | `{}` (selection in the `ui` store) |
+| `chat/ChatScreen.svelte` | `{ roomId: string; onback?: () => void }` |
+| `chat/EmptyChat.svelte` | `{}` (split-view placeholder) |
+| `settings/SettingsScreen.svelte` | `{ onclose: () => void }` |
+| `login/AddNetwork.svelte` | `{ network?: string; onclose: () => void }` |
+| `onboarding/Onboarding.svelte` | `{ ondone: () => void }` |
+| `lock/LockScreen.svelte` | `{}` (renders only while locked) |
+
+Navigation lives in `ui/src/lib/router.svelte.ts`: `router.view` is `'inbox' | 'chat' | 'settings' |
+'add-network'`, with `router.go(view, params?)` and `router.back()`. Escape and the Android back
+button call `router.back()`. Screens do not import each other; they call the router.

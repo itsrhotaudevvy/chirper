@@ -6,47 +6,56 @@ before you open a pull request.
 
 ## Development setup
 
-See the **Build from source** section of the [README](README.md#build-from-source). In short:
+See [docs/BUILDING.md](docs/BUILDING.md) for the toolchains and the platform packages. In short:
 
 ```sh
-scripts/fetch-third-party.sh     # pinned connector sources into third_party/
 pnpm -C ui install
-scripts/build-go.sh <rust-triple>
 cargo tauri dev
 ```
 
-Toolchain versions: Rust (stable, from `rust-toolchain.toml`), Go 1.27, Node.js 22+ with pnpm.
+Optional, for reading the mautrix reference sources while writing a network driver:
+
+```sh
+scripts/fetch-third-party.sh     # clones the pinned commits from third_party/pins.txt
+```
+
+Toolchain versions: Rust stable (from `rust-toolchain.toml`), Node.js 22 or newer, and pnpm 12. The
+Tauri CLI is 2.12.5.
 
 ## Repository layout
 
 | Path | Contents |
 |---|---|
-| `ui/` | Svelte 5 + TypeScript front end (Vite) |
-| `src-tauri/` | Tauri application crate: commands, events, platform glue |
-| `crates/chirper-core/` | Safe Rust wrapper over the Go C ABI, keystore access |
+| `ui/` | Svelte 5 and TypeScript front end (Vite) |
+| `src-tauri/` | Tauri application crate `chirper-app`: commands, events, platform code |
+| `crates/chirper-core/` | Store, engine, facade, media vault, secrets, JSON model |
+| `crates/chirper-bridge/` | The unified bridge runtime and the traits a driver implements |
+| `crates/chirper-net-*/` | One protocol client per network |
+| `crates/chirper-signal-protocol/` | Signal protocol primitives used by the messaging drivers |
 | `plugins/chirper-native/` | Kotlin and Swift code for mobile-only platform features |
-| `go/core/` | Go core: C ABI (`capi`), facade, engine, local Matrix store |
-| `go/connectors/` | Chirper-owned connectors (Discord, Fluxer) |
-| `third_party/` | Pinned mautrix connector clones, fetched, never committed (`pins.txt` is) |
-| `scripts/` | `fetch-third-party.sh`, `build-go.sh` |
-| `docs/` | `PLAN.md`, `CONTRACT.md`, `DESIGN.md`, `AGENTS.md` (binding design documents) |
+| `scripts/` | `build-android.sh`, `fetch-third-party.sh` |
+| `third_party/` | `pins.txt` (committed) and the reference clones it names (not committed) |
+| `docs/` | Architecture, build, contract, networks, security and plan documents |
+| `docs/specs/` | Briefs for driver work |
 | `assets/brand/` | Icon and splash sources |
-| `.github/` | CI, CodeQL, release workflows, Dependabot, issue and PR templates |
+| `.github/` | CI, CodeQL, release and browser-build workflows, Dependabot, issue and PR templates |
 
-Changes to the JSON model or the C ABI must update `docs/CONTRACT.md` and every mirror of the
-contract in the same pull request.
+Changes to the JSON model must update [docs/CONTRACT.md](docs/CONTRACT.md), the golden fixtures in
+`crates/chirper-core/tests/golden/`, and the TypeScript mirror `ui/src/lib/core/types.ts`, in the
+same pull request.
 
 ## Code style
 
-- **Rust:** `cargo fmt`, and `cargo clippy --workspace --all-targets -- -D warnings` must be clean.
-  Do not use `unwrap()` or `expect()` on data that comes from the network, the webview or the disk.
-  Return errors instead. Keep functions small.
-- **Go:** `gofmt` and `go vet` must be clean. Run tests with `-race`. Recover panics at the C ABI
-  boundary and return them as error envelopes. Keep the package boundaries in `go/core` intact.
-- **TypeScript and Svelte:** `strict` mode, no `any`. Use the design tokens in `ui/src/styles/`
-  rather than hard-coded colours or sizes. `pnpm -C ui check`, `test` and `build` must pass.
-- **All languages:** no dead code, no commented-out code, no `TODO` stubs that pretend to work. If a
-  platform does not support a feature, return a clear "not supported on <platform>" error.
+- **Rust:** `cargo fmt`, and `cargo clippy --workspace --all-targets --features chirper-core/mock -- -D warnings`
+  must be clean. Do not use `unwrap()` or `expect()` on data that comes from the network, the
+  webview or the disk; return an error. New crates use `#![forbid(unsafe_code)]`. Keep functions
+  small.
+- **TypeScript and Svelte:** `strict` mode, no `any`. Use the tokens in `ui/src/styles/` rather
+  than hard-coded colours or sizes. `pnpm -C ui check`, `pnpm -C ui test` and `pnpm -C ui build` must
+  pass.
+- **All languages:** no dead code, no commented-out code, and no `TODO` stubs that pretend to work.
+  A feature a platform or network does not support returns a clear "not supported" error, as in
+  `Error::Unsupported`.
 - **Editor settings:** `.editorconfig` is authoritative. Files use LF line endings.
 
 ### Privacy rules for code
@@ -54,8 +63,9 @@ contract in the same pull request.
 - Never log message bodies, tokens, cookies, phone numbers or keys, even at debug level. Log
   identifiers only when they are needed and cannot identify a person.
 - No telemetry, analytics, crash reporters, remote fonts or CDNs.
-- The only network traffic is to the messaging networks themselves.
-- Keys live in the OS keystore, never in files, environment variables or logs.
+- Network traffic goes only to the messaging networks themselves.
+- Keys live in the OS keystore or the mobile keystore, never in files, environment variables or logs.
+  Per-login secrets go through `LoginCtx`, not through files of the driver's own.
 
 ## Commit style
 
@@ -68,13 +78,13 @@ ci: pin codeql-action to a commit SHA
 ```
 
 Common types: `feat`, `fix`, `perf`, `refactor`, `test`, `docs`, `build`, `ci`, `chore`. Use the
-scope for the area you changed (`core`, `ui`, `app`, `crypto`, `connectors`, `ci`). Keep the subject
-under 72 characters and write the body in the imperative mood.
+scope for the area you changed (`core`, `ui`, `app`, `bridge`, `net-<network>`, `ci`). Keep the
+subject under 72 characters and write the body in the imperative mood.
 
 ## Pull requests
 
 1. Branch from `main`. Keep one logical change per pull request.
-2. Run the checks for the areas you touched (see the README).
+2. Run the checks for the areas you touched (see [docs/BUILDING.md](docs/BUILDING.md), section 8).
 3. Fill in the pull request template. Its checklist is part of the review.
 4. Add an entry under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 5. A maintainer reviews the change. CI, CodeQL and `cargo deny` must pass before merge.
@@ -86,13 +96,19 @@ under 72 characters and write the body in the imperative mood.
 - [ ] No message content in logs, error strings or crash output. No tokens, cookies, phone numbers or keys in logs.
 - [ ] No new network calls except to the messaging networks themselves.
 - [ ] New dependencies are pinned, licensed under AGPL-compatible terms, and pass `cargo deny check`.
-- [ ] Docs and the changelog are updated where behaviour changed.
+- [ ] Docs and the changelog are updated where behaviour changed, including
+      [docs/NETWORKS.md](docs/NETWORKS.md) when a driver's status, login flows or capabilities change.
 
-## Adding or updating third-party connectors
+## Reference sources and third-party code
 
-Connector sources are pinned by commit in `third_party/pins.txt`. To change a pin, update that file
-in a pull request, explain the upstream change, and make sure `scripts/fetch-third-party.sh` still
-fetches the exact commit. Do not edit files under `third_party/` in place.
+`third_party/pins.txt` pins the mautrix bridge repositories by commit. The clones are reference
+material for writing the network drivers. Nothing in the build uses them, and their contents are
+not committed. To change a pin, update `pins.txt` in a pull request, explain the upstream change,
+and check that `scripts/fetch-third-party.sh` still fetches the exact commit. Do not edit files
+under `third_party/` in place.
+
+Code or data copied from a reference source needs an attribution comment that names the file and
+its licence, as the driver briefs require.
 
 ## Licence
 
