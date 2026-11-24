@@ -1,0 +1,14 @@
+{
+  "replies": [
+    {
+      "decrypt_with": 3,
+      "plaintext": "Rust reply one: Bob's ratchet has turned, so this uses a fresh key.",
+      "ciphertext": "330a2105aca45503f969a2c89444716ec3dff2f68da6e86ac8cbddd94ddbe0b90defd0771000180022508d8978a77a9d81e026d084e827c51458dbe31760ee0434136cb6bb48a5c437f66350c509cc7e61c91a7959fda2b2f032bc428e07cb5b5ae0068a29b72229416a43d62912a72a6d1e5bbaf63480371727d8ebe09c93169f26"
+    },
+    {
+      "decrypt_with": 3,
+      "plaintext": "Rust reply two: a second message on the same new sending chain.",
+      "ciphertext": "330a2105aca45503f969a2c89444716ec3dff2f68da6e86ac8cbddd94ddbe0b90defd07710011800224060da347e18067ebd7d8568b1b8a7b66bcd4b1c4e55a54ca3172f1bdf29448515100c17b67319d0070fdddf22e5d0a3fd7a7b0b75d560ba95c8418b3cdd3737cd3264d90cff799f03"
+    }
+  ]
+}
