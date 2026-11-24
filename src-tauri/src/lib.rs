@@ -5,6 +5,10 @@ mod commands;
 mod deep_link;
 mod error;
 mod events;
+#[cfg(all(
+    not(any(target_os = "android", target_os = "ios")),
+    not(feature = "mock")
+))]
 mod keystore;
 mod lock;
 mod logging;

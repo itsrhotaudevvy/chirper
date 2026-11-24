@@ -129,7 +129,7 @@ impl PublicKey {
         let (ct, ss) = match self.key_type {
             // Kyber1024 and ML-KEM-1024 share the libcrux ML-KEM-1024 encapsulation routine;
             // Kyber differs only in its key-derivation hash, which libcrux selects internally.
-            KeyType::Kyber1024 => libcrux_ml_kem::mlkem1024::kyber::encapsulate(&pk, *seed),
+            KeyType::Kyber1024 => libcrux_ml_kem::kyber1024::encapsulate(&pk, *seed),
             KeyType::MlKem1024 => libcrux_ml_kem::mlkem1024::encapsulate(&pk, *seed),
         };
         let mut out = Vec::with_capacity(1 + CIPHERTEXT_LENGTH);
@@ -191,7 +191,7 @@ impl SecretKey {
         let ct = MlKem1024Ciphertext::try_from(raw)
             .map_err(|_| Error::BadKemCiphertextLength(self.key_type, ciphertext.len()))?;
         let ss = match self.key_type {
-            KeyType::Kyber1024 => libcrux_ml_kem::mlkem1024::kyber::decapsulate(&sk, &ct),
+            KeyType::Kyber1024 => libcrux_ml_kem::kyber1024::decapsulate(&sk, &ct),
             KeyType::MlKem1024 => libcrux_ml_kem::mlkem1024::decapsulate(&sk, &ct),
         };
         Ok(Zeroizing::new(ss.as_ref().to_vec()))
@@ -213,7 +213,7 @@ impl KeyPair {
         let mut seed = Zeroizing::new([0u8; KEY_GENERATION_SEED_LENGTH]);
         csprng.fill_bytes(&mut *seed);
         let (sk, pk) = match key_type {
-            KeyType::Kyber1024 => libcrux_ml_kem::mlkem1024::kyber::generate_key_pair(*seed),
+            KeyType::Kyber1024 => libcrux_ml_kem::kyber1024::generate_key_pair(*seed),
             KeyType::MlKem1024 => libcrux_ml_kem::mlkem1024::generate_key_pair(*seed),
         }
         .into_parts();
@@ -262,6 +262,7 @@ mod tests {
     use super::*;
 
     // Test data copied from libsignal rust/protocol/src/kem/test-data/ (AGPL-3.0-only).
+    // pk.dat and sk.dat are raw Kyber1024 keys; the ML-KEM files already carry their 0x0A type byte.
     const KYBER_PK: &[u8] = include_bytes!("../tests/data/pk.dat");
     const KYBER_SK: &[u8] = include_bytes!("../tests/data/sk.dat");
     const MLKEM_PK: &[u8] = include_bytes!("../tests/data/mlkem-pk.dat");
@@ -298,8 +299,8 @@ mod tests {
     #[test]
     fn test_mlkem1024_fixture() {
         // libsignal kem.rs::test_mlkem1024_kem
-        let pk = PublicKey::deserialize(&with_type(0x0A, MLKEM_PK)).unwrap();
-        let sk = SecretKey::deserialize(&with_type(0x0A, MLKEM_SK)).unwrap();
+        let pk = PublicKey::deserialize(MLKEM_PK).unwrap();
+        let sk = SecretKey::deserialize(MLKEM_SK).unwrap();
         assert_eq!(pk.key_type(), KeyType::MlKem1024);
         let (ss_sender, ct) = pk.encapsulate(&mut OsRng).unwrap();
         assert_eq!(ct[0], 0x0A);
@@ -326,7 +327,8 @@ mod tests {
             Err(Error::BadKemKeyType(0x07))
         ));
         assert!(PublicKey::deserialize(&with_type(0x08, &KYBER_PK[1..])).is_err());
-        assert!(SecretKey::deserialize(&with_type(0x0A, KYBER_SK)).is_err());
+        assert!(SecretKey::deserialize(&with_type(0x0A, &KYBER_SK[1..])).is_err());
+        assert!(SecretKey::deserialize(&MLKEM_SK[..MLKEM_SK.len() - 1]).is_err());
 
         let kyber = KeyPair::generate(KeyType::Kyber1024, &mut OsRng);
         let mlkem = KeyPair::generate(KeyType::MlKem1024, &mut OsRng);

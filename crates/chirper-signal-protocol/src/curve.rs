@@ -103,7 +103,7 @@ impl PublicKey {
 
 impl PartialEq for PublicKey {
     fn eq(&self, other: &Self) -> bool {
-        bool::from(self.key.ct_eq(&other.key))
+        bool::from(self.key[..].ct_eq(&other.key[..]))
     }
 }
 
@@ -192,7 +192,7 @@ impl fmt::Debug for PrivateKey {
 
 impl PartialEq for PrivateKey {
     fn eq(&self, other: &Self) -> bool {
-        bool::from(self.key.ct_eq(&other.key))
+        bool::from(self.key[..].ct_eq(&other.key[..]))
     }
 }
 
@@ -479,6 +479,6 @@ mod tests {
         let key = KeyPair::generate(&mut OsRng);
         let shown = format!("{:?}", key.private_key);
         assert!(shown.contains("redacted"));
-        assert!(!shown.contains(&hex::encode(*key.private_key.serialize())));
+        assert!(!shown.contains(&hex::encode(key.private_key.serialize().as_slice())));
     }
 }
