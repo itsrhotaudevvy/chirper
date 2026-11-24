@@ -25,8 +25,7 @@ pub struct User {
     pub global_name: Option<String>,
     #[serde(default)]
     pub avatar: Option<String>,
-    /// Mirrors the payload; the mapping does not read it.
-    #[allow(dead_code)]
+    /// Whether the account is a bot application.
     #[serde(default)]
     pub bot: bool,
 }

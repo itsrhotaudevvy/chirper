@@ -25,11 +25,13 @@ use chirper_bridge::model::{Event, Member, PortalRef, Reaction, RemoteEventRef, 
 use crate::api::Api;
 use crate::map::{self, Channel, Guild, Message, MessageUpdate, ReactionEvent, User};
 
-/// The gateway intents, bit by bit: GUILDS (1), GUILD_MESSAGES (512), GUILD_MESSAGE_REACTIONS
+/// The user-account intents, bit by bit: GUILDS (1), GUILD_MESSAGES (512), GUILD_MESSAGE_REACTIONS
 /// (1024), GUILD_MESSAGE_TYPING (2048), DIRECT_MESSAGES (4096), DIRECT_MESSAGE_REACTIONS (8192),
 /// DIRECT_MESSAGE_TYPING (16384) and MESSAGE_CONTENT (32768, privileged: the bot must be allowed
 /// it in the developer portal).
-const INTENTS: u64 = 1 | 512 | 1024 | 2048 | 4096 | 8192 | 16384 | 32768;
+pub const USER_INTENTS: u64 = 1 | 512 | 1024 | 2048 | 4096 | 8192 | 16384 | 32768;
+/// The bot-account intents of the Go connector: the user set plus GUILD_MEMBERS (2, privileged).
+pub const BOT_INTENTS: u64 = USER_INTENTS | 2;
 /// Largest gateway message and frame accepted from Discord.
 const MAX_MESSAGE_BYTES: usize = 64 << 20;
 const MAX_FRAME_BYTES: usize = 16 << 20;
@@ -62,7 +64,10 @@ pub type ResumeStore = Arc<Mutex<HashMap<String, ResumeState>>>;
 /// Everything one gateway connection needs from its login.
 pub struct Link {
     pub api: Api,
+    /// The authorization value: the token, with the `Bot ` prefix for a bot account.
     pub token: String,
+    /// The intents to identify with: [`USER_INTENTS`] or [`BOT_INTENTS`].
+    pub intents: u64,
     /// The local user's id, to tell the user's own reactions apart.
     pub me_id: String,
     /// This login's key in the resume store.
@@ -148,6 +153,7 @@ struct Heartbeat {
 struct Conn {
     api: Api,
     token: String,
+    intents: u64,
     me_id: String,
     login_id: String,
     resume: ResumeStore,
@@ -200,6 +206,7 @@ impl Conn {
         Self {
             api: link.api,
             token: link.token,
+            intents: link.intents,
             me_id: link.me_id,
             login_id: link.login_id,
             resume: link.resume,
@@ -310,7 +317,7 @@ impl Conn {
                             if !identified {
                                 let packet = match &resume {
                                     Some(state) => resume_packet(&self.token, state),
-                                    None => identify_packet(&self.token),
+                                    None => identify_packet(&self.token, self.intents),
                                 };
                                 if socket
                                     .send(WsMessage::Text(packet.to_string().into()))
@@ -731,12 +738,12 @@ fn unknown_close(text: &str) -> Ending {
     }
 }
 
-fn identify_packet(token: &str) -> Value {
+fn identify_packet(token: &str, intents: u64) -> Value {
     json!({
         "op": 2,
         "d": {
             "token": token,
-            "intents": INTENTS,
+            "intents": intents,
             "properties": {
                 "os": std::env::consts::OS,
                 "browser": "Chirper",
@@ -931,9 +938,20 @@ mod tests {
 
     #[test]
     fn intents_keep_the_reaction_and_typing_bits() {
-        assert_ne!(INTENTS & (1 << 10), 0, "GUILD_MESSAGE_REACTIONS");
-        assert_ne!(INTENTS & (1 << 11), 0, "GUILD_MESSAGE_TYPING");
-        assert_ne!(INTENTS & (1 << 15), 0, "MESSAGE_CONTENT");
+        assert_ne!(USER_INTENTS & (1 << 10), 0, "GUILD_MESSAGE_REACTIONS");
+        assert_ne!(USER_INTENTS & (1 << 11), 0, "GUILD_MESSAGE_TYPING");
+        assert_ne!(USER_INTENTS & (1 << 15), 0, "MESSAGE_CONTENT");
+    }
+
+    #[test]
+    fn bots_identify_with_the_go_connectors_intents() {
+        assert_ne!(BOT_INTENTS & (1 << 1), 0, "GUILD_MEMBERS");
+        assert_eq!(BOT_INTENTS & !(1 << 1), USER_INTENTS);
+        let bot = identify_packet("Bot tok", BOT_INTENTS);
+        assert_eq!(bot["op"], 2);
+        assert_eq!(bot["d"]["token"], "Bot tok");
+        assert_eq!(bot["d"]["intents"], 65027);
+        assert_eq!(identify_packet("tok", USER_INTENTS)["d"]["intents"], 65025);
     }
 
     #[test]

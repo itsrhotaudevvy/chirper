@@ -1,4 +1,5 @@
-//! The Discord driver: a user token or bot token, the v10 REST API, the gateway and QR login.
+//! The Discord driver: user and bot accounts over the v10 REST API and the gateway, with browser,
+//! QR, token and bot logins.
 //!
 //! It is a bridge runtime driver, not a bridge: it reports chats, messages and reactions as domain
 //! events and accepts commands, with no Matrix in between. Everything the old Go bridge did for
@@ -8,25 +9,28 @@
 
 mod api;
 mod gateway;
+mod login;
 mod map;
 mod remoteauth;
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use log::debug;
 use tokio::sync::mpsc;
 
 use chirper_bridge::model::{
-    Ack, BackfillPage, Capabilities, Content, LoginFlow, LoginStep, PortalRef, RemoteUser,
+    Ack, BackfillPage, Capabilities, Content, LoginFlow, PortalRef, RemoteUser,
 };
-use chirper_bridge::network::LoginInput;
 use chirper_bridge::{Command, Error, Event, LoginCtx, LoginProcess, Network, Result, Session};
+
+use login::{Account, BrowserLogin, TokenLogin};
 
 pub use api::API;
 
 /// The network id used in settings, account ids and every stored row.
 pub const NETWORK_ID: &str = "discord";
+/// The flow id of the QR-code login.
+const FLOW_QR: &str = "qr";
 
 /// The Discord driver.
 #[derive(Debug, Default, Clone)]
@@ -80,46 +84,64 @@ impl Network for Discord {
 
     fn login_flows(&self) -> Vec<LoginFlow> {
         vec![
-            LoginFlow {
-                id: "token".to_owned(),
-                name: "Account token".to_owned(),
-                description: "Paste a Discord user token, or a bot token starting with `Bot `."
-                    .to_owned(),
-            },
-            LoginFlow {
-                id: "qr".to_owned(),
-                name: "QR code".to_owned(),
-                description: "Scan with the Discord mobile app: Settings → Scan QR Code."
-                    .to_owned(),
-            },
+            flow(
+                login::FLOW_BROWSER,
+                "Browser",
+                "Sign in with your email and password (or passkey) on Discord's own login page.",
+            ),
+            flow(
+                FLOW_QR,
+                "QR code",
+                "Scan a QR code with the Discord mobile app to log in to your user account.",
+            ),
+            flow(
+                login::FLOW_TOKEN,
+                "User token",
+                "Log in to your Discord user account with an access token.",
+            ),
+            flow(
+                login::FLOW_BOT,
+                "Bot token",
+                "Log in as a Discord bot account with its bot token.",
+            ),
         ]
     }
 
     async fn start_login(&self, flow_id: &str, ctx: LoginCtx) -> Result<Box<dyn LoginProcess>> {
         match flow_id {
-            "token" => Ok(Box::new(TokenLogin {
-                ctx,
-                base: self.base.clone(),
-                done: false,
-            })),
-            "qr" => Ok(Box::new(remoteauth::start(ctx))),
+            login::FLOW_BROWSER => Ok(Box::new(BrowserLogin::new(ctx, &self.base))),
+            FLOW_QR => Ok(Box::new(remoteauth::start(ctx))),
+            login::FLOW_TOKEN => Ok(Box::new(TokenLogin::new(ctx, &self.base, Account::Either))),
+            login::FLOW_BOT => Ok(Box::new(TokenLogin::new(ctx, &self.base, Account::Bot))),
             _ => Err(Error::Unsupported("this login flow")),
         }
     }
 
     async fn connect(&self, ctx: LoginCtx) -> Result<Box<dyn Session>> {
         let secret = ctx
-            .get_secret("token")?
+            .get_secret(login::SECRET_TOKEN)?
             .ok_or_else(|| Error::Auth("no Discord token is stored".to_owned()))?;
         let token = String::from_utf8(secret.to_vec())
             .map_err(|_| Error::Auth("the stored Discord token is not text".to_owned()))?;
-        let api = api::Api::new(ctx.http.clone(), &token, &self.base);
+        // A bot login is marked when it is stored; a `Bot ` prefix on the token means the same.
+        let bot = ctx.get_secret(login::SECRET_BOT)?.is_some() || api::is_bot_token(&token);
+        let auth = if bot && !api::is_bot_token(&token) {
+            format!("Bot {token}")
+        } else {
+            token
+        };
+        let api = api::Api::new(ctx.http.clone(), &auth, &self.base);
         let me = api.me().await?;
         let gateway_url = api.gateway_url().await?;
         let (tx, rx) = mpsc::unbounded_channel();
         let link = gateway::Link {
             api: api.clone(),
-            token,
+            token: auth,
+            intents: if bot {
+                gateway::BOT_INTENTS
+            } else {
+                gateway::USER_INTENTS
+            },
             me_id: me.id.clone(),
             login_id: ctx.login_id.clone(),
             resume: self.resume.clone(),
@@ -138,57 +160,12 @@ impl Network for Discord {
     }
 }
 
-/// The token login: one input step, then a live account.
-struct TokenLogin {
-    ctx: LoginCtx,
-    base: String,
-    done: bool,
-}
-
-#[async_trait]
-impl LoginProcess for TokenLogin {
-    async fn next(&mut self, input: LoginInput) -> Result<LoginStep> {
-        if self.done {
-            return Err(Error::Protocol("the login already finished".to_owned()));
-        }
-        if input.values.is_empty() {
-            return Ok(LoginStep::UserInput {
-                step_id: "token".to_owned(),
-                instructions:
-                    "Paste your Discord token. It is stored in the system credential store."
-                        .to_owned(),
-                fields: vec![chirper_bridge::model::InputField {
-                    id: "token".to_owned(),
-                    name: "Token".to_owned(),
-                    kind: "password".to_owned(),
-                    description: "A user token, or a bot token starting with `Bot `.".to_owned(),
-                    options: Vec::new(),
-                    pattern: String::new(),
-                }],
-            });
-        }
-        let token = input
-            .values
-            .get("token")
-            .map(|t| t.trim().to_owned())
-            .filter(|t| !t.is_empty())
-            .ok_or_else(|| Error::Auth("no token was entered".to_owned()))?;
-        let api = api::Api::new(self.ctx.http.clone(), &token, &self.base);
-        let me = api.me().await.map_err(|err| match err {
-            Error::Network(message) => Error::Network(message),
-            _ => Error::Auth("Discord refused this token".to_owned()),
-        })?;
-        self.ctx.set_secret("token", token.as_bytes())?;
-        let bot = api::is_bot_token(&token);
-        debug!("discord: logged in as {} (bot: {bot})", me.id);
-        self.done = true;
-        Ok(LoginStep::Complete {
-            login_id: format!("discord_{}", me.id),
-        })
-    }
-
-    async fn cancel(&mut self) {
-        let _ = self.ctx.delete_secret("token");
+/// A login flow entry.
+fn flow(id: &str, name: &str, description: &str) -> LoginFlow {
+    LoginFlow {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        description: description.to_owned(),
     }
 }
 
