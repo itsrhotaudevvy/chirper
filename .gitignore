@@ -10,7 +10,6 @@ src-tauri/gen/schemas/
 *.log
 .env
 secrets.properties
-/go/out/
 .idea/
 .vscode/*
 !.vscode/extensions.json

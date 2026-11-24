@@ -1,7 +1,7 @@
 [toolchain]
 channel = "stable"
 components = ["rustfmt", "clippy"]
-# Common triples for every supported platform (see scripts/build-go.sh).
+# Common triples for every supported platform.
 targets = [
   "aarch64-apple-darwin",
   "x86_64-apple-darwin",

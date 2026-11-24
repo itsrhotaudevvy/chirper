@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Clones third-party repos at pinned commits (third_party/pins.txt).
+# Clones the mautrix bridges at pinned commits (third_party/pins.txt) as *reference sources* for
+# writing Chirper's own network drivers (docs/specs/). Nothing in the build uses them.
 set -euo pipefail
 cd "$(dirname "$0")/.."; mkdir -p third_party
 while read -r name sha; do

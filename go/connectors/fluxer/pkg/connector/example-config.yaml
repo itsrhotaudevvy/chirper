@@ -1,5 +1,0 @@
-# Fluxer network connector configuration.
-
-# Instance origin offered by default on the login screen. Self-hosted instances
-# are reached through their /.well-known/fluxer discovery document.
-default_instance: https://fluxer.app
