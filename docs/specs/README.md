@@ -30,6 +30,9 @@ agent reads **this file first, then its own spec**, and nothing it does may cont
    the lockfile does the job, and say so in your report.
 6. **Build in your own target directory** so parallel agents do not block each other:
    `export CARGO_TARGET_DIR=/Volumes/SSD/Code/Chirper-rust/target/agents/<your-task-id>`.
+   Also put rustup's toolchain first on PATH (Homebrew ships a second, incompatible
+   `clippy-driver`): `export PATH=$HOME/.rustup/toolchains/stable-aarch64-apple-darwin/bin:$PATH`.
+   Set both in **every** shell command (the shell does not keep exports between calls).
    Only build/test **your own crate**: `cargo test -p <crate>`,
    `cargo clippy -p <crate> --all-targets -- -D warnings`, `cargo fmt -p <crate>`.
    Never run workspace-wide commands; other crates are being edited at the same time.
@@ -76,3 +79,25 @@ agent reads **this file first, then its own spec**, and nothing it does may cont
 | twitter | `twitter.md` | `crates/chirper-net-twitter` | — |
 | signal | `signal.md` | `crates/chirper-net-signal` | signal-protocol |
 | meta | `meta.md` | `crates/chirper-net-meta` | signal-protocol (E2EE only) |
+
+## Parity targets from the Go build (pinned by `crates/chirper-core/tests/golden.rs`)
+
+Name, colour and **every login flow id** below must be kept once a driver is available.
+
+| id | colour | login flows | capabilities in the Go build |
+| --- | --- | --- | --- |
+| whatsapp | #25D366 | qr, phone | all |
+| telegram | #26A5E4 | (phone, qr, bot in mautrix) | all |
+| signal | #3A76F0 | (qr link in mautrix) | — |
+| instagram | #E1306C | android, instagram, instagram-password | all but voice |
+| messenger | #FF2542 | facebook, messenger, messenger-lite, messenger-lite-android | all but voice |
+| twitter | #7C5CFF | cookies, password | edits, reactions, readReceipts, redactions, replies, typing |
+| linkedin | #FF2D7A | cookies, password | edits, reactions, readReceipts, redactions, replies, typing |
+| gmessages | #1A73E8 | google (and qr) | all |
+| gvoice | #34A853 | cookies | readReceipts, replies |
+| slack | #4A154B | email, token, app | all |
+| bluesky | #1185FE | password | readReceipts, replies |
+| discord | #5865F2 | browser, qr, token, bot | all |
+| fluxer | #FF77A9 | token, bot, password | all |
+
+"Beyond parity" is welcome (more capabilities than the Go build had) when it is real and tested.

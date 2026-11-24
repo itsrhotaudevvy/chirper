@@ -29,4 +29,7 @@ for triple in aarch64_linux_android armv7_linux_androideabi i686_linux_android x
 done
 
 cd "$(dirname "$0")/.."
+if command -v tauri >/dev/null 2>&1; then
+  exec tauri android build "$@"
+fi
 exec cargo tauri android build "$@"

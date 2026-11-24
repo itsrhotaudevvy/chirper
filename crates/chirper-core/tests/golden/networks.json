@@ -1,0 +1,415 @@
+[
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": true
+    },
+    "color": "#25D366",
+    "id": "whatsapp",
+    "loginFlows": [
+      {
+        "description": "Scan a QR code to pair the bridge to your WhatsApp account",
+        "id": "qr",
+        "name": "QR"
+      },
+      {
+        "description": "Input your phone number to get a pairing code, to pair the bridge to your WhatsApp account",
+        "id": "phone",
+        "name": "Pairing code"
+      }
+    ],
+    "name": "WhatsApp",
+    "reason": ""
+  },
+  {
+    "available": false,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": true
+    },
+    "color": "#26A5E4",
+    "id": "telegram",
+    "loginFlows": [],
+    "name": "Telegram",
+    "reason": "Telegram needs your own api_id and api_hash from my.telegram.org. Add them in Settings, Advanced."
+  },
+  {
+    "available": false,
+    "beta": true,
+    "capabilities": {
+      "edits": false,
+      "reactions": false,
+      "readReceipts": false,
+      "redactions": false,
+      "replies": false,
+      "stickers": false,
+      "typing": false,
+      "voice": false
+    },
+    "color": "#3A76F0",
+    "id": "signal",
+    "loginFlows": [],
+    "name": "Signal",
+    "reason": "not supported yet: this build does not include Signal (it needs libsignal, built with the Android target)"
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": false
+    },
+    "color": "#E1306C",
+    "id": "instagram",
+    "loginFlows": [
+      {
+        "description": "Log in with your username and password using the Instagram Android API",
+        "id": "android",
+        "name": "Native Android"
+      },
+      {
+        "description": "Login using cookies from instagram.com",
+        "id": "instagram",
+        "name": "Cookies"
+      },
+      {
+        "description": "Log in with your username and password using the Instagram web API",
+        "id": "instagram-password",
+        "name": "Native Web"
+      }
+    ],
+    "name": "Instagram",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": false
+    },
+    "color": "#FF2542",
+    "id": "messenger",
+    "loginFlows": [
+      {
+        "description": "Login using cookies from facebook.com",
+        "id": "facebook",
+        "name": "facebook.com"
+      },
+      {
+        "description": "Login using cookies from messenger.com",
+        "id": "messenger",
+        "name": "messenger.com"
+      },
+      {
+        "description": "Login with username/password using Messenger iOS API",
+        "id": "messenger-lite",
+        "name": "Messenger iOS"
+      },
+      {
+        "description": "Login with username/password using Messenger Android API",
+        "id": "messenger-lite-android",
+        "name": "Messenger Android"
+      }
+    ],
+    "name": "Facebook Messenger",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": false,
+      "typing": true,
+      "voice": false
+    },
+    "color": "#7C5CFF",
+    "id": "twitter",
+    "loginFlows": [
+      {
+        "description": "Log in with your X account using your cookies",
+        "id": "cookies",
+        "name": "Cookies"
+      },
+      {
+        "description": "Log in with your X username, email, or phone number and password",
+        "id": "password",
+        "name": "Username/password"
+      }
+    ],
+    "name": "Twitter",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": false,
+      "typing": true,
+      "voice": false
+    },
+    "color": "#FF2D7A",
+    "id": "linkedin",
+    "loginFlows": [
+      {
+        "description": "Log in using cookies from linkedin.com",
+        "id": "cookies",
+        "name": "Cookies"
+      },
+      {
+        "description": "Log in using your email/phone and password",
+        "id": "password",
+        "name": "Email and password"
+      }
+    ],
+    "name": "LinkedIn",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": true
+    },
+    "color": "#1A73E8",
+    "id": "gmessages",
+    "loginFlows": [
+      {
+        "description": "Log in with your Google account and pair by tapping an emoji on your phone",
+        "id": "google",
+        "name": "Google Account"
+      }
+    ],
+    "name": "Google Messages",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": false,
+      "reactions": false,
+      "readReceipts": true,
+      "redactions": false,
+      "replies": true,
+      "stickers": false,
+      "typing": false,
+      "voice": false
+    },
+    "color": "#34A853",
+    "id": "gvoice",
+    "loginFlows": [
+      {
+        "description": "Log in with your Google account by providing cookies from voice.google.com",
+        "id": "cookies",
+        "name": "Cookies"
+      }
+    ],
+    "name": "Google Voice",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": true
+    },
+    "color": "#4A154B",
+    "id": "slack",
+    "loginFlows": [
+      {
+        "description": "Sign in with your Slack email address",
+        "id": "email",
+        "name": "Email"
+      },
+      {
+        "description": "Log in with an auth token (and a cookie, if the token is from a browser)",
+        "id": "token",
+        "name": "Auth token \u0026 cookie"
+      },
+      {
+        "description": "Log in with a Slack app",
+        "id": "app",
+        "name": "Slack app"
+      }
+    ],
+    "name": "Slack",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": false,
+      "reactions": false,
+      "readReceipts": true,
+      "redactions": false,
+      "replies": true,
+      "stickers": false,
+      "typing": false,
+      "voice": false
+    },
+    "color": "#1185FE",
+    "id": "bluesky",
+    "loginFlows": [
+      {
+        "description": "Log in by entering your Bluesky username and password",
+        "id": "password",
+        "name": "Username \u0026 password"
+      }
+    ],
+    "name": "Bluesky",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": true
+    },
+    "color": "#5865F2",
+    "id": "discord",
+    "loginFlows": [
+      {
+        "description": "Sign in with your email and password (or passkey) on Discord's own login page.",
+        "id": "browser",
+        "name": "Browser"
+      },
+      {
+        "description": "Scan a QR code with the Discord mobile app to log in to your user account.",
+        "id": "qr",
+        "name": "QR code"
+      },
+      {
+        "description": "Log in to your Discord user account with an access token.",
+        "id": "token",
+        "name": "User token"
+      },
+      {
+        "description": "Log in as a Discord bot account with its bot token.",
+        "id": "bot",
+        "name": "Bot token"
+      }
+    ],
+    "name": "Discord",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": true,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": true
+    },
+    "color": "#FF77A9",
+    "id": "fluxer",
+    "loginFlows": [
+      {
+        "description": "Sign in with a session token from the Fluxer app",
+        "id": "token",
+        "name": "Session token"
+      },
+      {
+        "description": "Sign in with the token of a Fluxer bot account",
+        "id": "bot",
+        "name": "Bot token"
+      },
+      {
+        "description": "Sign in with a password; authenticator codes are supported",
+        "id": "password",
+        "name": "Email or username \u0026 password"
+      }
+    ],
+    "name": "Fluxer",
+    "reason": ""
+  },
+  {
+    "available": true,
+    "beta": false,
+    "capabilities": {
+      "edits": true,
+      "reactions": true,
+      "readReceipts": true,
+      "redactions": true,
+      "replies": true,
+      "stickers": true,
+      "typing": true,
+      "voice": true
+    },
+    "color": "#8E8E93",
+    "id": "demo",
+    "loginFlows": [
+      {
+        "description": "A fake network with a few chats",
+        "id": "demo",
+        "name": "Demo account"
+      }
+    ],
+    "name": "Demo",
+    "reason": ""
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "processId": "caa14804-3cba-4b3e-ba68-9a4c855bcf72",
+  "step": {
+    "complete": {
+      "loginId": "demo-golden"
+    },
+    "instructions": "Logged in as golden",
+    "stepId": "demo.complete",
+    "type": "complete"
+  }
+}

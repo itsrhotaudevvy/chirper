@@ -1,0 +1,13 @@
+{
+  "demoNetwork": false,
+  "sendReadReceipts": {
+    "*": true
+  },
+  "sendTyping": {
+    "*": true
+  },
+  "telegram": {
+    "apiHash": "",
+    "apiId": 0
+  }
+}

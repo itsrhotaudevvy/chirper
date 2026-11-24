@@ -103,9 +103,13 @@ pub struct LoginStep {
     pub kind: LoginStepType,
     pub step_id: String,
     pub instructions: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user_input: Option<UserInputStep>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cookies: Option<CookiesStep>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub display_and_wait: Option<DisplayStep>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub complete: Option<CompleteStep>,
 }
 

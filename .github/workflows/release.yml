@@ -15,6 +15,10 @@ permissions:
 
 env:
   TAURI_CLI_VERSION: "2.12.5"
+  # Compiled into the Telegram driver (crates/chirper-net-telegram); without them Telegram is
+  # listed as unavailable.
+  CHIRPER_TELEGRAM_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
+  CHIRPER_TELEGRAM_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
 
 jobs:
   desktop:
@@ -28,57 +32,39 @@ jobs:
           - name: macos-universal
             os: macos-latest
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
-            go-triples: aarch64-apple-darwin x86_64-apple-darwin
             tauri-triple: universal-apple-darwin
           - name: macos-arm64
             os: macos-latest
             rust-targets: aarch64-apple-darwin
-            go-triples: aarch64-apple-darwin
             tauri-triple: aarch64-apple-darwin
           - name: macos-x64
             os: macos-latest
             rust-targets: x86_64-apple-darwin
-            go-triples: x86_64-apple-darwin
             tauri-triple: x86_64-apple-darwin
           - name: windows-x64
             os: windows-latest
             rust-targets: x86_64-pc-windows-msvc
-            go-triples: x86_64-pc-windows-msvc
             tauri-triple: x86_64-pc-windows-msvc
-            msystem: MINGW64
-            mingw-package: mingw-w64-x86_64-gcc
           - name: windows-x86
             os: windows-latest
             rust-targets: i686-pc-windows-msvc
-            go-triples: i686-pc-windows-msvc
             tauri-triple: i686-pc-windows-msvc
-            msystem: MINGW32
-            mingw-package: mingw-w64-i686-gcc
           - name: windows-arm64
             os: windows-11-arm
             rust-targets: aarch64-pc-windows-msvc
-            go-triples: aarch64-pc-windows-msvc
             tauri-triple: aarch64-pc-windows-msvc
-            msystem: CLANGARM64
-            mingw-package: mingw-w64-clang-aarch64-toolchain
           - name: linux-x64
             os: ubuntu-22.04
             rust-targets: x86_64-unknown-linux-gnu
-            go-triples: x86_64-unknown-linux-gnu
             tauri-triple: x86_64-unknown-linux-gnu
           - name: linux-arm64
             os: ubuntu-24.04-arm
             rust-targets: aarch64-unknown-linux-gnu
-            go-triples: aarch64-unknown-linux-gnu
             tauri-triple: aarch64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
-        with:
-          go-version: "1.27"
 
       - name: Install Tauri Linux dependencies
         if: runner.os == 'Linux'
@@ -88,15 +74,6 @@ jobs:
             build-essential curl file patchelf \
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
             libssl-dev libxdo-dev libsecret-1-dev
-
-      - name: Install MinGW for cgo
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
-        with:
-          msystem: ${{ matrix.msystem || 'MINGW64' }}
-          update: false
-          install: ${{ matrix.mingw-package || 'mingw-w64-x86_64-gcc' }}
-          path-type: inherit
 
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
         with:
@@ -123,21 +100,6 @@ jobs:
           pnpm -C ui install --frozen-lockfile
           npm install -g "@tauri-apps/cli@${TAURI_CLI_VERSION}"
 
-      - name: Fetch pinned third-party sources
-        shell: bash
-        run: scripts/fetch-third-party.sh
-
-      - name: Build Go core
-        shell: bash
-        env:
-          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
-          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
-        run: |
-          for triple in ${{ matrix.go-triples }}; do
-            scripts/build-sqlcipher.sh "$triple"
-            scripts/build-go.sh "$triple" --release
-          done
-
       - name: Build app
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         with:
@@ -162,10 +124,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
-        with:
-          go-version: "1.27"
 
       - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
@@ -203,19 +161,6 @@ jobs:
           pnpm -C ui install --frozen-lockfile
           npm install -g "@tauri-apps/cli@${TAURI_CLI_VERSION}"
 
-      - name: Fetch pinned third-party sources
-        run: scripts/fetch-third-party.sh
-
-      - name: Build Go core
-        env:
-          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
-          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
-        run: |
-          for triple in aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android; do
-            scripts/build-sqlcipher.sh "$triple"
-            scripts/build-go.sh "$triple" --release
-          done
-
       - name: Decode Android signing keystore
         id: signing
         env:
@@ -236,10 +181,12 @@ jobs:
             echo "keyPassword=$ANDROID_KEY_PASSWORD"
           } > src-tauri/gen/android/keystore.properties
 
+      # SQLCipher's vendored OpenSSL needs <triple>-ar/-ranlib; the script points them at the NDK's
+      # LLVM tools for every ABI.
       - name: Build universal APK and per-ABI APKs
         run: |
-          tauri android build --apk
-          tauri android build --apk --split-per-abi
+          scripts/build-android.sh --apk
+          scripts/build-android.sh --apk --split-per-abi
 
       - name: Verify per-ABI APKs
         run: |
@@ -276,10 +223,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
-        with:
-          go-version: "1.27"
-
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch (no release tags)
         with:
           toolchain: stable
@@ -303,25 +246,6 @@ jobs:
         run: |
           pnpm -C ui install --frozen-lockfile
           npm install -g "@tauri-apps/cli@${TAURI_CLI_VERSION}"
-
-      - name: Fetch pinned third-party sources
-        run: scripts/fetch-third-party.sh
-
-      - name: Build Go core (device)
-        if: env.HAS_IOS_SIGNING == 'true'
-        env:
-          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
-          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
-        run: scripts/build-sqlcipher.sh aarch64-apple-ios && scripts/build-go.sh aarch64-apple-ios --release
-
-      - name: Build Go core (simulator)
-        if: env.HAS_IOS_SIGNING != 'true'
-        env:
-          CHIRPER_TG_API_ID: ${{ secrets.CHIRPER_TG_API_ID }}
-          CHIRPER_TG_API_HASH: ${{ secrets.CHIRPER_TG_API_HASH }}
-        run: |
-          scripts/build-sqlcipher.sh aarch64-apple-ios-sim && scripts/build-go.sh aarch64-apple-ios-sim --release
-          scripts/build-sqlcipher.sh x86_64-apple-ios && scripts/build-go.sh x86_64-apple-ios --release
 
       - name: Import iOS signing certificate and profile
         if: env.HAS_IOS_SIGNING == 'true'

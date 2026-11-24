@@ -7,7 +7,10 @@ Juicebox PIN-key recovery for encrypted XChat). It is the largest reference (36k
 plain-DM path completely first, XChat second.
 
 - Login flow `cookies` (`LoginStep::Cookies` on `https://x.com/i/flow/login`, cookies `auth_token`,
-  `ct0`, plus the reference's extract JS). Skip `password` (castle-token webview) and list it.
+  `ct0`, plus the reference's extract JS) **and** `password` (the reference gets a castle token
+  from a webview: use a `LoginStep::Cookies` step on x.com with `castle_token.js` as `extract_js`
+  to obtain it, then run the reference's password/2FA/PIN steps as `user_input` steps). Both flow
+  ids are required: a golden test pins every login flow of the Go build.
 - Headers exactly as the reference (bearer constant, `x-csrf-token` = `ct0`, client transaction
   id generation if it computes one — port and test it with fixed inputs).
 - Plain DMs: inbox initial state, `user_updates` polling with cursor (reference interval),

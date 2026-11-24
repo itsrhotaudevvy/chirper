@@ -7,8 +7,9 @@ the Web API calls and the RTM/websocket client yourself.
 
 - Login flows with the reference ids: `token` (cookie `d` + `xoxc-` token from the web client,
   via `LoginStep::Cookies` on `https://app.slack.com/` using the reference's extract JS, and a
-  manual `user_input` fallback), `app` (bot/user `xoxb-`/`xoxp-` token). Skip the `email` flow
-  (captcha-dependent) and list it as skipped. Validate with `auth.test`; a login is one
+  manual `user_input` fallback), `app` (bot/user `xoxb-`/`xoxp-` token), and `email` (port
+  `login-email*.go`; the captcha runs in the app webview through a `Cookies` step with
+  `login-email-captcha.js` as `extract_js`). Validate with `auth.test`; a login is one
   workspace (team); `login_id` per `slackid`.
 - Realtime: `rtm.connect` → websocket (`wss://wss-primary.slack.com/...` from the response),
   ping every 30 s, reconnect on `goodbye`. Events: `message` (+ subtypes `message_changed`,

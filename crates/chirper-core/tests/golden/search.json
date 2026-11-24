@@ -1,0 +1,53 @@
+[
+  {
+    "body": "echo: golden hello",
+    "edited": false,
+    "error": "",
+    "eventId": "$demo.3c1d7304edb06668b3fbb24556f5415c",
+    "formattedBody": "",
+    "fromMe": false,
+    "live": false,
+    "media": null,
+    "order": 1795535961364000,
+    "reactions": [],
+    "redacted": false,
+    "replyTo": null,
+    "roomId": "!demo.6786da43034859b5eb223d4d34e9e62d:chirper.local",
+    "sender": "@demo_alice:chirper.local",
+    "senderAvatar": "",
+    "senderName": "Alice",
+    "status": "sent",
+    "ts": 1795535961364,
+    "type": "text"
+  },
+  {
+    "body": "golden hello",
+    "edited": false,
+    "error": "",
+    "eventId": "$local.6ccdf168-93c9-4fe0-95ce-c6deeb69fa8b",
+    "formattedBody": "",
+    "fromMe": true,
+    "live": false,
+    "media": null,
+    "order": 1795535961063000,
+    "reactions": [
+      {
+        "count": 1,
+        "fromMe": false,
+        "key": "👍️",
+        "senders": [
+          "Alice"
+        ]
+      }
+    ],
+    "redacted": false,
+    "replyTo": null,
+    "roomId": "!demo.6786da43034859b5eb223d4d34e9e62d:chirper.local",
+    "sender": "@me:chirper.local",
+    "senderAvatar": "",
+    "senderName": "@me:chirper.local",
+    "status": "sent",
+    "ts": 1795535961063,
+    "type": "text"
+  }
+]

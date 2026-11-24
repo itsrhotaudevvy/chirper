@@ -1,0 +1,21 @@
+{
+  "body": "Hi! This is a demo chat.",
+  "edited": false,
+  "error": "",
+  "eventId": "$demo.78a8b82f2d655ffd76326e0dcf725420",
+  "formattedBody": "",
+  "fromMe": false,
+  "live": false,
+  "media": null,
+  "order": 1768467600000000,
+  "reactions": [],
+  "redacted": false,
+  "replyTo": null,
+  "roomId": "!demo.6786da43034859b5eb223d4d34e9e62d:chirper.local",
+  "sender": "@demo_alice:chirper.local",
+  "senderAvatar": "",
+  "senderName": "Alice",
+  "status": "sent",
+  "ts": 1768467600000,
+  "type": "text"
+}

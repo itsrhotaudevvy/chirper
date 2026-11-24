@@ -1,0 +1,56 @@
+[
+  {
+    "archived": false,
+    "avatarUrl": "",
+    "isChannel": false,
+    "isDm": true,
+    "isGroup": false,
+    "isSpace": false,
+    "lastActivity": 1768467840000,
+    "loginId": "demo-golden",
+    "memberCount": 3,
+    "mentionCount": 0,
+    "mutedUntil": 0,
+    "name": "Alice",
+    "network": "demo",
+    "parentId": "",
+    "pinned": false,
+    "preview": {
+      "body": "Thanks!",
+      "sender": "Alice",
+      "type": "text"
+    },
+    "roomId": "!demo.6786da43034859b5eb223d4d34e9e62d:chirper.local",
+    "serverName": "",
+    "topic": "",
+    "typing": [],
+    "unreadCount": 0
+  },
+  {
+    "archived": false,
+    "avatarUrl": "",
+    "isChannel": false,
+    "isDm": false,
+    "isGroup": true,
+    "isSpace": false,
+    "lastActivity": 1768467840000,
+    "loginId": "demo-golden",
+    "memberCount": 4,
+    "mentionCount": 0,
+    "mutedUntil": 0,
+    "name": "Team",
+    "network": "demo",
+    "parentId": "",
+    "pinned": false,
+    "preview": {
+      "body": "I'll send them tonight.",
+      "sender": "Alice",
+      "type": "text"
+    },
+    "roomId": "!demo.814f390df32129b311484b7bc1efe913:chirper.local",
+    "serverName": "",
+    "topic": "",
+    "typing": [],
+    "unreadCount": 0
+  }
+]
