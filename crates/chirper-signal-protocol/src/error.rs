@@ -161,13 +161,19 @@ impl fmt::Display for Error {
             }
             Error::BadKemKeyType(t) => write!(f, "bad KEM key type <{t:#04x}>"),
             Error::WrongKemKeyType(t, e) => {
-                write!(f, "unexpected KEM key type <{t:#04x}> (expected <{e:#04x}>)")
+                write!(
+                    f,
+                    "unexpected KEM key type <{t:#04x}> (expected <{e:#04x}>)"
+                )
             }
             Error::BadKemKeyLength(t, n) => {
                 write!(f, "bad KEM key length <{n}> for key with type <{t:?}>")
             }
             Error::BadKemCiphertextLength(t, n) => {
-                write!(f, "bad KEM ciphertext length <{n}> for key with type <{t:?}>")
+                write!(
+                    f,
+                    "bad KEM ciphertext length <{n}> for key with type <{t:?}>"
+                )
             }
             Error::Store(e) => write!(f, "{e}"),
         }

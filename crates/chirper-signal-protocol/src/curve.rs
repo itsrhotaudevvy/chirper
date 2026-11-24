@@ -176,7 +176,11 @@ impl PrivateKey {
 
     /// X25519 Diffie-Hellman with `their_key`. Rejects the all-zero output in constant time.
     pub fn calculate_agreement(&self, their_key: &PublicKey) -> Result<Zeroizing<[u8; 32]>> {
-        let shared = Zeroizing::new(MontgomeryPoint(their_key.key).mul_clamped(*self.key).to_bytes());
+        let shared = Zeroizing::new(
+            MontgomeryPoint(their_key.key)
+                .mul_clamped(*self.key)
+                .to_bytes(),
+        );
         if bool::from(shared.ct_eq(&[0u8; AGREEMENT_LENGTH])) {
             return Err(Error::InvalidKeyAgreement);
         }
@@ -374,18 +378,31 @@ mod tests {
     #[test]
     fn test_agreement_kat() {
         // libsignal rust/core/src/curve/curve25519.rs::test_agreement
-        let alice_public = bytes32("1bb75966f2e93a3691dfff942bb2a466a1c08b8d78ca3f4d6df8b8bfa2e4ee28");
-        let alice_private = bytes32("c806439dc9d2c476ffed8f2580c0888d58ab406bf7ae3698879021b96bb4bf59");
-        let bob_public = bytes32("653614993d2b15ee9e5fd3d86ce719ef4ec1daae1886a87b3f5fa9565a27a22f");
-        let bob_private = bytes32("b03b34c33a1c44f225b662d2bf4859b8135411fa7b0386d45fb75dc5b91b4466");
+        let alice_public =
+            bytes32("1bb75966f2e93a3691dfff942bb2a466a1c08b8d78ca3f4d6df8b8bfa2e4ee28");
+        let alice_private =
+            bytes32("c806439dc9d2c476ffed8f2580c0888d58ab406bf7ae3698879021b96bb4bf59");
+        let bob_public =
+            bytes32("653614993d2b15ee9e5fd3d86ce719ef4ec1daae1886a87b3f5fa9565a27a22f");
+        let bob_private =
+            bytes32("b03b34c33a1c44f225b662d2bf4859b8135411fa7b0386d45fb75dc5b91b4466");
         let shared = bytes32("325f239328941ced6e673b86ba41017448e99b649a9c3806c1dd7ca4c477e629");
 
         let alice = PrivateKey::deserialize(&alice_private).unwrap();
         let bob = PrivateKey::deserialize(&bob_private).unwrap();
         assert_eq!(alice.public_key().public_key_bytes(), alice_public);
         assert_eq!(bob.public_key().public_key_bytes(), bob_public);
-        assert_eq!(*alice.calculate_agreement(&PublicKey::from_djb_public_key_bytes(&bob_public).unwrap()).unwrap(), shared);
-        assert_eq!(*bob.calculate_agreement(&PublicKey::from_djb_public_key_bytes(&alice_public).unwrap()).unwrap(), shared);
+        assert_eq!(
+            *alice
+                .calculate_agreement(&PublicKey::from_djb_public_key_bytes(&bob_public).unwrap())
+                .unwrap(),
+            shared
+        );
+        assert_eq!(
+            *bob.calculate_agreement(&PublicKey::from_djb_public_key_bytes(&alice_public).unwrap())
+                .unwrap(),
+            shared
+        );
     }
 
     #[test]
@@ -407,14 +424,20 @@ mod tests {
             "c097248412e58bf05df487968205132794178e367637f5818f81e0e6ce73e865",
         ))
         .unwrap();
-        let identity_public = bytes32("ab7e717d4a163b7d9a1d8071dfe9dcf8cdcd1cea3339b6356be84d887e322c64");
-        let ephemeral_public = hex::decode("05edce9d9c415ca78cb7252e72c2c4a554d3eb29485a0e1d503118d1a82d99fb4a").unwrap();
+        let identity_public =
+            bytes32("ab7e717d4a163b7d9a1d8071dfe9dcf8cdcd1cea3339b6356be84d887e322c64");
+        let ephemeral_public =
+            hex::decode("05edce9d9c415ca78cb7252e72c2c4a554d3eb29485a0e1d503118d1a82d99fb4a")
+                .unwrap();
         let signature = hex::decode(
             "5de88ca9a89b4a115da79109c67c9c7464a3e4180274f1cb8c63c2984e286dfbede82deb9dcd9fae0bfbb821569b3d9001bd8130cd11d486cef047bd60b86e88",
         )
         .unwrap();
 
-        assert_eq!(identity_private.public_key().public_key_bytes(), identity_public);
+        assert_eq!(
+            identity_private.public_key().public_key_bytes(),
+            identity_public
+        );
         let public = PublicKey::from_djb_public_key_bytes(&identity_public).unwrap();
         assert!(public.verify_signature_for_multipart_message(&[&ephemeral_public], &signature));
 

@@ -8,9 +8,7 @@
 use std::fmt;
 
 use libcrux_ml_kem::SHARED_SECRET_SIZE;
-use libcrux_ml_kem::mlkem1024::{
-    MlKem1024Ciphertext, MlKem1024PrivateKey, MlKem1024PublicKey,
-};
+use libcrux_ml_kem::mlkem1024::{MlKem1024Ciphertext, MlKem1024PrivateKey, MlKem1024PublicKey};
 use rand::{CryptoRng, RngCore};
 use zeroize::Zeroizing;
 
@@ -67,6 +65,9 @@ impl TryFrom<u8> for KeyType {
     }
 }
 
+/// The shared secret and the serialized ciphertext produced by [`PublicKey::encapsulate`].
+pub type Encapsulation = (Zeroizing<Vec<u8>>, Box<[u8]>);
+
 /// A KEM public key.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PublicKey {
@@ -118,10 +119,7 @@ impl PublicKey {
     }
 
     /// Encapsulates a fresh shared secret. Returns `(shared_secret, serialized_ciphertext)`.
-    pub fn encapsulate<R: CryptoRng + RngCore>(
-        &self,
-        csprng: &mut R,
-    ) -> Result<(Zeroizing<Vec<u8>>, Box<[u8]>)> {
+    pub fn encapsulate<R: CryptoRng + RngCore>(&self, csprng: &mut R) -> Result<Encapsulation> {
         let mut seed = Zeroizing::new([0u8; ENCAPS_SEED_LENGTH]);
         csprng.fill_bytes(&mut *seed);
         let pk = MlKem1024PublicKey::try_from(&self.data[..])
@@ -176,15 +174,19 @@ impl SecretKey {
 
     /// Recovers the shared secret from a serialized ciphertext.
     pub fn decapsulate(&self, ciphertext: &[u8]) -> Result<Zeroizing<Vec<u8>>> {
-        let (&t, raw) = ciphertext
-            .split_first()
-            .ok_or(Error::NoKeyTypeIdentifier)?;
+        let (&t, raw) = ciphertext.split_first().ok_or(Error::NoKeyTypeIdentifier)?;
         let ct_type = KeyType::try_from(t)?;
         if ct_type != self.key_type {
-            return Err(Error::WrongKemKeyType(ct_type.value(), self.key_type.value()));
+            return Err(Error::WrongKemKeyType(
+                ct_type.value(),
+                self.key_type.value(),
+            ));
         }
         if raw.len() != CIPHERTEXT_LENGTH {
-            return Err(Error::BadKemCiphertextLength(self.key_type, ciphertext.len()));
+            return Err(Error::BadKemCiphertextLength(
+                self.key_type,
+                ciphertext.len(),
+            ));
         }
         let sk = MlKem1024PrivateKey::try_from(&self.data[..])
             .map_err(|_| Error::BadKemKeyLength(self.key_type, self.data.len()))?;
@@ -321,7 +323,10 @@ mod tests {
 
     #[test]
     fn test_rejects_bad_types_and_lengths() {
-        assert!(matches!(PublicKey::deserialize(&[]), Err(Error::NoKeyTypeIdentifier)));
+        assert!(matches!(
+            PublicKey::deserialize(&[]),
+            Err(Error::NoKeyTypeIdentifier)
+        ));
         assert!(matches!(
             PublicKey::deserialize(&with_type(0x07, KYBER_PK)),
             Err(Error::BadKemKeyType(0x07))
