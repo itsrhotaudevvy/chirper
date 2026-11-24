@@ -10,12 +10,15 @@ publish = false
 [dependencies]
 chirper-bridge = { path = "../chirper-bridge" }
 async-trait = "=0.1.92"
+base64 = "=0.23.1"
 log = "=0.4.35"
 percent-encoding = "=2.3.2"
 rand = "=0.8.8"
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
+rsa = "=0.9.10"
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
+sha1 = "=0.10.6"
 tokio = { version = "=1.54.1", features = ["sync", "time", "macros", "rt"] }
 zeroize = "=1.9.2"
 

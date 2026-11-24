@@ -3,6 +3,14 @@
 
 #![forbid(unsafe_code)]
 
+pub mod convert;
+pub mod dgw;
+pub mod ids;
+pub mod ls;
+pub mod page;
+pub mod tasks;
+pub mod transport;
+
 use async_trait::async_trait;
 
 use chirper_bridge::model::{Capabilities, LoginFlow};

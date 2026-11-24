@@ -146,18 +146,7 @@ impl Api {
     /// A request to an absolute URL. The session cookie only goes to the base origin and to
     /// LinkedIn's own hosts, never to a media or upload host.
     pub(crate) fn request_url(&self, method: Method, url: &str) -> RequestBuilder {
-        let builder = self
-            .http
-            .request(method, url)
-            .header("User-Agent", self.user_agent.as_ref())
-            .header("Accept-Language", "en-US,en;q=0.9")
-            .header(
-                "Sec-Ch-Ua",
-                r#""Chromium";v="141", "Google Chrome";v="141", "Not-A.Brand";v="99""#,
-            )
-            .header("Sec-Ch-Ua-Platform", r#""Linux""#)
-            .header("Sec-Ch-Ua-Mobile", "?0")
-            .header("Sec-Ch-Prefers-Color-Scheme", "light");
+        let builder = browser_identity(self.http.request(method, url), &self.user_agent);
         if self.sends_cookies(url) {
             builder.header("Cookie", self.cookies.header())
         } else {
@@ -226,6 +215,20 @@ impl Api {
             .map_err(|e| Error::Internal(format!("encoding a LinkedIn payload: {e}")))?;
         Ok(builder.header("content-type", content_type).body(bytes))
     }
+}
+
+/// The identity headers of the browser the reference impersonates: the user agent and client hints.
+pub(crate) fn browser_identity(builder: RequestBuilder, user_agent: &str) -> RequestBuilder {
+    builder
+        .header("User-Agent", user_agent)
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .header(
+            "Sec-Ch-Ua",
+            r#""Chromium";v="141", "Google Chrome";v="141", "Not-A.Brand";v="99""#,
+        )
+        .header("Sec-Ch-Ua-Platform", r#""Linux""#)
+        .header("Sec-Ch-Ua-Mobile", "?0")
+        .header("Sec-Ch-Prefers-Color-Scheme", "light")
 }
 
 /// The content type of JSON payloads sent as plain text by the reference.

@@ -3,6 +3,20 @@
 
 #![forbid(unsafe_code)]
 
+mod api;
+mod auth;
+mod convert;
+mod crypto;
+mod emoji;
+mod gaia;
+mod ids;
+mod link;
+mod media;
+mod pair;
+mod pblite;
+mod proto;
+mod wire;
+
 use async_trait::async_trait;
 
 use chirper_bridge::model::{Capabilities, LoginFlow};

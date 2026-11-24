@@ -1,7 +1,7 @@
 //! LinkedIn driver for Chirper's unified bridge runtime.
 //!
 //! Messaging over LinkedIn's own web API, as the reference's `linkedingo` client does it: a
-//! cookie login, the chat list, the realtime event stream (server-sent events with a heartbeat),
+//! cookie login or a password login, the chat list, the realtime event stream (server-sent events with a heartbeat),
 //! sends, edits, recalls, reactions, read state, typing and backfill. There is no bridge library
 //! and no Matrix type in this crate; ids match the Go bridge's.
 
@@ -75,17 +75,25 @@ impl Network for LinkedIn {
     }
 
     fn login_flows(&self) -> Vec<LoginFlow> {
-        vec![LoginFlow {
-            id: login::FLOW_COOKIES.to_owned(),
-            name: "Cookies".to_owned(),
-            description: "Sign in to linkedin.com and let Chirper read the session cookies."
-                .to_owned(),
-        }]
+        vec![
+            LoginFlow {
+                id: login::FLOW_COOKIES.to_owned(),
+                name: "Cookies".to_owned(),
+                description: "Sign in to linkedin.com and let Chirper read the session cookies."
+                    .to_owned(),
+            },
+            LoginFlow {
+                id: login::FLOW_PASSWORD.to_owned(),
+                name: "Email and password".to_owned(),
+                description: "Log in using your email/phone and password".to_owned(),
+            },
+        ]
     }
 
     async fn start_login(&self, flow_id: &str, ctx: LoginCtx) -> Result<Box<dyn LoginProcess>> {
         match flow_id {
             login::FLOW_COOKIES => Ok(Box::new(login::CookieLogin::new(ctx, &self.base))),
+            login::FLOW_PASSWORD => Ok(Box::new(login::PasswordLogin::new(ctx, &self.base))),
             _ => Err(Error::Unsupported("this login flow")),
         }
     }
