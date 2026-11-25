@@ -87,6 +87,14 @@ impl Node {
     }
 
     /// The JID of an attribute, if it holds one.
+    /// The JID of an attribute, whether the decoder made it a JID token or left it as text.
+    pub fn jid_or_text(&self, key: &str) -> Option<Jid> {
+        match self.attrs.get(key)? {
+            NodeValue::Jid(jid) => Some(jid.clone()),
+            NodeValue::String(text) => text.parse().ok(),
+        }
+    }
+
     pub fn get_jid(&self, key: &str) -> Option<&Jid> {
         match self.attrs.get(key)? {
             NodeValue::Jid(jid) => Some(jid),

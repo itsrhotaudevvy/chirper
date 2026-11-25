@@ -1,43 +1,63 @@
 //! The WhatsApp driver for Chirper's unified bridge runtime: our own multi-device client.
 //!
-//! Phase one covers the transport and linking: the Noise XX handshake over the WebSocket, the
-//! binary node codec, and the QR login that links a device. Messaging, the Signal protocol, media
-//! and history sync come next, so the network is still listed as unavailable.
+//! Layers, bottom up: the Noise handshake and binary node codec ([`noise`], [`binary`]), the
+//! protobuf messages ([`proto`]), the Signal protocol from `chirper-signal-protocol` behind
+//! [`store`], pairing by QR code ([`pair`]) or by pairing code ([`pair_code`], via [`login`]), and
+//! the live [`session`] with its receive ([`receive`]), send ([`send`]), media ([`media`]), app
+//! state ([`appstate`]) and history ([`history`]) paths. Remote ids follow the Go bridge exactly
+//! ([`ids`]), so the history the Go build stored stays reachable.
+//!
+//! Nothing here touches the network except through [`socket::Connection`] and the media HTTP
+//! client. Tests run the login and session against an in-memory [`transport::Wire`].
 
 #![forbid(unsafe_code)]
 
+pub mod appstate;
 pub mod binary;
+pub mod convert;
+pub mod crypto;
+pub mod history;
+pub mod ids;
 pub mod keys;
+pub mod login;
+pub mod media;
 pub mod noise;
 pub mod pair;
+pub mod pair_code;
 pub mod payload;
 pub mod proto;
+pub mod receive;
+pub mod send;
+pub mod session;
 pub mod socket;
+pub mod store;
+pub mod transport;
 pub mod version;
 pub mod xeddsa;
 
-use std::collections::VecDeque;
-
 use async_trait::async_trait;
 use prost::Message;
-use tokio::time::{Duration, Instant};
 
 use chirper_bridge::model::{Capabilities, LoginFlow, LoginStep};
 use chirper_bridge::network::LoginInput;
 use chirper_bridge::{Error, LoginCtx, LoginProcess, Network, Result, Session};
 
-use crate::binary::Node;
 use crate::keys::DeviceKeys;
+use crate::login::{PHONE_STEP, Pairing, QR_STEP};
+use crate::session::Client;
 use crate::socket::{Connection, WS_URL};
 
 /// The network id used in settings, account ids and every stored row. Never changes.
 pub const NETWORK_ID: &str = "whatsapp";
 
-/// The one login flow: link a device by scanning a QR code with the phone.
-const QR_FLOW: &str = "qr";
+/// The QR login flow id.
+pub const QR_FLOW: &str = "qr";
 
-/// How long the server has to accept a login after pairing.
-const LOGIN_TIMEOUT: Duration = Duration::from_secs(30);
+/// The pairing-code login flow id.
+pub const PHONE_FLOW: &str = "phone";
+
+/// Why the driver is not usable yet. `None` once login, receive and send are covered by tests.
+const UNAVAILABLE: Option<&str> = None;
 
 /// The WhatsApp driver.
 #[derive(Debug, Default, Clone)]
@@ -64,238 +84,88 @@ impl Network for WhatsApp {
     }
 
     fn capabilities(&self) -> Capabilities {
-        Capabilities::default()
+        session::capabilities()
     }
 
     fn login_flows(&self) -> Vec<LoginFlow> {
-        vec![LoginFlow {
-            id: QR_FLOW.to_owned(),
-            name: "QR code".to_owned(),
-            description: "On your phone: WhatsApp → Settings → Linked devices → Link a device."
-                .to_owned(),
-        }]
+        vec![
+            LoginFlow {
+                id: QR_FLOW.to_owned(),
+                name: "QR code".to_owned(),
+                description: "On your phone: WhatsApp → Settings → Linked devices → Link a device."
+                    .to_owned(),
+            },
+            LoginFlow {
+                id: PHONE_FLOW.to_owned(),
+                name: "Phone number".to_owned(),
+                description:
+                    "On your phone: WhatsApp → Settings → Linked devices → Link with phone number."
+                        .to_owned(),
+            },
+        ]
     }
 
     fn unavailable(&self) -> Option<String> {
-        Some("WhatsApp messaging lands in the next phase".to_owned())
+        UNAVAILABLE.map(str::to_owned)
     }
 
     async fn start_login(&self, flow_id: &str, ctx: LoginCtx) -> Result<Box<dyn LoginProcess>> {
-        if flow_id != QR_FLOW {
-            return Err(Error::Unsupported("this login flow"));
-        }
-        let version = version::fetch(&chirper_bridge::http_client()).await?;
-        Ok(Box::new(QrLogin {
-            ctx,
-            keys: DeviceKeys::generate()?,
-            version,
-            connection: None,
-            refs: VecDeque::new(),
-            current: None,
+        let version = version::fetch(&ctx.http).await?;
+        let keys = DeviceKeys::generate()?;
+        let pairing = match flow_id {
+            QR_FLOW => Pairing::qr(ctx, keys, version),
+            PHONE_FLOW => Pairing::phone(ctx, keys, version),
+            _ => return Err(Error::Unsupported("this login flow")),
+        };
+        Ok(Box::new(PairingProcess {
+            pairing,
             finished: false,
         }))
     }
 
-    async fn connect(&self, _ctx: LoginCtx) -> Result<Box<dyn Session>> {
-        Err(Error::Unsupported("connecting to WhatsApp"))
+    async fn connect(&self, ctx: LoginCtx) -> Result<Box<dyn Session>> {
+        let record = ctx
+            .get_secret("device")?
+            .ok_or_else(|| Error::Auth("this login has no linked device".to_owned()))?;
+        let keys = DeviceKeys::from_record(&record)?;
+        let version = version::fetch(&ctx.http).await?;
+        let payload = payload::login(&keys, version)?;
+        let wire = Connection::connect(WS_URL, keys.noise.clone(), payload.encode_to_vec()).await?;
+        let client = Client::start(wire, ctx, keys, None).await?;
+        Ok(Box::new(client))
     }
 }
 
-/// The QR login: register a device, show its QR codes until the phone pairs, then log in.
-struct QrLogin {
-    ctx: LoginCtx,
-    keys: DeviceKeys,
-    /// The client version the server accepts, read at the start of the login.
-    version: (u32, u32, u32),
-    connection: Option<Connection>,
-    /// Pairing references the server sent that have not been shown yet.
-    refs: VecDeque<String>,
-    /// The QR code on screen and when it expires. `None` until the first one is shown.
-    current: Option<(String, Instant)>,
+/// One pairing run, driven by the user through the wire steps.
+struct PairingProcess {
+    pairing: Pairing,
     finished: bool,
 }
 
-/// What the QR login waits for next.
-enum Event {
-    Node(Node),
-    /// The QR on screen expired.
-    Rotate,
-}
-
 #[async_trait]
-impl LoginProcess for QrLogin {
-    async fn next(&mut self, _input: LoginInput) -> Result<LoginStep> {
+impl LoginProcess for PairingProcess {
+    async fn next(&mut self, input: LoginInput) -> Result<LoginStep> {
         if self.finished {
             return Err(Error::Protocol("the login already finished".to_owned()));
         }
-        let result = self.advance().await;
-        match &result {
-            Ok(LoginStep::DisplayAndWait { .. }) => {}
-            _ => self.finished = true,
+        let result = self.pairing.advance(input).await;
+        let keeps_going = match &result {
+            Ok(LoginStep::DisplayAndWait { step_id, .. }) => {
+                step_id == QR_STEP || step_id == PHONE_STEP
+            }
+            Ok(LoginStep::UserInput { .. }) => true,
+            _ => false,
+        };
+        if !keeps_going {
+            self.finished = true;
         }
         result
     }
 
     async fn cancel(&mut self) {
         self.finished = true;
-        if let Some(mut connection) = self.connection.take() {
-            connection.close().await;
+        if let Some(mut wire) = self.pairing.wire.take() {
+            wire.close().await;
         }
-    }
-}
-
-impl QrLogin {
-    /// Run until the next thing the user must see, or until the login completes.
-    async fn advance(&mut self) -> Result<LoginStep> {
-        if self.connection.is_none() {
-            let payload = payload::registration(&self.keys, self.version)?;
-            let connection =
-                Connection::connect(WS_URL, self.keys.noise.clone(), payload.encode_to_vec())
-                    .await?;
-            self.connection = Some(connection);
-        }
-        loop {
-            match self.next_event().await? {
-                Event::Rotate => return self.rotate(),
-                Event::Node(node) => {
-                    if let Some(step) = self.handle(&node).await? {
-                        return Ok(step);
-                    }
-                }
-            }
-        }
-    }
-
-    /// The next node from the server, or the expiry of the QR on screen, whichever comes first.
-    async fn next_event(&mut self) -> Result<Event> {
-        let deadline = self.current.as_ref().map(|(_, deadline)| *deadline);
-        let Some(connection) = self.connection.as_mut() else {
-            return Err(Error::NotConnected);
-        };
-        match deadline {
-            None => Ok(Event::Node(connection.next_node().await?)),
-            Some(deadline) => tokio::select! {
-                node = connection.next_node() => Ok(Event::Node(node?)),
-                _ = tokio::time::sleep_until(deadline) => Ok(Event::Rotate),
-            },
-        }
-    }
-
-    /// Handle one server node. Returns a step when the user must see something now.
-    async fn handle(&mut self, node: &Node) -> Result<Option<LoginStep>> {
-        match node.tag.as_str() {
-            "iq" => {
-                if let Some(pair_device) = node.child("pair-device") {
-                    self.send_ack(node).await?;
-                    self.refs.extend(pair::pairing_refs(pair_device));
-                    if self.current.is_none()
-                        && let Some(reference) = self.refs.pop_front()
-                    {
-                        let step = self.show(&reference, pair::FIRST_QR_TTL);
-                        return Ok(Some(step));
-                    }
-                    return Ok(None);
-                }
-                if node.child("pair-success").is_some() {
-                    return self.finish_pairing(node).await.map(Some);
-                }
-                if node.get_attr("type").as_deref() == Some("get") {
-                    self.send_ack(node).await?;
-                }
-                Ok(None)
-            }
-            "failure" => Err(Error::Auth("the server refused this device".to_owned())),
-            "stream:error" => Err(Error::Network("the server ended the connection".to_owned())),
-            _ => Ok(None),
-        }
-    }
-
-    async fn send_ack(&mut self, iq: &Node) -> Result<()> {
-        let Some(ack) = pair::ack(iq) else {
-            return Ok(());
-        };
-        let Some(connection) = self.connection.as_mut() else {
-            return Err(Error::NotConnected);
-        };
-        connection.send_node(&ack).await
-    }
-
-    /// Show the next pairing reference when the current one expired.
-    fn rotate(&mut self) -> Result<LoginStep> {
-        let reference = self
-            .refs
-            .pop_front()
-            .ok_or_else(|| Error::Auth("the QR code expired".to_owned()))?;
-        Ok(self.show(&reference, pair::QR_TTL))
-    }
-
-    fn show(&mut self, reference: &str, ttl: Duration) -> LoginStep {
-        let code = pair::qr_code(&self.keys, reference);
-        self.current = Some((code.clone(), Instant::now() + ttl));
-        LoginStep::DisplayAndWait {
-            step_id: QR_FLOW.to_owned(),
-            instructions: "Scan this code with WhatsApp on your phone.".to_owned(),
-            kind: "qr".to_owned(),
-            data: code,
-            image_url: String::new(),
-        }
-    }
-
-    /// Verify the phone's `pair-success`, store the device, reconnect with the login payload and
-    /// wait for the server to accept it.
-    async fn finish_pairing(&mut self, iq: &Node) -> Result<LoginStep> {
-        let success = iq
-            .child("pair-success")
-            .ok_or_else(|| Error::Protocol("pairing: no pair-success".to_owned()))?;
-        let mut connection = self.connection.take().ok_or(Error::NotConnected)?;
-        let paired = pair::complete(&mut self.keys, iq, success)?;
-        connection.send_node(&paired.reply).await?;
-        connection.close().await;
-        self.current = None;
-        self.refs.clear();
-        self.ctx.set_secret("device", &self.keys.to_record()?)?;
-
-        let login_payload = payload::login(&self.keys, self.version)?;
-        let mut login = Connection::connect(
-            WS_URL,
-            self.keys.noise.clone(),
-            login_payload.encode_to_vec(),
-        )
-        .await?;
-        let accepted = tokio::time::timeout(LOGIN_TIMEOUT, async {
-            loop {
-                let node = login.next_node().await?;
-                match node.tag.as_str() {
-                    "success" => return Ok(()),
-                    "failure" => {
-                        return Err(Error::Auth(
-                            "the server refused the linked device".to_owned(),
-                        ));
-                    }
-                    "stream:error" => {
-                        return Err(Error::Network("the server ended the login".to_owned()));
-                    }
-                    "iq" if node.get_attr("type").as_deref() == Some("get") => {
-                        if let Some(ack) = pair::ack(&node) {
-                            login.send_node(&ack).await?;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        })
-        .await
-        .map_err(|_| Error::Network("the server did not accept the login in time".to_owned()))?;
-        login.close().await;
-        accepted?;
-
-        let login_id = paired
-            .jid
-            .user
-            .split(['.', ':', '@'])
-            .next()
-            .unwrap_or_default()
-            .to_owned();
-        Ok(LoginStep::Complete { login_id })
     }
 }

@@ -744,7 +744,12 @@ version = "0.2.1"
 dependencies = [
  "async-trait",
  "chirper-bridge",
+ "chrono",
  "log",
+ "percent-encoding",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
  "zeroize",
 ]
@@ -811,10 +816,17 @@ name = "chirper-net-gvoice"
 version = "0.2.1"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "chirper-bridge",
+ "getrandom 0.4.3",
+ "hex",
  "log",
+ "prost",
+ "reqwest",
+ "serde_json",
+ "sha1 0.10.6",
  "tokio",
- "zeroize",
+ "url",
 ]
 
 [[package]]
@@ -824,6 +836,11 @@ dependencies = [
  "async-trait",
  "chirper-bridge",
  "log",
+ "percent-encoding",
+ "rand 0.8.8",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
  "zeroize",
 ]
@@ -856,8 +873,14 @@ version = "0.2.1"
 dependencies = [
  "async-trait",
  "chirper-bridge",
+ "futures-util",
  "log",
+ "percent-encoding",
+ "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
+ "tokio-tungstenite",
  "zeroize",
 ]
 
@@ -879,12 +902,16 @@ version = "0.2.1"
 dependencies = [
  "aes",
  "async-trait",
+ "base64 0.23.1",
  "chirper-bridge",
  "ctr",
  "flate2",
  "getrandom 0.4.3",
  "log",
  "num-bigint",
+ "pbkdf2",
+ "serde",
+ "serde_json",
  "sha1 0.10.6",
  "sha2 0.10.9",
  "subtle",
@@ -917,10 +944,13 @@ dependencies = [
 name = "chirper-net-whatsapp"
 version = "0.2.1"
 dependencies = [
+ "aes",
  "aes-gcm",
  "async-trait",
  "base64 0.23.1",
  "chirper-bridge",
+ "chirper-signal-protocol",
+ "ctr",
  "curve25519-dalek",
  "flate2",
  "futures-util",
@@ -930,11 +960,14 @@ dependencies = [
  "hmac 0.12.1",
  "log",
  "md-5",
+ "pbkdf2",
  "prost",
+ "rand 0.8.8",
  "reqwest",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "subtle",
  "tokio",
  "tokio-tungstenite",
  "x25519-dalek",
@@ -946,7 +979,6 @@ name = "chirper-signal-protocol"
 version = "0.2.1"
 dependencies = [
  "aes",
- "aes-gcm",
  "cbc",
  "ctr",
  "curve25519-dalek",
@@ -956,6 +988,8 @@ dependencies = [
  "libcrux-ml-kem",
  "prost",
  "rand 0.8.8",
+ "serde",
+ "serde_json",
  "sha2 0.10.9",
  "subtle",
  "zeroize",
@@ -4467,6 +4501,7 @@ dependencies = [
  "rustls-platform-verifier",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -4683,6 +4718,12 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+
+[[package]]
+name = "ryu"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "same-file"
@@ -4940,6 +4981,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c187e0a369471c550af028cba56d4f4fa2a489ad28151ae95a4d340a2a8b782"
 dependencies = [
  "serde_core",
+]
+
+[[package]]
+name = "serde_urlencoded"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd"
+dependencies = [
+ "form_urlencoded",
+ "itoa",
+ "ryu",
+ "serde",
 ]
 
 [[package]]

@@ -185,7 +185,7 @@ fn device_jid(success: &Node) -> Result<Jid> {
     let device = success
         .child("device")
         .ok_or_else(|| Error::Protocol("pairing: no device in pair-success".to_owned()))?;
-    match device.get_jid("jid") {
+    match device.jid_or_text("jid") {
         Some(jid) => Ok(jid.clone()),
         None => device
             .get_attr("jid")

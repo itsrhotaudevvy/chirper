@@ -11,6 +11,24 @@
 
 // Protocol data from waproto 0.7.0 (MIT), https://github.com/jlucaso1/whatsapp-rust
 
+pub mod e2e;
+pub mod history;
+pub mod sync;
+
+/// `waCommon.MessageKey`: names one message of a chat. Field numbers from whatsmeow's
+/// `proto/waCommon/WACommon.proto` (Mozilla Public License 2.0).
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MessageKey {
+    #[prost(string, optional, tag = "1")]
+    pub remote_jid: Option<String>,
+    #[prost(bool, optional, tag = "2")]
+    pub from_me: Option<bool>,
+    #[prost(string, optional, tag = "3")]
+    pub id: Option<String>,
+    #[prost(string, optional, tag = "4")]
+    pub participant: Option<String>,
+}
+
 /// `ADVEncryptionType` of the account and device identities.
 pub mod adv_encryption_type {
     pub const E2EE: i32 = 0;
