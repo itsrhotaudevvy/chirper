@@ -209,7 +209,12 @@ fn decode_fields(schema: &Schema, buf: &mut &[u8], ctx: DecodeContext) -> Result
     Ok(msg)
 }
 
-fn read_field(field: &Field, wire: WireType, buf: &mut &[u8], ctx: &DecodeContext) -> Result<Vec<Val>> {
+fn read_field(
+    field: &Field,
+    wire: WireType,
+    buf: &mut &[u8],
+    ctx: &DecodeContext,
+) -> Result<Vec<Val>> {
     let number = field.number;
     let value = match (field.kind, wire) {
         (Kind::Message(sub), WireType::LengthDelimited) => {
@@ -241,7 +246,11 @@ fn read_field(field: &Field, wire: WireType, buf: &mut &[u8], ctx: &DecodeContex
             }
             out
         }
-        _ => return Err(protocol(format!("field {number} has an unexpected wire type"))),
+        _ => {
+            return Err(protocol(format!(
+                "field {number} has an unexpected wire type"
+            )));
+        }
     };
     Ok(value)
 }
@@ -349,7 +358,12 @@ pub fn encode_pblite(schema: &Schema, msg: &Msg) -> Value {
             continue;
         };
         let value = if field.repeated {
-            Value::Array(values.iter().map(|item| pblite_json(field.kind, item)).collect())
+            Value::Array(
+                values
+                    .iter()
+                    .map(|item| pblite_json(field.kind, item))
+                    .collect(),
+            )
         } else {
             pblite_json(field.kind, first)
         };

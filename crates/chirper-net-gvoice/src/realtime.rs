@@ -157,7 +157,9 @@ fn handle_entry(
     emit: &mut (dyn FnMut(Signal) + Send),
 ) -> Result<Next> {
     if is_noop(entry) {
-        channel.ack = wire::decode_pblite(&WEBCHANNEL_NOOP, entry)?.int(1).unsigned_abs();
+        channel.ack = wire::decode_pblite(&WEBCHANNEL_NOOP, entry)?
+            .int(1)
+            .unsigned_abs();
     } else {
         let event: Msg = wire::decode_pblite(&WEBCHANNEL_EVENT, entry)?;
         if is_reconnect(&event) {
@@ -217,7 +219,11 @@ mod tests {
             None => json!([]),
         };
         let data = json!(["1", body]);
-        let alt = if reconnect { json!([true]) } else { Value::Null };
+        let alt = if reconnect {
+            json!([true])
+        } else {
+            Value::Null
+        };
         json!([array_id, [[[data], alt]]])
     }
 
@@ -242,9 +248,14 @@ mod tests {
         };
         let mut failures = 3;
         let mut signals = Vec::new();
-        let next = handle_entry(&json!([42, ["noop"]]), &mut channel, &mut failures, &mut |s| {
-            signals.push(s);
-        })
+        let next = handle_entry(
+            &json!([42, ["noop"]]),
+            &mut channel,
+            &mut failures,
+            &mut |s| {
+                signals.push(s);
+            },
+        )
         .expect("handled");
         assert_eq!(next, Next::Poll);
         assert_eq!(channel.ack, 42);
@@ -266,7 +277,10 @@ mod tests {
         };
         let mut failures = 0;
         let mut signals = Vec::new();
-        handle_entry(&entry, &mut channel, &mut failures, &mut |s| signals.push(s)).expect("handled");
+        handle_entry(&entry, &mut channel, &mut failures, &mut |s| {
+            signals.push(s)
+        })
+        .expect("handled");
         assert_eq!(channel.ack, 5);
         assert_eq!(signals, vec![Signal::NewMessages]);
     }

@@ -80,7 +80,11 @@ impl Account {
         let name = if is_dm {
             member_label(&members[0])
         } else {
-            members.iter().map(member_label).collect::<Vec<_>>().join(", ")
+            members
+                .iter()
+                .map(member_label)
+                .collect::<Vec<_>>()
+                .join(", ")
         };
         ChatMeta {
             portal,
@@ -89,10 +93,16 @@ impl Account {
             avatar_url: String::new(),
             is_dm,
             is_space: false,
-            member_count: i64::try_from(phones.len()).unwrap_or(i64::MAX).saturating_add(1),
+            member_count: i64::try_from(phones.len())
+                .unwrap_or(i64::MAX)
+                .saturating_add(1),
             parent: None,
             parent_name: String::new(),
-            dm_user: if is_dm { members.into_iter().next() } else { None },
+            dm_user: if is_dm {
+                members.into_iter().next()
+            } else {
+                None
+            },
         }
     }
 }
@@ -221,7 +231,11 @@ async fn mms_contents(api: &Api, mms: &Msg) -> Vec<Content> {
     }
     let mut out = Vec::with_capacity(attachments.len());
     for (index, attachment) in attachments.into_iter().enumerate() {
-        let caption = if index == 0 { body.clone() } else { String::new() };
+        let caption = if index == 0 {
+            body.clone()
+        } else {
+            String::new()
+        };
         out.push(attachment_content(api, attachment, caption).await);
     }
     out
@@ -445,8 +459,12 @@ mod tests {
 
     fn offline_api() -> Api {
         let cookies = BTreeMap::from([("SAPISID".to_owned(), "s".to_owned())]);
-        Api::new(reqwest::Client::new(), Hosts::single("http://127.0.0.1:1"), &cookies)
-            .expect("api")
+        Api::new(
+            reqwest::Client::new(),
+            Hosts::single("http://127.0.0.1:1"),
+            &cookies,
+        )
+        .expect("api")
     }
 
     /// A raw message with the given type, coarse type and duration, and no text.
@@ -473,7 +491,10 @@ mod tests {
         let message = Msg::new()
             .add(1, Val::Str("m-1".to_owned()))
             .add(2, Val::Int(1_700_000_000_000))
-            .add(4, Val::Msg(Msg::new().add(2, Val::Str("+15550001".to_owned()))))
+            .add(
+                4,
+                Val::Msg(Msg::new().add(2, Val::Str("+15550001".to_owned()))),
+            )
             .add(5, Val::Int(10))
             .add(10, Val::Str("hello".to_owned()))
             .add(13, Val::Int(5));
@@ -503,7 +524,14 @@ mod tests {
             .add(2, Val::Int(5))
             .add(5, Val::Int(TYPE_SMS_OUT))
             .add(10, Val::Str("sent".to_owned()));
-        let parts = messages(&offline_api(), &account(), &PortalRef::default(), &message, false).await;
+        let parts = messages(
+            &offline_api(),
+            &account(),
+            &PortalRef::default(),
+            &message,
+            false,
+        )
+        .await;
         assert!(parts[0].from_me);
         assert_eq!(parts[0].sender.id, account().me().id);
         assert!(!parts[0].live);
@@ -514,21 +542,35 @@ mod tests {
         assert!(is_outgoing(&Msg::new().add(5, Val::Int(7))));
         assert!(is_outgoing(&Msg::new().add(5, Val::Int(14))));
         assert!(is_outgoing(&Msg::new().add(13, Val::Int(2))));
-        assert!(!is_outgoing(&Msg::new().add(5, Val::Int(10)).add(13, Val::Int(5))));
+        assert!(!is_outgoing(
+            &Msg::new().add(5, Val::Int(10)).add(13, Val::Int(5))
+        ));
     }
 
     #[test]
     fn call_records_read_like_the_reference() {
         let incoming = call_record(TYPE_INCOMING_CALL, COARSE_INCOMING, 65.0);
-        assert_eq!(voice_call(&incoming).as_deref(), Some("Voice call • 1 min and 5 secs"));
+        assert_eq!(
+            voice_call(&incoming).as_deref(),
+            Some("Voice call • 1 min and 5 secs")
+        );
         let cancelled = call_record(TYPE_OUTGOING_CALL_CANCELLED, COARSE_OUTGOING, 0.0);
-        assert_eq!(voice_call(&cancelled).as_deref(), Some("Unanswered voice call"));
+        assert_eq!(
+            voice_call(&cancelled).as_deref(),
+            Some("Unanswered voice call")
+        );
         let recorded = call_record(TYPE_RECORDED_CALL, COARSE_RECORDED, 3.0);
-        assert_eq!(voice_call(&recorded).as_deref(), Some("Recorded voice call • 3 secs"));
+        assert_eq!(
+            voice_call(&recorded).as_deref(),
+            Some("Recorded voice call • 3 secs")
+        );
         let missed = call_record(TYPE_MISSED_CALL, COARSE_MISSED, 0.0);
         assert_eq!(missed_call(&missed).as_deref(), Some("Missed voice call"));
         let voicemail_record = call_record(TYPE_VOICEMAIL, COARSE_VOICEMAIL, 9.0);
-        assert_eq!(voicemail(&voicemail_record).as_deref(), Some("Voicemail • 9 secs"));
+        assert_eq!(
+            voicemail(&voicemail_record).as_deref(),
+            Some("Voicemail • 9 secs")
+        );
     }
 
     #[test]
@@ -539,18 +581,33 @@ mod tests {
             .add(2, token(b"  "))
             .add(2, token(b"there"))
             .add(2, token(&[0xff]));
-        let record = call_record(TYPE_VOICEMAIL, COARSE_VOICEMAIL, 4.0)
-            .add(7, Val::Msg(transcript));
+        let record =
+            call_record(TYPE_VOICEMAIL, COARSE_VOICEMAIL, 4.0).add(7, Val::Msg(transcript));
         assert_eq!(voicemail(&record).as_deref(), Some("Voicemail: hi there"));
     }
 
     #[test]
     fn pblite_message_fixtures_decode_into_the_same_records() {
         let value = json!([
-            "c1", 1, null, [null, "+15550009"], 1, null, null, null, 65.0, null, null, null, 1
+            "c1",
+            1,
+            null,
+            [null, "+15550009"],
+            1,
+            null,
+            null,
+            null,
+            65.0,
+            null,
+            null,
+            null,
+            1
         ]);
         let record = decode_pblite(&MESSAGE, &value).expect("decodes");
-        assert_eq!(voice_call(&record).as_deref(), Some("Voice call • 1 min and 5 secs"));
+        assert_eq!(
+            voice_call(&record).as_deref(),
+            Some("Voice call • 1 min and 5 secs")
+        );
         assert_eq!(sender_number(&record), "+15550009");
         let encoded = STANDARD.encode(b"hi");
         assert_eq!(encoded, "aGk=");
@@ -578,7 +635,10 @@ mod tests {
         assert!(meta.is_dm);
         assert_eq!(meta.name, "Ada");
         assert_eq!(meta.member_count, 2);
-        assert_eq!(meta.dm_user.map(|user| user.id), Some("gvoice_x.+15550001".to_owned()));
+        assert_eq!(
+            meta.dm_user.map(|user| user.id),
+            Some("gvoice_x.+15550001".to_owned())
+        );
 
         let group = raw_thread("6", &["+15550001", "+15550002"], &[], false);
         let meta = account.chat(portal, &group);

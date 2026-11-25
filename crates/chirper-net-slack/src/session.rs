@@ -17,12 +17,12 @@ use tokio::sync::mpsc;
 use chirper_bridge::model::{Ack, BackfillPage, DeliveryStatus, Event, PortalRef, RemoteUser};
 use chirper_bridge::{Command, Error, LoginCtx, Result, Session};
 
+use crate::Endpoints;
 use crate::api::Api;
 use crate::convert::{self, Scope};
 use crate::directory::Directory;
 use crate::ids;
 use crate::rtm::{self, Link, Outgoing};
-use crate::Endpoints;
 
 /// The most messages one backfill page asks for.
 const MAX_PAGE: usize = 200;
@@ -116,7 +116,9 @@ impl SlackSession {
     /// The team and channel of a portal. The workspace itself takes no messages.
     fn channel_of(&self, portal: &PortalRef) -> Result<String> {
         match ids::parse_portal_id(&portal.id) {
-            Some((team, channel)) if team == self.team && !channel.is_empty() => Ok(channel.to_owned()),
+            Some((team, channel)) if team == self.team && !channel.is_empty() => {
+                Ok(channel.to_owned())
+            }
             _ => Err(Error::Unsupported("this action in a Slack workspace")),
         }
     }
@@ -130,9 +132,17 @@ impl SlackSession {
         });
     }
 
-    async fn send_text(&mut self, portal: &PortalRef, text: &str, reply_to: Option<&str>, txn_id: String) -> Result<Ack> {
+    async fn send_text(
+        &mut self,
+        portal: &PortalRef,
+        text: &str,
+        reply_to: Option<&str>,
+        txn_id: String,
+    ) -> Result<Ack> {
         let channel = self.channel_of(portal)?;
-        let thread = reply_to.and_then(|id| ids::parse_message_id(id)).map(|(_, _, ts)| ts.to_owned());
+        let thread = reply_to
+            .and_then(|id| ids::parse_message_id(id))
+            .map(|(_, _, ts)| ts.to_owned());
         let posted = self
             .api
             .post_message(&channel, &convert::outgoing_text(text), thread.as_deref())
@@ -149,7 +159,10 @@ impl SlackSession {
             .reply_to
             .and_then(|id| ids::parse_message_id(id))
             .map(|(_, _, ts)| ts.to_owned());
-        let reserved = self.api.upload_url(upload.file_name, upload.data.len()).await?;
+        let reserved = self
+            .api
+            .upload_url(upload.file_name, upload.data.len())
+            .await?;
         self.api
             .put_upload(&reserved.upload_url, upload.mime, upload.data)
             .await?;
@@ -167,7 +180,13 @@ impl SlackSession {
             .files
             .iter()
             .filter_map(|file| file.shares.as_ref())
-            .flat_map(|shares| shares.public.get(&channel).into_iter().chain(shares.private.get(&channel)))
+            .flat_map(|shares| {
+                shares
+                    .public
+                    .get(&channel)
+                    .into_iter()
+                    .chain(shares.private.get(&channel))
+            })
             .flatten()
             .map(|share| share.ts.clone())
             .find(|ts| !ts.is_empty());
@@ -232,7 +251,10 @@ impl Session for SlackSession {
                 text,
                 reply_to,
                 txn_id,
-            } => self.send_text(&portal, &text, reply_to.as_deref(), txn_id).await,
+            } => {
+                self.send_text(&portal, &text, reply_to.as_deref(), txn_id)
+                    .await
+            }
             Command::SendMedia {
                 portal,
                 data,
@@ -253,7 +275,11 @@ impl Session for SlackSession {
                 };
                 self.send_media(&portal, upload).await
             }
-            Command::Edit { portal, target, text } => {
+            Command::Edit {
+                portal,
+                target,
+                text,
+            } => {
                 let channel = self.channel_of(&portal)?;
                 self.api
                     .update_message(&channel, ts_of(&target)?, &convert::outgoing_text(&text))
@@ -265,18 +291,30 @@ impl Session for SlackSession {
                 self.api.delete_message(&channel, ts_of(&target)?).await?;
                 Ok(Ack::default())
             }
-            Command::React { portal, target, key } => {
+            Command::React {
+                portal,
+                target,
+                key,
+            } => {
                 let channel = self.channel_of(&portal)?;
                 let name = convert::reaction_name(&key)
                     .ok_or(Error::Unsupported("this emoji on Slack"))?;
-                self.api.reaction(true, &name, &channel, ts_of(&target)?).await?;
+                self.api
+                    .reaction(true, &name, &channel, ts_of(&target)?)
+                    .await?;
                 Ok(Ack::default())
             }
-            Command::Unreact { portal, target, key } => {
+            Command::Unreact {
+                portal,
+                target,
+                key,
+            } => {
                 let channel = self.channel_of(&portal)?;
                 let name = convert::reaction_name(&key)
                     .ok_or(Error::Unsupported("this emoji on Slack"))?;
-                self.api.reaction(false, &name, &channel, ts_of(&target)?).await?;
+                self.api
+                    .reaction(false, &name, &channel, ts_of(&target)?)
+                    .await?;
                 Ok(Ack::default())
             }
             Command::Read { portal, event } => {
@@ -303,7 +341,12 @@ impl Session for SlackSession {
         }
     }
 
-    async fn backfill(&mut self, portal: &PortalRef, cursor: Option<String>, limit: usize) -> Result<BackfillPage> {
+    async fn backfill(
+        &mut self,
+        portal: &PortalRef,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<BackfillPage> {
         let channel = self.channel_of(portal)?;
         let limit = limit.clamp(1, MAX_PAGE);
         let page = self.api.history(&channel, cursor.as_deref(), limit).await?;
@@ -312,7 +355,12 @@ impl Session for SlackSession {
         let oldest = page.messages.last().map(|message| message.ts.clone());
         let full = page.messages.len() >= limit;
         let mut messages = Vec::new();
-        for message in page.messages.iter().rev().filter(|message| backfillable(message)) {
+        for message in page
+            .messages
+            .iter()
+            .rev()
+            .filter(|message| backfillable(message))
+        {
             let parts = convert::messages(&self.api, &self.scope(), &channel, message, false).await;
             messages.extend(parts);
         }
@@ -340,7 +388,10 @@ mod tests {
 
     #[test]
     fn message_ids_need_a_timestamp() {
-        assert_eq!(message_id_if("T1", "C1", "1.2").as_deref(), Some("T1-C1-1.2"));
+        assert_eq!(
+            message_id_if("T1", "C1", "1.2").as_deref(),
+            Some("T1-C1-1.2")
+        );
         assert_eq!(message_id_if("T1", "C1", ""), None);
     }
 

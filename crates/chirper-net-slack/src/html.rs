@@ -110,7 +110,10 @@ mod tests {
 
     #[test]
     fn decode_keeps_unknown_ampersands() {
-        assert_eq!(decode_entities("fish &amp; chips &copy; &"), "fish & chips &copy; &");
+        assert_eq!(
+            decode_entities("fish &amp; chips &copy; &"),
+            "fish & chips &copy; &"
+        );
     }
 
     #[test]

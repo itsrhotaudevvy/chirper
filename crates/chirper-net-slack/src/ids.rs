@@ -43,7 +43,11 @@ pub fn parse_message_id(id: &str) -> Option<(&str, &str, &str)> {
 
 /// The sender id of a Slack user or bot: the team and the id, both lower case.
 pub fn user_id(team: &str, user: &str) -> String {
-    format!("{}-{}", team.to_ascii_lowercase(), user.to_ascii_lowercase())
+    format!(
+        "{}-{}",
+        team.to_ascii_lowercase(),
+        user.to_ascii_lowercase()
+    )
 }
 
 /// The login id of a Slack account: team and user, as they are written.

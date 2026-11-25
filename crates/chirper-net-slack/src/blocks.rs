@@ -52,10 +52,7 @@ fn list(list: &Value, names: &dyn Lookup) -> String {
             } else {
                 "• ".to_owned()
             };
-            format!(
-                "{indentation}{marker}{}",
-                section(&elements(item), names)
-            )
+            format!("{indentation}{marker}{}", section(&elements(item), names))
         })
         .collect::<Vec<_>>()
         .join("<br>")
@@ -74,7 +71,12 @@ fn section(inline: &[Value], names: &dyn Lookup) -> String {
 
 fn inline_html(element: &Value, names: &dyn Lookup) -> String {
     match kind(element) {
-        "text" => text(element.get("text").and_then(Value::as_str).unwrap_or_default()),
+        "text" => text(
+            element
+                .get("text")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+        ),
         "link" => {
             let url = field(element, "url");
             let label = element
@@ -86,17 +88,26 @@ fn inline_html(element: &Value, names: &dyn Lookup) -> String {
         }
         "user" => {
             let id = field(element, "user_id");
-            format!("@{}", escape(&names.user_name(id).unwrap_or_else(|| id.to_owned())))
+            format!(
+                "@{}",
+                escape(&names.user_name(id).unwrap_or_else(|| id.to_owned()))
+            )
         }
         "channel" => {
             let id = field(element, "channel_id");
-            format!("#{}", escape(&names.channel_name(id).unwrap_or_else(|| id.to_owned())))
+            format!(
+                "#{}",
+                escape(&names.channel_name(id).unwrap_or_else(|| id.to_owned()))
+            )
         }
         "usergroup" => format!("@{}", escape(field(element, "usergroup_id"))),
         "broadcast" => format!("@{}", escape(field(element, "range"))),
         "emoji" => emoji_html(element),
         "date" => {
-            let timestamp = element.get("timestamp").and_then(Value::as_i64).unwrap_or(0);
+            let timestamp = element
+                .get("timestamp")
+                .and_then(Value::as_i64)
+                .unwrap_or(0);
             let fallback = field(element, "fallback");
             if fallback.is_empty() {
                 escape(&format_timestamp(timestamp))
@@ -115,11 +126,7 @@ fn emoji_html(element: &Value) -> String {
     if let Some(unicode) = element.get("unicode").and_then(Value::as_str) {
         let decoded: Option<String> = unicode
             .split('-')
-            .map(|code| {
-                u32::from_str_radix(code, 16)
-                    .ok()
-                    .and_then(char::from_u32)
-            })
+            .map(|code| u32::from_str_radix(code, 16).ok().and_then(char::from_u32))
             .collect();
         if let Some(decoded) = decoded {
             return decoded;
@@ -145,7 +152,12 @@ fn wrap(html: &str, style: Option<&Value>) -> String {
             .unwrap_or(false)
     };
     let mut out = html.to_owned();
-    for (name, tag) in [("code", "code"), ("strike", "s"), ("italic", "i"), ("bold", "b")] {
+    for (name, tag) in [
+        ("code", "code"),
+        ("strike", "s"),
+        ("italic", "i"),
+        ("bold", "b"),
+    ] {
         if flag(name) {
             out = format!("<{tag}>{out}</{tag}>");
         }
@@ -154,7 +166,10 @@ fn wrap(html: &str, style: Option<&Value>) -> String {
 }
 
 fn kind(value: &Value) -> &str {
-    value.get("type").and_then(Value::as_str).unwrap_or_default()
+    value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
 }
 
 fn elements(value: &Value) -> Vec<Value> {
@@ -229,9 +244,7 @@ mod tests {
         })];
         assert_eq!(
             to_html(&blocks, &names()).as_deref(),
-            Some(
-                "1. one<br>2. two<br><blockquote>q</blockquote><br><pre>x<br>y</pre>"
-            )
+            Some("1. one<br>2. two<br><blockquote>q</blockquote><br><pre>x<br>y</pre>")
         );
     }
 
@@ -243,10 +256,7 @@ mod tests {
                 {"type": "emoji", "name": "partyparrot"}
             ]}]
         })];
-        assert_eq!(
-            to_html(&blocks, &names()).as_deref(),
-            Some(":partyparrot:")
-        );
+        assert_eq!(to_html(&blocks, &names()).as_deref(), Some(":partyparrot:"));
     }
 
     #[test]

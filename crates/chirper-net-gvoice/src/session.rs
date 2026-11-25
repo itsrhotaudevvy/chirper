@@ -12,10 +12,12 @@ use std::time::Duration;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
-use chirper_bridge::model::{Ack, BackfillPage, DeliveryStatus, Event, PortalRef, RemoteMessage, RemoteUser, SessionState};
+use chirper_bridge::model::{
+    Ack, BackfillPage, DeliveryStatus, Event, PortalRef, RemoteMessage, RemoteUser, SessionState,
+};
 use chirper_bridge::{Command, Error, Result, Session};
 
-use crate::api::{Api};
+use crate::api::Api;
 use crate::convert::{self, Account};
 use crate::realtime::{self, Signal};
 use crate::wire::Msg;
@@ -147,7 +149,9 @@ impl Sync {
             if previous.is_some_and(|seen| timestamp <= seen) {
                 continue;
             }
-            for part in convert::messages(&self.api, &self.account, &portal, message, self.live).await {
+            for part in
+                convert::messages(&self.api, &self.account, &portal, message, self.live).await
+            {
                 self.emit(Event::Message(part));
             }
             newest = Some(newest.map_or(timestamp, |seen| seen.max(timestamp)));
@@ -285,7 +289,10 @@ impl Session for GVoiceSession {
         let mut newest_first: Vec<Msg> = Vec::new();
         let mut pages = 0usize;
         loop {
-            let thread = self.api.get_thread(&portal.id, HISTORY_PAGE, &token).await?;
+            let thread = self
+                .api
+                .get_thread(&portal.id, HISTORY_PAGE, &token)
+                .await?;
             newest_first.extend(thread.messages(3).cloned());
             token = thread.string(4);
             pages += 1;
@@ -363,7 +370,10 @@ mod tests {
 
     #[test]
     fn a_reply_is_refused_because_the_network_has_none() {
-        assert!(matches!(refuse_reply(Some("m")), Err(Error::Unsupported("replies"))));
+        assert!(matches!(
+            refuse_reply(Some("m")),
+            Err(Error::Unsupported("replies"))
+        ));
         assert!(refuse_reply(None).is_ok());
     }
 

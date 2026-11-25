@@ -219,9 +219,9 @@ fn pair_marks(items: &mut [Item]) {
             continue;
         };
         if can_close {
-            let found = openers.iter().rposition(|&opener| {
-                matches!(items[opener], Item::Mark { ch: open_ch, .. } if open_ch == ch)
-            });
+            let found = openers.iter().rposition(
+                |&opener| matches!(items[opener], Item::Mark { ch: open_ch, .. } if open_ch == ch),
+            );
             if let Some(position) = found {
                 let opener = openers[position];
                 openers.truncate(position);
@@ -268,11 +268,17 @@ fn tag(inner: &str, names: &dyn Lookup) -> Option<String> {
     };
     let label = label.filter(|label| !label.is_empty());
     if let Some(id) = head.strip_prefix('@') {
-        let name = names.user_name(id).or(label).unwrap_or_else(|| id.to_owned());
+        let name = names
+            .user_name(id)
+            .or(label)
+            .unwrap_or_else(|| id.to_owned());
         return Some(escape(&format!("@{name}")));
     }
     if let Some(id) = head.strip_prefix('#') {
-        let name = names.channel_name(id).or(label).unwrap_or_else(|| id.to_owned());
+        let name = names
+            .channel_name(id)
+            .or(label)
+            .unwrap_or_else(|| id.to_owned());
         return Some(escape(&format!("#{name}")));
     }
     if let Some(special) = head.strip_prefix('!') {
@@ -283,7 +289,11 @@ fn tag(inner: &str, names: &dyn Lookup) -> Option<String> {
     }
     let url = decode_entities(head);
     let text = label.unwrap_or_else(|| url.clone());
-    Some(format!("<a href=\"{}\">{}</a>", escape(&url), escape(&text)))
+    Some(format!(
+        "<a href=\"{}\">{}</a>",
+        escape(&url),
+        escape(&text)
+    ))
 }
 
 /// The text of a `<!…>` token: a broadcast, a user group or a date.

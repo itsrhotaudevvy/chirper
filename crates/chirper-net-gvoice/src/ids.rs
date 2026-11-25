@@ -56,16 +56,31 @@ mod tests {
 
     #[test]
     fn a_group_or_text_thread_keeps_its_id() {
-        assert_eq!(portal_id("1234567", &phones(&["+15550001", "+15550002"]), false), "1234567");
-        assert_eq!(portal_id("1234567", &phones(&["+15550001"]), true), "1234567");
+        assert_eq!(
+            portal_id("1234567", &phones(&["+15550001", "+15550002"]), false),
+            "1234567"
+        );
+        assert_eq!(
+            portal_id("1234567", &phones(&["+15550001"]), true),
+            "1234567"
+        );
     }
 
     #[test]
     fn a_call_thread_joins_the_peer_portal() {
-        assert_eq!(portal_id("1234567", &phones(&["+15550001"]), false), "t.+15550001");
+        assert_eq!(
+            portal_id("1234567", &phones(&["+15550001"]), false),
+            "t.+15550001"
+        );
         // Already a call thread, or a number without a plus sign: the id stays.
-        assert_eq!(portal_id("t.+15550001", &phones(&["+15550001"]), false), "t.+15550001");
-        assert_eq!(portal_id("1234567", &phones(&["15550001"]), false), "1234567");
+        assert_eq!(
+            portal_id("t.+15550001", &phones(&["+15550001"]), false),
+            "t.+15550001"
+        );
+        assert_eq!(
+            portal_id("1234567", &phones(&["15550001"]), false),
+            "1234567"
+        );
         assert_eq!(portal_id("1234567", &[], false), "1234567");
     }
 

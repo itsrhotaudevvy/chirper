@@ -99,7 +99,8 @@ impl LoginProcess for CookieLogin {
         let api = Api::new(self.ctx.http.clone(), self.hosts.clone(), &cookies)?;
         let account = api.get_account().await?;
         let e164 = primary_number(&account)?;
-        let stored = serde_json::to_vec(&cookies).map_err(|err| Error::Internal(err.to_string()))?;
+        let stored =
+            serde_json::to_vec(&cookies).map_err(|err| Error::Internal(err.to_string()))?;
         self.ctx.set_secret(COOKIES_SECRET, &stored)?;
         self.done = true;
         Ok(LoginStep::Complete {
@@ -168,16 +169,28 @@ mod tests {
 
     #[test]
     fn the_step_lists_every_reference_cookie_with_its_domain() {
-        let LoginStep::Cookies { step_id, fields, url, .. } = cookie_step() else {
+        let LoginStep::Cookies {
+            step_id,
+            fields,
+            url,
+            ..
+        } = cookie_step()
+        else {
             panic!("the cookie flow starts with a cookie step");
         };
         assert_eq!(step_id, "fi.mau.gvoice.cookies");
         assert_eq!(url, "https://voice.google.com/");
         assert_eq!(fields.len(), 8);
-        let sapisid = fields.iter().find(|field| field.id == "SAPISID").expect("SAPISID");
+        let sapisid = fields
+            .iter()
+            .find(|field| field.id == "SAPISID")
+            .expect("SAPISID");
         assert!(sapisid.required);
         assert_eq!(sapisid.sources[0].cookie_domain, ".google.com");
-        let osid = fields.iter().find(|field| field.id == "OSID").expect("OSID");
+        let osid = fields
+            .iter()
+            .find(|field| field.id == "OSID")
+            .expect("OSID");
         assert!(!osid.required);
         assert_eq!(osid.sources[0].cookie_domain, "voice.google.com");
     }
@@ -211,10 +224,14 @@ mod tests {
         let primary = decode_pblite(&ACCOUNT, &json!(["+15550001"])).expect("account");
         assert_eq!(primary_number(&primary).expect("number"), "+15550001");
 
-        let with_voice = json!(["", null, [
-            phone("+15559999", 2),
-            phone("+15550002", BRANDING_GOOGLE_VOICE)
-        ]]);
+        let with_voice = json!([
+            "",
+            null,
+            [
+                phone("+15559999", 2),
+                phone("+15550002", BRANDING_GOOGLE_VOICE)
+            ]
+        ]);
         let account = decode_pblite(&ACCOUNT, &with_voice).expect("account");
         assert_eq!(primary_number(&account).expect("number"), "+15550002");
 

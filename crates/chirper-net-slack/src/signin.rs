@@ -128,7 +128,11 @@ impl Signin {
     /// `signup.checkEmail`: whether Slack wants a CAPTCHA before it sends a code.
     pub async fn check_email(&self, email: &str) -> SigninResult<bool> {
         let value = self
-            .post("signup.checkEmail", None, &[("email", email), ("get_info", "undefined")])
+            .post(
+                "signup.checkEmail",
+                None,
+                &[("email", email), ("get_info", "undefined")],
+            )
             .await?;
         Ok(parse::<Checked>(value)?.challenge_response)
     }
@@ -148,18 +152,28 @@ impl Signin {
     /// `signup.confirmEmail`: asks Slack to send the confirmation code, with the CAPTCHA answer if
     /// one was required.
     pub async fn confirm_email(&self, email: &str, captcha: Option<&str>) -> SigninResult<()> {
-        let mut fields = vec![("email", email), ("locale", "en-US"), ("entry_point", "signin")];
+        let mut fields = vec![
+            ("email", email),
+            ("locale", "en-US"),
+            ("entry_point", "signin"),
+        ];
         if let Some(answer) = captcha {
             fields.push(("captcha_response", answer));
         }
-        self.post("signup.confirmEmail", None, &fields).await.map(|_| ())
+        self.post("signup.confirmEmail", None, &fields)
+            .await
+            .map(|_| ())
     }
 
     /// `signin.confirmCode`: checks the confirmation code. The code has no dashes.
     pub async fn confirm_code(&self, email: &str, code: &str) -> SigninResult<()> {
-        self.post("signin.confirmCode", None, &[("email", email), ("code", code)])
-            .await
-            .map(|_| ())
+        self.post(
+            "signin.confirmCode",
+            None,
+            &[("email", email), ("code", code)],
+        )
+        .await
+        .map(|_| ())
     }
 
     /// `signin.findWorkspaces`: every workspace the confirmed address can sign in to.
@@ -224,10 +238,18 @@ impl Signin {
     }
 
     /// Finish the two-factor challenge with the six-digit code.
-    pub async fn submit_two_factor(&self, workspace: &Workspace, code: &str) -> SigninResult<(String, String)> {
-        let token = self.native_login(&workspace.magic_login_code, Some(code)).await?;
+    pub async fn submit_two_factor(
+        &self,
+        workspace: &Workspace,
+        code: &str,
+    ) -> SigninResult<(String, String)> {
+        let token = self
+            .native_login(&workspace.magic_login_code, Some(code))
+            .await?;
         if token.is_empty() {
-            return Err(SigninError::Malformed("no token after two-factor".to_owned()));
+            return Err(SigninError::Malformed(
+                "no token after two-factor".to_owned(),
+            ));
         }
         let cookie = self
             .cookie_value()
@@ -246,7 +268,11 @@ impl Signin {
         if workspace_id.is_empty() {
             return String::new();
         }
-        format!("{}/client/{}", self.app, utf8_percent_encode(workspace_id, NON_ALPHANUMERIC))
+        format!(
+            "{}/client/{}",
+            self.app,
+            utf8_percent_encode(workspace_id, NON_ALPHANUMERIC)
+        )
     }
 
     /// `auth.loginMagicBulk` on the app host. Returns the answer's text and the client URL it names.
@@ -293,7 +319,11 @@ impl Signin {
     }
 
     /// `/auth?app=client` on the app host: the token of a workspace the browser session can open.
-    async fn fetch_auth_token(&self, workspace: &Workspace, return_to: &str) -> SigninResult<String> {
+    async fn fetch_auth_token(
+        &self,
+        workspace: &Workspace,
+        return_to: &str,
+    ) -> SigninResult<String> {
         let path = reqwest::Url::parse(return_to)
             .map(|url| match url.query() {
                 Some(query) => format!("{}?{query}", url.path()),
@@ -394,7 +424,14 @@ impl Signin {
                 .and_then(Value::as_str)
                 .filter(|code| !code.is_empty())
                 .map_or_else(
-                    || if status == 429 { "ratelimited" } else { "unknown" }.to_owned(),
+                    || {
+                        if status == 429 {
+                            "ratelimited"
+                        } else {
+                            "unknown"
+                        }
+                        .to_owned()
+                    },
                     str::to_owned,
                 );
             return Err(SigninError::Refused { method, code });
@@ -513,7 +550,10 @@ mod tests {
     fn browser_tokens_are_found_in_text() {
         let text = r#"{"token":"xoxc-123-abc_def","x":1}"#;
         assert_eq!(find_auth_token(text).as_deref(), Some("xoxc-123-abc"));
-        assert_eq!(find_auth_token("xoxc- nothing xoxc-9"), Some("xoxc-9".to_owned()));
+        assert_eq!(
+            find_auth_token("xoxc- nothing xoxc-9"),
+            Some("xoxc-9".to_owned())
+        );
         assert_eq!(find_auth_token("no token here"), None);
     }
 
@@ -542,9 +582,16 @@ mod tests {
 
     #[test]
     fn a_set_cookie_is_remembered_raw_and_read_decoded() {
-        let signin = Signin::new(reqwest::Client::new(), "https://slack.com", "https://app.slack.com");
+        let signin = Signin::new(
+            reqwest::Client::new(),
+            "https://slack.com",
+            "https://app.slack.com",
+        );
         let mut headers = HeaderMap::new();
-        headers.append(SET_COOKIE, "d=xoxd-a%2Fb%3D; Path=/; Secure".parse().expect("header"));
+        headers.append(
+            SET_COOKIE,
+            "d=xoxd-a%2Fb%3D; Path=/; Secure".parse().expect("header"),
+        );
         signin.remember_cookie(&headers);
         assert_eq!(signin.cookie_value().as_deref(), Some("xoxd-a/b="));
     }

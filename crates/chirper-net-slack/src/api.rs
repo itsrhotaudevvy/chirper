@@ -14,8 +14,8 @@ use serde_json::{Value, json};
 use chirper_bridge::{Error, Result};
 
 use crate::wire::{
-    AuthTest, Bot, BotInfo, Channel, CompletedUpload, ConversationsList, History,
-    Posted, ReactionsGet, RtmConnect, UploadUrl, User, UserInfo, UsersList,
+    AuthTest, Bot, BotInfo, Channel, CompletedUpload, ConversationsList, History, Posted,
+    ReactionsGet, RtmConnect, UploadUrl, User, UserInfo, UsersList,
 };
 
 /// The Web API root of the public Slack cloud.
@@ -123,7 +123,12 @@ impl Api {
 
     /// One conversation, the newest message first. `latest` is exclusive: the page holds messages
     /// older than it.
-    pub async fn history(&self, channel: &str, latest: Option<&str>, limit: usize) -> Result<History> {
+    pub async fn history(
+        &self,
+        channel: &str,
+        latest: Option<&str>,
+        limit: usize,
+    ) -> Result<History> {
         let limit = limit.clamp(1, 200).to_string();
         let mut params = vec![
             ("channel", channel),
@@ -137,7 +142,12 @@ impl Api {
     }
 
     /// Post a message, optionally into a thread. The answer carries its timestamp.
-    pub async fn post_message(&self, channel: &str, text: &str, thread_ts: Option<&str>) -> Result<Posted> {
+    pub async fn post_message(
+        &self,
+        channel: &str,
+        text: &str,
+        thread_ts: Option<&str>,
+    ) -> Result<Posted> {
         let mut params = vec![
             ("channel", channel),
             ("text", text),
@@ -152,8 +162,11 @@ impl Api {
 
     /// Replace the text of one of the user's messages.
     pub async fn update_message(&self, channel: &str, ts: &str, text: &str) -> Result<()> {
-        self.call_unit("chat.update", &[("channel", channel), ("ts", ts), ("text", text)])
-            .await
+        self.call_unit(
+            "chat.update",
+            &[("channel", channel), ("ts", ts), ("text", text)],
+        )
+        .await
     }
 
     /// Delete one of the user's messages.
@@ -164,9 +177,16 @@ impl Api {
 
     /// Add or remove the user's reaction. `name` is an emoji name without colons.
     pub async fn reaction(&self, add: bool, name: &str, channel: &str, ts: &str) -> Result<()> {
-        let method = if add { "reactions.add" } else { "reactions.remove" };
-        self.call_unit(method, &[("name", name), ("channel", channel), ("timestamp", ts)])
-            .await
+        let method = if add {
+            "reactions.add"
+        } else {
+            "reactions.remove"
+        };
+        self.call_unit(
+            method,
+            &[("name", name), ("channel", channel), ("timestamp", ts)],
+        )
+        .await
     }
 
     /// The reactions of one message, with the users who gave them.
@@ -315,7 +335,10 @@ impl Api {
             debug!("slack: {method} ok");
             return Ok(value);
         }
-        let code = value.get("error").and_then(Value::as_str).unwrap_or("unknown");
+        let code = value
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
         Err(slack_error(code))
     }
 }
@@ -339,10 +362,13 @@ pub fn form_body(pairs: &[(&str, &str)]) -> String {
 /// credentials, so they may appear in the message.
 pub fn slack_error(code: &str) -> Error {
     match code {
-        "invalid_auth" | "not_authed" | "token_revoked" | "token_expired" | "account_inactive"
-        | "team_disabled" | "user_removed_from_team" => {
-            Error::Auth(format!("Slack refused the token ({code})"))
-        }
+        "invalid_auth"
+        | "not_authed"
+        | "token_revoked"
+        | "token_expired"
+        | "account_inactive"
+        | "team_disabled"
+        | "user_removed_from_team" => Error::Auth(format!("Slack refused the token ({code})")),
         "ratelimited" | "rate_limited" => Error::RateLimited {
             retry_after_ms: DEFAULT_RETRY_MS,
         },
@@ -436,7 +462,9 @@ mod tests {
         assert!(matches!(slack_error("token_revoked"), Error::Auth(_)));
         assert!(matches!(
             slack_error("ratelimited"),
-            Error::RateLimited { retry_after_ms: 1000 }
+            Error::RateLimited {
+                retry_after_ms: 1000
+            }
         ));
         assert!(matches!(slack_error("internal_error"), Error::Network(_)));
         assert!(matches!(
@@ -474,7 +502,12 @@ mod tests {
         assert_eq!(retry_after_ms(&headers), 2500);
         assert_eq!(retry_after_ms(&HeaderMap::new()), 1000);
         let err = check_status(StatusCode::TOO_MANY_REQUESTS, &headers).unwrap_err();
-        assert!(matches!(err, Error::RateLimited { retry_after_ms: 2500 }));
+        assert!(matches!(
+            err,
+            Error::RateLimited {
+                retry_after_ms: 2500
+            }
+        ));
     }
 
     #[test]
@@ -483,7 +516,10 @@ mod tests {
         let allowed = |url: &str, schemes: &[&str]| {
             Url::parse(url).is_ok_and(|url| api.is_allowed(&url, schemes))
         };
-        assert!(allowed("https://files.slack.com/files-pri/T1/x", &["https"]));
+        assert!(allowed(
+            "https://files.slack.com/files-pri/T1/x",
+            &["https"]
+        ));
         assert!(allowed("wss://wss-primary.slack.com/x", &["ws", "wss"]));
         assert!(!allowed("http://files.slack.com/x", &["https"]));
         assert!(!allowed("https://slack.com.evil.example/x", &["https"]));
@@ -494,8 +530,14 @@ mod tests {
     #[test]
     fn the_configured_host_is_trusted_for_tests() {
         let api = client("http://127.0.0.1:9/api");
-        assert!(Url::parse("http://127.0.0.1:9/files/1").is_ok_and(|url| api.is_allowed(&url, &["http"])));
-        assert!(!Url::parse("http://127.0.0.2:9/files/1").is_ok_and(|url| api.is_allowed(&url, &["http"])));
+        assert!(
+            Url::parse("http://127.0.0.1:9/files/1")
+                .is_ok_and(|url| api.is_allowed(&url, &["http"]))
+        );
+        assert!(
+            !Url::parse("http://127.0.0.2:9/files/1")
+                .is_ok_and(|url| api.is_allowed(&url, &["http"]))
+        );
     }
 
     #[test]
@@ -507,7 +549,12 @@ mod tests {
 
     #[test]
     fn debug_output_hides_the_token_and_cookie() {
-        let api = Api::new(reqwest::Client::new(), SLACK_API, "xoxc-secret", Some("xoxd-secret".into()));
+        let api = Api::new(
+            reqwest::Client::new(),
+            SLACK_API,
+            "xoxc-secret",
+            Some("xoxd-secret".into()),
+        );
         let text = format!("{api:?}");
         assert!(!text.contains("secret"));
         assert!(text.contains("[redacted]"));

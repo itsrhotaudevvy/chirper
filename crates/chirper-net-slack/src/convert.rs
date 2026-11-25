@@ -74,7 +74,12 @@ pub fn team_meta(team: &str, team_name: &str) -> ChatMeta {
 }
 
 /// A channel, group or DM. `partner` is the other person of a DM, resolved by the caller.
-pub fn chat_meta(scope: &Scope<'_>, team_name: &str, conversation: &Channel, partner: Option<RemoteUser>) -> ChatMeta {
+pub fn chat_meta(
+    scope: &Scope<'_>,
+    team_name: &str,
+    conversation: &Channel,
+    partner: Option<RemoteUser>,
+) -> ChatMeta {
     let is_dm = conversation.is_im || conversation.is_mpim;
     let name = if conversation.is_im {
         let base = partner
@@ -383,7 +388,10 @@ pub fn reaction_key(name: &str) -> String {
 
 /// The Slack emoji name of a reaction key, without colons. `None` when Slack cannot name it.
 pub fn reaction_name(key: &str) -> Option<String> {
-    if let Some(inner) = key.strip_prefix(':').and_then(|rest| rest.strip_suffix(':')) {
+    if let Some(inner) = key
+        .strip_prefix(':')
+        .and_then(|rest| rest.strip_suffix(':'))
+    {
         return (!inner.is_empty()).then(|| inner.to_owned());
     }
     if !key.is_empty()
@@ -414,7 +422,10 @@ mod tests {
         assert_eq!(reaction_key("+1"), "👍\u{fe0f}");
         assert_eq!(reaction_name("👍").as_deref(), Some("+1"));
         assert_eq!(reaction_key("partyparrot"), ":partyparrot:");
-        assert_eq!(reaction_name(":partyparrot:").as_deref(), Some("partyparrot"));
+        assert_eq!(
+            reaction_name(":partyparrot:").as_deref(),
+            Some("partyparrot")
+        );
         assert_eq!(reaction_name("plain").as_deref(), Some("plain"));
         assert_eq!(reaction_name("🦀").as_deref(), emoji::name_for("🦀"));
     }
@@ -479,7 +490,10 @@ mod tests {
 
     #[test]
     fn outgoing_text_is_escaped() {
-        assert_eq!(outgoing_text("<!channel> & more"), "&lt;!channel&gt; &amp; more");
+        assert_eq!(
+            outgoing_text("<!channel> & more"),
+            "&lt;!channel&gt; &amp; more"
+        );
     }
 
     #[test]

@@ -23,9 +23,9 @@ use chirper_bridge::{Error, Result};
 
 use crate::chunks::ChunkReader;
 use crate::schema::{
-    REQ_GET_ACCOUNT, REQ_GET_THREAD, REQ_LIST_THREADS, REQ_SEND_SMS,
-    REQ_UPDATE_ATTRIBUTES, RESP_CHOOSE_SERVER, RESP_CREATE_CHANNEL, RESP_GET_ACCOUNT,
-    RESP_GET_THREAD, RESP_LIST_THREADS, RESP_SEND_SMS,
+    REQ_GET_ACCOUNT, REQ_GET_THREAD, REQ_LIST_THREADS, REQ_SEND_SMS, REQ_UPDATE_ATTRIBUTES,
+    RESP_CHOOSE_SERVER, RESP_CREATE_CHANNEL, RESP_GET_ACCOUNT, RESP_GET_THREAD, RESP_LIST_THREADS,
+    RESP_SEND_SMS,
 };
 use crate::wire::{self, Msg, Schema, Val};
 
@@ -160,7 +160,12 @@ impl Api {
     pub async fn get_account(&self) -> Result<Msg> {
         let request = Msg::new().add(2, Val::Int(1));
         let reply = self
-            .rpc("/account/get", &REQ_GET_ACCOUNT, &request, &RESP_GET_ACCOUNT)
+            .rpc(
+                "/account/get",
+                &REQ_GET_ACCOUNT,
+                &request,
+                &RESP_GET_ACCOUNT,
+            )
             .await?;
         Ok(reply.message(1).clone())
     }
@@ -178,8 +183,13 @@ impl Api {
             request = request.add(5, Val::Str(version_token.to_owned()));
         }
         let request = request.add(6, Val::Msg(unknown_wrapper()));
-        self.rpc("/api2thread/list", &REQ_LIST_THREADS, &request, &RESP_LIST_THREADS)
-            .await
+        self.rpc(
+            "/api2thread/list",
+            &REQ_LIST_THREADS,
+            &request,
+            &RESP_LIST_THREADS,
+        )
+        .await
     }
 
     /// One page of a thread's messages, newest first, and the token of the next older page.
@@ -192,15 +202,19 @@ impl Api {
         }
         let request = request.add(4, Val::Msg(unknown_wrapper()));
         let reply = self
-            .rpc("/api2thread/get", &REQ_GET_THREAD, &request, &RESP_GET_THREAD)
+            .rpc(
+                "/api2thread/get",
+                &REQ_GET_THREAD,
+                &request,
+                &RESP_GET_THREAD,
+            )
             .await?;
         Ok(reply.message(1).clone())
     }
 
     /// Send a text message to a thread. The reply carries the new message's id and time.
     pub async fn send_text(&self, thread_id: &str, text: &str) -> Result<Msg> {
-        let request = send_request(thread_id)
-            .add(5, Val::Str(text.to_owned()));
+        let request = send_request(thread_id).add(5, Val::Str(text.to_owned()));
         self.send(request).await
     }
 
@@ -246,14 +260,17 @@ impl Api {
     /// The realtime server that serves this session.
     pub async fn choose_server(&self) -> Result<String> {
         let reply = self
-            .post(Post {
-                url: format!("{}/punctual/v1/chooseServer", self.hosts.realtime),
-                host: Host::Realtime,
-                query: Vec::new(),
-                content_type: "application/json+protobuf",
-                body: CHOOSE_SERVER_BODY.to_owned(),
-                extra: &[],
-            }, &RESP_CHOOSE_SERVER)
+            .post(
+                Post {
+                    url: format!("{}/punctual/v1/chooseServer", self.hosts.realtime),
+                    host: Host::Realtime,
+                    query: Vec::new(),
+                    content_type: "application/json+protobuf",
+                    body: CHOOSE_SERVER_BODY.to_owned(),
+                    extra: &[],
+                },
+                &RESP_CHOOSE_SERVER,
+            )
             .await?;
         Ok(reply.string(1))
     }
@@ -318,7 +335,9 @@ impl Api {
         }
         let mut response = response;
         if status == StatusCode::BAD_REQUEST {
-            let body = read_capped(&mut response, MAX_ERROR_BODY).await?.unwrap_or_default();
+            let body = read_capped(&mut response, MAX_ERROR_BODY)
+                .await?
+                .unwrap_or_default();
             if String::from_utf8_lossy(&body).contains("Unknown SID") {
                 return Err(Error::Protocol(UNKNOWN_SID.to_owned()));
             }
@@ -328,13 +347,17 @@ impl Api {
 
     /// The bytes of an attachment, and their type as Google Voice reports it. `None` when the
     /// file is larger than [`MAX_ATTACHMENT`].
-    pub async fn download(&self, attachment_id: &str, media_type: i64) -> Result<Option<(Vec<u8>, String)>> {
+    pub async fn download(
+        &self,
+        attachment_id: &str,
+        media_type: i64,
+    ) -> Result<Option<(Vec<u8>, String)>> {
         let mut url = Url::parse(&self.hosts.voice)
             .map_err(|_| Error::Internal("the Google Voice origin is not a URL".to_owned()))?;
         {
-            let mut segments = url
-                .path_segments_mut()
-                .map_err(|()| Error::Internal("the Google Voice origin cannot hold a path".to_owned()))?;
+            let mut segments = url.path_segments_mut().map_err(|()| {
+                Error::Internal("the Google Voice origin cannot hold a path".to_owned())
+            })?;
             let kind = match media_type {
                 MEDIA_VIDEO => "vi",
                 MEDIA_AUDIO => "au",
@@ -363,12 +386,23 @@ impl Api {
     }
 
     async fn send(&self, request: Msg) -> Result<Msg> {
-        self.rpc("/api2thread/sendsms", &REQ_SEND_SMS, &request, &RESP_SEND_SMS)
-            .await
+        self.rpc(
+            "/api2thread/sendsms",
+            &REQ_SEND_SMS,
+            &request,
+            &RESP_SEND_SMS,
+        )
+        .await
     }
 
     /// An RPC call to the API host, with the reference's transaction and tracking defaults.
-    async fn rpc(&self, path: &str, request_schema: &Schema, request: &Msg, reply: &Schema) -> Result<Msg> {
+    async fn rpc(
+        &self,
+        path: &str,
+        request_schema: &Schema,
+        request: &Msg,
+        reply: &Schema,
+    ) -> Result<Msg> {
         let body = serde_json::to_string(&wire::encode_pblite(request_schema, request))
             .map_err(|err| Error::Internal(err.to_string()))?;
         self.post(
@@ -435,7 +469,11 @@ impl Api {
             insert(&mut headers, "x-clientdetails", &client_details())?;
             insert(&mut headers, "x-javascript-user-agent", JS_USER_AGENT)?;
             insert(&mut headers, "x-requested-with", "XMLHttpRequest")?;
-            insert(&mut headers, "x-goog-encode-response-if-executable", "base64")?;
+            insert(
+                &mut headers,
+                "x-goog-encode-response-if-executable",
+                "base64",
+            )?;
         }
         Ok(headers)
     }
@@ -552,7 +590,11 @@ fn mime_of(value: Option<&HeaderValue>) -> String {
 async fn read_reply(mut response: Response, schema: &Schema) -> Result<Msg> {
     let plain = mime_of(response.headers().get(CONTENT_TYPE));
     let safety = mime_of(response.headers().get("x-goog-safety-content-type"));
-    let real = if safety.is_empty() { plain.clone() } else { safety };
+    let real = if safety.is_empty() {
+        plain.clone()
+    } else {
+        safety
+    };
     let body = read_capped(&mut response, MAX_REPLY)
         .await?
         .ok_or_else(|| wire::protocol("the reply is larger than the driver accepts"))?;
@@ -583,8 +625,8 @@ fn first_chunk(body: &[u8]) -> Result<Vec<u8>> {
 }
 
 fn pblite_reply(schema: &Schema, body: &[u8]) -> Result<Msg> {
-    let value: Value = serde_json::from_slice(body)
-        .map_err(|_| wire::protocol("the pblite reply is not JSON"))?;
+    let value: Value =
+        serde_json::from_slice(body).map_err(|_| wire::protocol("the pblite reply is not JSON"))?;
     wire::decode_pblite(schema, &value)
 }
 
@@ -629,7 +671,11 @@ mod tests {
     fn a_missing_sapisid_is_an_auth_error() {
         let cookies = BTreeMap::from([("SID".to_owned(), "x".to_owned())]);
         assert!(matches!(
-            Api::new(reqwest::Client::new(), Hosts::single("http://127.0.0.1:1"), &cookies),
+            Api::new(
+                reqwest::Client::new(),
+                Hosts::single("http://127.0.0.1:1"),
+                &cookies
+            ),
             Err(Error::Auth(_))
         ));
     }
@@ -637,14 +683,28 @@ mod tests {
     #[test]
     fn statuses_map_onto_the_bridge_errors() {
         let none = HeaderMap::new();
-        assert!(matches!(status_error(StatusCode::UNAUTHORIZED, &none), Error::Auth(_)));
-        assert!(matches!(status_error(StatusCode::FORBIDDEN, &none), Error::Auth(_)));
+        assert!(matches!(
+            status_error(StatusCode::UNAUTHORIZED, &none),
+            Error::Auth(_)
+        ));
+        assert!(matches!(
+            status_error(StatusCode::FORBIDDEN, &none),
+            Error::Auth(_)
+        ));
         assert!(matches!(
             status_error(StatusCode::TOO_MANY_REQUESTS, &none),
-            Error::RateLimited { retry_after_ms: 60_000 }
+            Error::RateLimited {
+                retry_after_ms: 60_000
+            }
         ));
-        assert!(matches!(status_error(StatusCode::BAD_GATEWAY, &none), Error::Network(_)));
-        assert!(matches!(status_error(StatusCode::NOT_FOUND, &none), Error::Protocol(_)));
+        assert!(matches!(
+            status_error(StatusCode::BAD_GATEWAY, &none),
+            Error::Network(_)
+        ));
+        assert!(matches!(
+            status_error(StatusCode::NOT_FOUND, &none),
+            Error::Protocol(_)
+        ));
     }
 
     #[test]
@@ -664,10 +724,21 @@ mod tests {
         let binary = wire::decode_binary(&REPLY, &[0x0a, 0x02, b'h', b'i']).expect("binary");
         assert_eq!(binary.string(1), "hi");
         // Base64 of the same bytes, with a line break the reference ignores.
-        assert_eq!(decode_base64(b"CgJoa\nQ==").expect("base64"), vec![0x0a, 0x02, b'h', b'i']);
+        assert_eq!(
+            decode_base64(b"CgJoa\nQ==").expect("base64"),
+            vec![0x0a, 0x02, b'h', b'i']
+        );
         // A pblite reply and its first chunk.
-        assert_eq!(pblite_reply(&REPLY, br#"["hi"]"#).expect("pblite").string(1), "hi");
-        assert_eq!(first_chunk(b"6\n[\"hi\"]").expect("chunk"), br#"["hi"]"#.to_vec());
+        assert_eq!(
+            pblite_reply(&REPLY, br#"["hi"]"#)
+                .expect("pblite")
+                .string(1),
+            "hi"
+        );
+        assert_eq!(
+            first_chunk(b"6\n[\"hi\"]").expect("chunk"),
+            br#"["hi"]"#.to_vec()
+        );
         assert!(decode_base64(b"!!").is_err());
     }
 
@@ -678,12 +749,18 @@ mod tests {
         let items = encoded.as_array().expect("array");
         assert_eq!(items[4], Value::String("hello".to_owned()));
         assert_eq!(items[5], Value::String("t.+15550001".to_owned()));
-        assert_eq!(items[8][0].as_i64().map(|id| id < 100_000_000_000_000), Some(true));
+        assert_eq!(
+            items[8][0].as_i64().map(|id| id < 100_000_000_000_000),
+            Some(true)
+        );
         assert_eq!(items[10], serde_json::json!(["!"]));
     }
 
     #[test]
     fn client_details_are_form_encoded_like_the_reference() {
-        assert!(client_details().starts_with("appVersion=5.0+%28X11%29&platform=Linux+x86_64&userAgent="));
+        assert!(
+            client_details()
+                .starts_with("appVersion=5.0+%28X11%29&platform=Linux+x86_64&userAgent=")
+        );
     }
 }

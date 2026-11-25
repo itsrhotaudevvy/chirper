@@ -28,7 +28,12 @@ impl ChunkReader {
 
     /// The next complete chunk, or `None` when more bytes are needed.
     pub fn next_chunk(&mut self) -> Result<Option<Vec<u8>>> {
-        let Some(newline) = self.buf.iter().take(MAX_PREFIX + 1).position(|&b| b == b'\n') else {
+        let Some(newline) = self
+            .buf
+            .iter()
+            .take(MAX_PREFIX + 1)
+            .position(|&b| b == b'\n')
+        else {
             if self.buf.len() > MAX_PREFIX {
                 return Err(bad_frame("no chunk length"));
             }
@@ -114,7 +119,10 @@ mod tests {
         reader.push(b"10\nabc");
         assert_eq!(reader.next_chunk().expect("ok"), None);
         reader.push(b"defghij");
-        assert_eq!(reader.next_chunk().expect("ok"), Some(b"abcdefghij".to_vec()));
+        assert_eq!(
+            reader.next_chunk().expect("ok"),
+            Some(b"abcdefghij".to_vec())
+        );
     }
 
     #[test]
@@ -145,7 +153,10 @@ mod tests {
         reader.push(&text[..3]);
         assert_eq!(reader.next_chunk().expect("ok"), None);
         reader.push(&text[3..]);
-        assert_eq!(reader.next_chunk().expect("ok"), Some("ü".as_bytes().to_vec()));
+        assert_eq!(
+            reader.next_chunk().expect("ok"),
+            Some("ü".as_bytes().to_vec())
+        );
     }
 
     #[test]

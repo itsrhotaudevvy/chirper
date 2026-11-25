@@ -16,10 +16,10 @@ use serde_json::json;
 use chirper_bridge::model::{CookieField, CookieSource, LoginStep};
 use chirper_bridge::{Error, LoginCtx, LoginInput, LoginProcess, Result};
 
+use crate::Endpoints;
 use crate::login::{self, input_field, store_login, token_cookies_step};
 use crate::signin::{Signin, SigninError, SigninResult};
 use crate::wire::Workspace;
-use crate::Endpoints;
 
 /// The flow id of the email login.
 pub const FLOW: &str = "email";
@@ -39,11 +39,22 @@ enum State {
     /// Not started: the first call shows the address step.
     Start,
     Email,
-    Captcha { email: String, site_key: String },
-    Code { email: String },
-    Workspace { options: Vec<(String, Workspace)> },
-    Browser { workspace: Workspace },
-    TwoFactor { workspace: Workspace },
+    Captcha {
+        email: String,
+        site_key: String,
+    },
+    Code {
+        email: String,
+    },
+    Workspace {
+        options: Vec<(String, Workspace)>,
+    },
+    Browser {
+        workspace: Workspace,
+    },
+    TwoFactor {
+        workspace: Workspace,
+    },
 }
 
 /// The email login process.
@@ -115,9 +126,18 @@ impl EmailLogin {
         ))
     }
 
-    async fn submit_captcha(&mut self, email: String, site_key: String, input: &LoginInput) -> Result<LoginStep> {
+    async fn submit_captcha(
+        &mut self,
+        email: String,
+        site_key: String,
+        input: &LoginInput,
+    ) -> Result<LoginStep> {
         if input.cookies.is_empty() {
-            return Ok(self.captcha(&email, &site_key, "Complete the embedded CAPTCHA before continuing."));
+            return Ok(self.captcha(
+                &email,
+                &site_key,
+                "Complete the embedded CAPTCHA before continuing.",
+            ));
         }
         let answer = input
             .cookies
@@ -220,7 +240,10 @@ impl EmailLogin {
 
     /// Show the workspace choice, keeping the options for the next answer.
     fn choose(&mut self, options: Vec<(String, Workspace)>, instructions: &str) -> LoginStep {
-        let labels = options.iter().map(|(label, _)| label.clone()).collect::<Vec<_>>();
+        let labels = options
+            .iter()
+            .map(|(label, _)| label.clone())
+            .collect::<Vec<_>>();
         self.state = State::Workspace { options };
         workspace_step(labels, instructions)
     }
@@ -235,12 +258,13 @@ impl EmailLogin {
             .get("workspace")
             .map(|value| value.trim().to_owned())
             .unwrap_or_default();
-        match options.iter().find(|(label, _)| *label == selection).cloned() {
+        match options
+            .iter()
+            .find(|(label, _)| *label == selection)
+            .cloned()
+        {
             Some((_, workspace)) => self.finish_workspace(workspace, options).await,
-            None => Ok(self.choose(
-                options,
-                "Choose one of the Slack workspaces in the list.",
-            )),
+            None => Ok(self.choose(options, "Choose one of the Slack workspaces in the list.")),
         }
     }
 
@@ -302,7 +326,11 @@ impl EmailLogin {
         }
     }
 
-    async fn submit_two_factor(&mut self, workspace: Workspace, input: &LoginInput) -> Result<LoginStep> {
+    async fn submit_two_factor(
+        &mut self,
+        workspace: Workspace,
+        input: &LoginInput,
+    ) -> Result<LoginStep> {
         let code = input
             .values
             .get("two_factor_code")
@@ -310,14 +338,18 @@ impl EmailLogin {
             .unwrap_or_default();
         if !(code.len() == 6 && code.bytes().all(|b| b.is_ascii_digit())) {
             self.state = State::TwoFactor { workspace };
-            return Ok(two_factor_step("Enter the six-digit code from your authenticator app or SMS."));
+            return Ok(two_factor_step(
+                "Enter the six-digit code from your authenticator app or SMS.",
+            ));
         }
         match self.signin.submit_two_factor(&workspace, &code).await {
             Ok((token, cookie)) => self.complete(&token, &cookie).await,
             Err(SigninError::Refused { code: refusal, .. }) => match refusal.as_str() {
                 "ratelimited" | "rate_limited" => {
                     self.state = State::TwoFactor { workspace };
-                    Ok(two_factor_step("Slack is rate limiting authentication-code checks. Wait before trying again."))
+                    Ok(two_factor_step(
+                        "Slack is rate limiting authentication-code checks. Wait before trying again.",
+                    ))
                 }
                 "two_factor_expired" | "two_factor_state_expired" => {
                     match self.signin.start_two_factor(&workspace).await {
@@ -330,28 +362,42 @@ impl EmailLogin {
                 }
                 "invalid_2fa_code" | "invalid_two_factor_code" | "invalid_pin" => {
                     self.state = State::TwoFactor { workspace };
-                    Ok(two_factor_step("Slack rejected that authentication code. Check the code and try again."))
+                    Ok(two_factor_step(
+                        "Slack rejected that authentication code. Check the code and try again.",
+                    ))
                 }
                 _ => {
                     self.state = State::TwoFactor { workspace };
-                    Ok(two_factor_step("Slack did not complete two-factor authentication. Check the code and try again."))
+                    Ok(two_factor_step(
+                        "Slack did not complete two-factor authentication. Check the code and try again.",
+                    ))
                 }
             },
             Err(_) => {
                 self.state = State::TwoFactor { workspace };
-                Ok(two_factor_step("Slack did not complete two-factor authentication. Check the code and try again."))
+                Ok(two_factor_step(
+                    "Slack did not complete two-factor authentication. Check the code and try again.",
+                ))
             }
         }
     }
 
-    async fn submit_browser(&mut self, workspace: Workspace, input: &LoginInput) -> Result<LoginStep> {
+    async fn submit_browser(
+        &mut self,
+        workspace: Workspace,
+        input: &LoginInput,
+    ) -> Result<LoginStep> {
         if input.cookies.is_empty() {
             let step = browser_step(&workspace);
             self.state = State::Browser { workspace };
             return Ok(step);
         }
         let token = input.cookies.get("auth_token").cloned().unwrap_or_default();
-        let cookie = input.cookies.get("cookie_token").cloned().unwrap_or_default();
+        let cookie = input
+            .cookies
+            .get("cookie_token")
+            .cloned()
+            .unwrap_or_default();
         self.complete(&token, &cookie).await
     }
 
@@ -377,9 +423,13 @@ impl LoginProcess for EmailLogin {
         }
         let state = std::mem::replace(&mut self.state, State::Email);
         match state {
-            State::Start => Ok(self.email("Enter the email address associated with your Slack account.")),
+            State::Start => {
+                Ok(self.email("Enter the email address associated with your Slack account."))
+            }
             State::Email => self.submit_email(&input).await,
-            State::Captcha { email, site_key } => self.submit_captcha(email, site_key, &input).await,
+            State::Captcha { email, site_key } => {
+                self.submit_captcha(email, site_key, &input).await
+            }
             State::Code { email } => self.submit_code(email, &input).await,
             State::Workspace { options } => self.submit_workspace(options, &input).await,
             State::Browser { workspace } => self.submit_browser(workspace, &input).await,
@@ -437,7 +487,12 @@ fn code_step(instructions: &str) -> LoginStep {
         step_id: CODE_STEP.to_owned(),
         instructions: instructions.to_owned(),
         fields: vec![{
-            let mut field = input_field("code", "Confirmation code", "text", "Six-character code from Slack");
+            let mut field = input_field(
+                "code",
+                "Confirmation code",
+                "text",
+                "Six-character code from Slack",
+            );
             field.pattern = r"^[a-zA-Z0-9]{3}-?[a-zA-Z0-9]{3}$".to_owned();
             field
         }],
@@ -449,7 +504,12 @@ fn workspace_step(labels: Vec<String>, instructions: &str) -> LoginStep {
         step_id: WORKSPACE_STEP.to_owned(),
         instructions: instructions.to_owned(),
         fields: vec![{
-            let mut field = input_field("workspace", "Workspace", "select", "Slack workspace to connect");
+            let mut field = input_field(
+                "workspace",
+                "Workspace",
+                "select",
+                "Slack workspace to connect",
+            );
             field.options = labels;
             field
         }],
@@ -477,7 +537,9 @@ fn two_factor_step(instructions: &str) -> LoginStep {
 fn browser_step(workspace: &Workspace) -> LoginStep {
     let name = display_name(workspace);
     let instructions = if workspace.sso_required {
-        format!("{name} uses single sign-on. Sign in with your organization's account in the browser to continue.")
+        format!(
+            "{name} uses single sign-on. Sign in with your organization's account in the browser to continue."
+        )
     } else {
         format!("{name} doesn't support email sign-in. Sign in to it in the browser to continue.")
     };
@@ -492,11 +554,16 @@ fn browser_step(workspace: &Workspace) -> LoginStep {
 fn sign_in_url(workspace: &Workspace) -> String {
     if let Ok(parsed) = reqwest::Url::parse(&workspace.url)
         && parsed.scheme() == "https"
-        && parsed.host_str().is_some_and(|host| host.ends_with(".slack.com"))
+        && parsed
+            .host_str()
+            .is_some_and(|host| host.ends_with(".slack.com"))
     {
         return parsed.to_string();
     }
-    let domain = workspace.domain.strip_suffix(".slack.com").unwrap_or(&workspace.domain);
+    let domain = workspace
+        .domain
+        .strip_suffix(".slack.com")
+        .unwrap_or(&workspace.domain);
     if !domain.is_empty() && !domain.contains(['.', '/', ':']) {
         return format!("https://{domain}.slack.com/");
     }
@@ -536,7 +603,10 @@ fn label_workspaces(workspaces: Vec<Workspace>) -> Vec<(String, Workspace)> {
 fn login_label(workspace: &Workspace) -> String {
     let name = display_name(workspace);
     if !workspace.domain.is_empty() && workspace.domain != name {
-        let domain = workspace.domain.strip_suffix(".slack.com").unwrap_or(&workspace.domain);
+        let domain = workspace
+            .domain
+            .strip_suffix(".slack.com")
+            .unwrap_or(&workspace.domain);
         format!("{name} ({domain}.slack.com)")
     } else {
         name
@@ -550,7 +620,9 @@ fn refusal_text(err: &SigninError) -> Option<&'static str> {
             "ratelimited" | "rate_limited" | "code_request_limit_reached" => {
                 "Slack is rate limiting email sign-in. Wait a few minutes before trying again."
             }
-            "invalid_email" | "email_invalid" => "Slack rejected that email address. Check it and try again.",
+            "invalid_email" | "email_invalid" => {
+                "Slack rejected that email address. Check it and try again."
+            }
             "captcha_required" | "captcha_failed" => {
                 "Slack requires a CAPTCHA for this sign-in. Complete the embedded challenge and try again."
             }
@@ -582,7 +654,8 @@ fn valid_email(email: &str) -> bool {
     let Some((local, domain)) = email.split_once('@') else {
         return false;
     };
-    let plain = |part: &str| !part.is_empty() && !part.chars().any(|c| c.is_whitespace() || c == '@');
+    let plain =
+        |part: &str| !part.is_empty() && !part.chars().any(|c| c.is_whitespace() || c == '@');
     plain(local)
         && plain(domain)
         && domain

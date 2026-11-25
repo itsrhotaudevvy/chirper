@@ -78,17 +78,20 @@ pub async fn run(link: Link, mut outgoing: mpsc::UnboundedReceiver<Outgoing>) {
     };
     let ending = drive(&link, socket, &mut outgoing).await;
     match ending {
-        Ending::Transient => send(&link, state(SessionState::TransientDisconnect, String::new())),
-        Ending::Stop { state: value, error } => send(&link, state(value, error)),
+        Ending::Transient => send(
+            &link,
+            state(SessionState::TransientDisconnect, String::new()),
+        ),
+        Ending::Stop {
+            state: value,
+            error,
+        } => send(&link, state(value, error)),
     }
 }
 
 fn finish_with(link: &Link, err: &Error) {
     debug!("slack: the login ended: {err}");
-    send(
-        link,
-        state(err.session_state(), redact(&err.to_string())),
-    );
+    send(link, state(err.session_state(), redact(&err.to_string())));
 }
 
 fn state(value: SessionState, error: String) -> Event {
@@ -124,7 +127,10 @@ async fn sync(link: &Link) -> Result<()> {
             break;
         }
     }
-    send(link, Event::Chat(convert::team_meta(&link.team, &link.team_name)));
+    send(
+        link,
+        Event::Chat(convert::team_meta(&link.team, &link.team_name)),
+    );
 
     let mut channels: Vec<Channel> = Vec::new();
     let mut cursor = String::new();
@@ -177,7 +183,11 @@ async fn emit_conversation(link: &Link, channel: &Channel) -> Result<()> {
 /// Open the websocket `rtm.connect` names.
 async fn open(
     api: &Api,
-) -> Result<impl futures_util::Stream<Item = std::result::Result<Frame, tokio_tungstenite::tungstenite::Error>> + futures_util::Sink<Frame> + Unpin> {
+) -> Result<
+    impl futures_util::Stream<Item = std::result::Result<Frame, tokio_tungstenite::tungstenite::Error>>
+    + futures_util::Sink<Frame>
+    + Unpin,
+> {
     let answer = api.rtm_connect().await?;
     let (socket, _) = tokio_tungstenite::connect_async(answer.url.as_str())
         .await
@@ -186,10 +196,15 @@ async fn open(
 }
 
 /// Pump the socket until it ends: frames in, pings out, typing out.
-async fn drive<S>(link: &Link, mut socket: S, outgoing: &mut mpsc::UnboundedReceiver<Outgoing>) -> Ending
+async fn drive<S>(
+    link: &Link,
+    mut socket: S,
+    outgoing: &mut mpsc::UnboundedReceiver<Outgoing>,
+) -> Ending
 where
-    S: futures_util::Stream<Item = std::result::Result<Frame, tokio_tungstenite::tungstenite::Error>>
-        + futures_util::Sink<Frame>
+    S: futures_util::Stream<
+            Item = std::result::Result<Frame, tokio_tungstenite::tungstenite::Error>,
+        > + futures_util::Sink<Frame>
         + Unpin,
 {
     let mut ping = tokio::time::interval_at(Instant::now() + PING_EVERY, PING_EVERY);
@@ -242,7 +257,11 @@ async fn handle_text(link: &Link, text: &str) -> Option<Ending> {
             return None;
         }
     };
-    match value.get("type").and_then(Value::as_str).unwrap_or_default() {
+    match value
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+    {
         "hello" => {
             debug!("slack: the socket is up");
             send(
@@ -273,7 +292,10 @@ async fn handle_text(link: &Link, text: &str) -> Option<Ending> {
                     error: redact(&format!("Slack socket error: {message}")),
                 });
             }
-            send(link, Event::Error(redact(&format!("Slack socket error: {message}"))));
+            send(
+                link,
+                Event::Error(redact(&format!("Slack socket error: {message}"))),
+            );
         }
         "message" => on_message(link, value).await,
         "reaction_added" | "reaction_removed" => on_reaction(link, value).await,
@@ -317,7 +339,9 @@ async fn on_message(link: &Link, value: Value) {
             if inner.ts.is_empty() {
                 return;
             }
-            if let Some(edit) = convert::edit(&link.api, &scope(link), &channel, inner, &message.event_ts).await {
+            if let Some(edit) =
+                convert::edit(&link.api, &scope(link), &channel, inner, &message.event_ts).await
+            {
                 send(link, Event::Message(edit));
             }
         }
@@ -329,7 +353,11 @@ async fn on_message(link: &Link, value: Value) {
                 link,
                 Event::Redact {
                     portal: portal(link, &channel),
-                    event: RemoteEventRef::new(ids::message_id(&link.team, &channel, &message.deleted_ts)),
+                    event: RemoteEventRef::new(ids::message_id(
+                        &link.team,
+                        &channel,
+                        &message.deleted_ts,
+                    )),
                 },
             );
         }
@@ -385,12 +413,20 @@ async fn on_reaction(link: &Link, value: Value) {
         return;
     }
     // Slack reports one reactor per event; the bridge wants the whole set, so read the message.
-    match link.api.reactions_get(&event.item.channel, &event.item.ts).await {
+    match link
+        .api
+        .reactions_get(&event.item.channel, &event.item.ts)
+        .await
+    {
         Ok(answer) => send(
             link,
             Event::Reactions {
                 portal: portal(link, &event.item.channel),
-                target: RemoteEventRef::new(ids::message_id(&link.team, &event.item.channel, &event.item.ts)),
+                target: RemoteEventRef::new(ids::message_id(
+                    &link.team,
+                    &event.item.channel,
+                    &event.item.ts,
+                )),
                 reactions: convert::reactions(&answer.message.reactions, &link.me),
             },
         ),
@@ -447,7 +483,10 @@ fn on_marked(link: &Link, value: Value) {
 }
 
 fn on_self_left(link: &Link, value: Value) {
-    let channel = value.get("channel").and_then(Value::as_str).unwrap_or_default();
+    let channel = value
+        .get("channel")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     if channel.is_empty() {
         return;
     }

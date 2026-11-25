@@ -129,7 +129,11 @@ impl LoginProcess for TokenLogin {
         }
         if !input.cookies.is_empty() {
             let token = input.cookies.get("auth_token").cloned().unwrap_or_default();
-            let cookie = input.cookies.get("cookie_token").cloned().unwrap_or_default();
+            let cookie = input
+                .cookies
+                .get("cookie_token")
+                .cloned()
+                .unwrap_or_default();
             if token.is_empty() || cookie.is_empty() {
                 return Ok(manual_step());
             }
@@ -137,7 +141,11 @@ impl LoginProcess for TokenLogin {
         }
         if !input.values.is_empty() {
             let token = input.values.get("auth_token").cloned().unwrap_or_default();
-            let cookie = input.values.get("cookie_token").cloned().unwrap_or_default();
+            let cookie = input
+                .values
+                .get("cookie_token")
+                .cloned()
+                .unwrap_or_default();
             return self.submit(&token, &cookie).await;
         }
         if self.asked {
@@ -162,12 +170,23 @@ impl LoginProcess for TokenLogin {
 fn manual_step() -> LoginStep {
     LoginStep::UserInput {
         step_id: MANUAL_TOKEN_STEP.to_owned(),
-        instructions: "Enter the web client token (xoxc-…) and the cookie d (xoxd-…). Both are in the \
+        instructions:
+            "Enter the web client token (xoxc-…) and the cookie d (xoxd-…). Both are in the \
                        browser's developer tools."
-            .to_owned(),
+                .to_owned(),
         fields: vec![
-            input_field("auth_token", "Token", "password", "The xoxc- token of the web client."),
-            input_field("cookie_token", "Cookie", "password", "The value of the d cookie (xoxd-…)."),
+            input_field(
+                "auth_token",
+                "Token",
+                "password",
+                "The xoxc- token of the web client.",
+            ),
+            input_field(
+                "cookie_token",
+                "Cookie",
+                "password",
+                "The value of the d cookie (xoxd-…).",
+            ),
         ],
     }
 }

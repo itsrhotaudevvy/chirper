@@ -133,8 +133,9 @@ impl Network for Slack {
             LoginFlow {
                 id: TOKEN_FLOW.to_owned(),
                 name: "Auth token & cookie".to_owned(),
-                description: "Log in with an auth token (and a cookie, if the token is from a browser)"
-                    .to_owned(),
+                description:
+                    "Log in with an auth token (and a cookie, if the token is from a browser)"
+                        .to_owned(),
             },
             LoginFlow {
                 id: APP_FLOW.to_owned(),

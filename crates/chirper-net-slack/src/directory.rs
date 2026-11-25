@@ -87,11 +87,15 @@ fn lock<T>(mutex: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
 /// The remote identity of a user. The display name follows the default template of the Go bridge:
 /// display name, then real name, then the account name, with ` (bot)` for app users.
 pub fn remote_user(team: &str, slack_id: &str, user: &User) -> RemoteUser {
-    let base = [&user.profile.display_name, &user.profile.real_name, &user.name]
-        .into_iter()
-        .find(|name| !name.is_empty())
-        .cloned()
-        .unwrap_or_else(|| slack_id.to_owned());
+    let base = [
+        &user.profile.display_name,
+        &user.profile.real_name,
+        &user.name,
+    ]
+    .into_iter()
+    .find(|name| !name.is_empty())
+    .cloned()
+    .unwrap_or_else(|| slack_id.to_owned());
     let display_name = if user.is_bot || user.is_app_user {
         format!("{base} (bot)")
     } else {
