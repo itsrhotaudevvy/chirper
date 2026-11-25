@@ -8,7 +8,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use chirper_bridge::model::{
     BackfillPage, Capabilities, ChatMeta, Content, DeliveryStatus, Event, LoginFlow, LoginStep,
-    PortalRef, Reaction, RemoteEventRef, RemoteMessage, RemoteUser,
+    PortalRef, Reaction, RemoteEventRef, RemoteMessage, RemoteUser, SessionState,
 };
 use chirper_bridge::{
     Ack, Command, Error, LoginCtx, LoginInput, LoginProcess, Network, Result, Session,
@@ -20,9 +20,11 @@ use tokio::sync::mpsc;
 const NETWORK: &str = "fakenet";
 const FLOW: &str = "fake";
 
-/// A driver whose events come from the test through a channel.
+/// A driver whose events come from the test through a channel. `me` is the account the session
+/// reports, when it reports one.
 struct FakeNetwork {
     feed: Mutex<Option<mpsc::UnboundedReceiver<Event>>>,
+    me: Option<RemoteUser>,
 }
 
 #[async_trait]
@@ -70,7 +72,11 @@ impl Network for FakeNetwork {
             .expect("feed")
             .take()
             .ok_or(Error::NotConnected)?;
-        Ok(Box::new(FakeSession { feed, sent: 0 }))
+        Ok(Box::new(FakeSession {
+            feed,
+            sent: 0,
+            me: self.me.clone(),
+        }))
     }
 }
 
@@ -89,12 +95,17 @@ struct FakeSession {
     feed: mpsc::UnboundedReceiver<Event>,
     /// How many texts were sent; each one is acknowledged as `wa-<n>`.
     sent: u32,
+    me: Option<RemoteUser>,
 }
 
 #[async_trait]
 impl Session for FakeSession {
     async fn next(&mut self) -> Option<Event> {
         self.feed.recv().await
+    }
+
+    fn user(&self) -> Option<RemoteUser> {
+        self.me.clone()
     }
 
     async fn command(&mut self, cmd: Command) -> Result<Ack> {
@@ -155,6 +166,26 @@ fn ada() -> RemoteUser {
     }
 }
 
+/// The logged-in account, as the session reports it.
+fn account() -> RemoteUser {
+    RemoteUser {
+        id: "me-1".to_owned(),
+        display_name: "Me".to_owned(),
+        avatar_url: String::new(),
+        username: String::new(),
+        phone: String::new(),
+    }
+}
+
+/// A receipt from `user` saying they have read up to the message `remote`.
+fn read_receipt(user: RemoteUser, remote: &str) -> Event {
+    Event::ReadReceipt {
+        portal: portal(),
+        user,
+        event: RemoteEventRef::new(remote),
+    }
+}
+
 fn chat_named(name: &str) -> Event {
     Event::Chat(ChatMeta {
         portal: portal(),
@@ -204,11 +235,17 @@ struct Harness {
 
 impl Harness {
     async fn start(name: &str) -> Self {
+        Self::start_with(name, Some(account())).await
+    }
+
+    /// Start with a session that reports `me` as the logged-in account (or nothing).
+    async fn start_with(name: &str, me: Option<RemoteUser>) -> Self {
         let dir = temp_dir(name);
         let (feed, rx) = mpsc::unbounded_channel();
         let mut options = Options::new(&dir);
         options.host_networks = HostNetworks(vec![Arc::new(FakeNetwork {
             feed: Mutex::new(Some(rx)),
+            me,
         })]);
         let (core, stream) = Core::open(options).unwrap();
         core.start_login(NETWORK, FLOW).await.unwrap();
@@ -281,6 +318,15 @@ impl Harness {
             .await
             .unwrap()
             .len()
+    }
+
+    async fn unread_count(&self) -> i64 {
+        self.core
+            .get_chat(&self.room)
+            .await
+            .unwrap()
+            .expect("the chat exists")
+            .unread_count
     }
 }
 
@@ -459,6 +505,68 @@ async fn reactions_and_redactions_find_an_incoming_message() {
     })
     .await;
     assert!(h.message(&event_id).await.redacted);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_read_receipt_from_our_own_account_marks_the_chat_read() {
+    let mut h = Harness::start("own-receipt").await;
+    h.feed_and_sync(incoming("in-1", None, "first")).await;
+    h.feed_and_sync(incoming("in-2", None, "second")).await;
+    assert_eq!(h.unread_count().await, 2);
+
+    // The user read the chat on another device, up to the second message.
+    h.feed_and_sync(read_receipt(account(), "in-2")).await;
+    assert_eq!(h.unread_count().await, 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_read_receipt_from_someone_else_moves_nothing() {
+    let mut h = Harness::start("other-receipt").await;
+    h.feed_and_sync(incoming("in-1", None, "hi")).await;
+    h.feed_and_sync(read_receipt(ada(), "in-1")).await;
+    assert_eq!(h.unread_count().await, 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_account_named_by_a_state_event_counts_before_running() {
+    // The session reports no user; the driver names the account in a state event instead.
+    let mut h = Harness::start_with("state-profile", None).await;
+    h.feed_and_sync(incoming("in-1", None, "hi")).await;
+
+    h.feed_and_sync(Event::State {
+        state: SessionState::Connecting,
+        error: String::new(),
+        message: String::new(),
+        profile: Some(account()),
+    })
+    .await;
+    h.feed_and_sync(read_receipt(account(), "in-1")).await;
+    assert_eq!(h.unread_count().await, 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_message_we_sent_from_another_device_is_not_unread() {
+    let mut h = Harness::start("elsewhere").await;
+    h.feed_and_sync(incoming("in-1", None, "hi")).await;
+
+    h.feed_and_sync(Event::Message(RemoteMessage {
+        portal: portal(),
+        id: "out-1".to_owned(),
+        part: String::new(),
+        sender: account(),
+        timestamp_ms: 1_700_000_000_000,
+        content: Content::Text {
+            body: "sent elsewhere".to_owned(),
+            formatted: None,
+        },
+        reply_to: None,
+        edit_of: None,
+        live: true,
+        from_me: true,
+    }))
+    .await;
+    assert_eq!(h.unread_count().await, 1);
+    assert!(by_body(&h, "sent elsewhere").await.from_me);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

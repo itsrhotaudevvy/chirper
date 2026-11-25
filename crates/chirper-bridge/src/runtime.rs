@@ -14,7 +14,7 @@ use log::{debug, info, warn};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
-use crate::ids::{self, ChatId, EventId, SenderId};
+use crate::ids::{self, ChatId, EventId, SELF_USER_ID, SenderId};
 use crate::model::{
     Ack, BackfillPage, ChatMeta, DeliveryStatus, Event, PortalRef, RemoteEventRef, RemoteMessage,
     RemoteUser, SessionState,
@@ -397,19 +397,24 @@ async fn supervise(
             Ok(mut session) => {
                 info!("{network}/{login_id}: connected");
                 backoff = MIN_BACKOFF;
+                let me = session.user();
+                // The account's network id, so its own messages and read receipts map to SELF_USER_ID.
+                // It is known from here on, even before the driver reports `Running` with a profile.
+                let mut own = me
+                    .as_ref()
+                    .map(|user| user.id.clone())
+                    .filter(|id| !id.is_empty());
                 let running = Routed::State {
                     state: SessionState::Running,
                     error: String::new(),
                     message: String::new(),
-                    profile: session
-                        .user()
-                        .map(|user| (ids::sender_id(&network, &user.id), user)),
+                    profile: me.map(|user| (ids::sender_id(&network, &user.id), user)),
                 };
                 if !emitter.send(running).await {
                     return;
                 }
 
-                let reason = serve(&network, &mut ops, &mut *session, &emitter).await;
+                let reason = serve(&network, &mut ops, &mut *session, &emitter, &mut own).await;
                 if reason.is_some_and(SessionState::is_terminal) {
                     stopped.store(true, std::sync::atomic::Ordering::SeqCst);
                     return;
@@ -464,23 +469,29 @@ async fn supervise(
 }
 
 /// Serve one live session until it ends. Returns the terminal state the driver reported, if any.
+///
+/// `own` is the network id of the logged-in account, updated whenever the driver reports a profile.
 async fn serve(
     network: &str,
     ops: &mut mpsc::Receiver<Op>,
     session: &mut dyn Session,
     emitter: &Emitter,
+    own: &mut Option<String>,
 ) -> Option<SessionState> {
     let mut terminal = None;
     loop {
         tokio::select! {
             event = session.next() => match event {
                 Some(event) => {
-                    if let Event::State { state, .. } = &event
-                        && state.is_terminal()
-                    {
-                        terminal = Some(*state);
+                    if let Event::State { state, profile, .. } = &event {
+                        if state.is_terminal() {
+                            terminal = Some(*state);
+                        }
+                        if let Some(user) = profile.as_ref().filter(|user| !user.id.is_empty()) {
+                            *own = Some(user.id.clone());
+                        }
                     }
-                    if !emitter.send(route(network, event)).await {
+                    if !emitter.send(route(network, own.as_deref(), event)).await {
                         return terminal;
                     }
                     if terminal.is_some() {
@@ -508,8 +519,19 @@ async fn serve(
     }
 }
 
+/// The sender id of a network user. The logged-in account (`own`) maps to [`SELF_USER_ID`], which is
+/// how the engine knows a message or a read receipt is the user's own.
+fn sender_of(network: &str, own: Option<&str>, user_id: &str) -> SenderId {
+    if own == Some(user_id) {
+        SenderId::from(SELF_USER_ID)
+    } else {
+        ids::sender_id(network, user_id)
+    }
+}
+
 /// Assign local ids to one driver event. Remote text is redacted here, once, for every consumer.
-fn route(network: &str, event: Event) -> Routed {
+/// `own` is the network id of the logged-in account, when it is known.
+fn route(network: &str, own: Option<&str>, event: Event) -> Routed {
     let chat_of = |portal: &PortalRef| ids::chat_id(network, &portal.id, &portal.receiver);
     let event_of = |chat: &ChatId, r: &RemoteEventRef| {
         if r.id.is_empty() {
@@ -535,7 +557,12 @@ fn route(network: &str, event: Event) -> Routed {
         Event::Message(message) => {
             let chat = chat_of(&message.portal);
             let event = ids::event_id_for(network, chat.as_str(), &message.id, &message.part);
-            let sender = ids::sender_id(network, &message.sender.id);
+            // A message the account sent from another device is its own, whoever the driver named.
+            let sender = if message.from_me {
+                SenderId::from(SELF_USER_ID)
+            } else {
+                sender_of(network, own, &message.sender.id)
+            };
             let edit_target = message.edit_of.as_ref().map(|target| {
                 // An edit names the message it replaces; parts are not involved.
                 ids::event_id_for(network, chat.as_str(), target, "")
@@ -618,7 +645,7 @@ fn route(network: &str, event: Event) -> Routed {
             Routed::ReadReceipt {
                 target: event_of(&chat, &event),
                 remote: event.id.clone(),
-                sender: ids::sender_id(network, &user.id),
+                sender: sender_of(network, own, &user.id),
                 chat,
             }
         }
@@ -899,6 +926,7 @@ mod tests {
     fn driver_error_events_are_redacted_by_route() {
         let routed = route(
             "scripted",
+            None,
             Event::Error("upstream rejected Authorization: Bearer zz9.yy8-xx7_ww6".to_owned()),
         );
         match routed {
@@ -908,6 +936,75 @@ mod tests {
             }
             other => panic!("unexpected {other:?}"),
         }
+    }
+
+    fn remote_user(id: &str) -> RemoteUser {
+        RemoteUser {
+            id: id.to_owned(),
+            display_name: String::new(),
+            avatar_url: String::new(),
+            username: String::new(),
+            phone: String::new(),
+        }
+    }
+
+    fn remote_portal() -> PortalRef {
+        PortalRef {
+            id: "chat-1".to_owned(),
+            receiver: String::new(),
+        }
+    }
+
+    /// The sender the runtime gave a routed read receipt or message.
+    fn routed_sender(routed: Routed) -> SenderId {
+        match routed {
+            Routed::ReadReceipt { sender, .. } | Routed::Message { sender, .. } => sender,
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn the_logged_in_account_maps_to_self_on_receipts_and_messages() {
+        let me = "15551234@s.whatsapp.net";
+        let other = "15559876@s.whatsapp.net";
+        let receipt = |user: &str| Event::ReadReceipt {
+            portal: remote_portal(),
+            user: remote_user(user),
+            event: RemoteEventRef::new("m1"),
+        };
+        let message = |user: &str, from_me: bool| {
+            Event::Message(RemoteMessage {
+                portal: remote_portal(),
+                id: "m2".to_owned(),
+                part: String::new(),
+                sender: remote_user(user),
+                timestamp_ms: 0,
+                content: crate::model::Content::Text {
+                    body: "hi".to_owned(),
+                    formatted: None,
+                },
+                reply_to: None,
+                edit_of: None,
+                live: true,
+                from_me,
+            })
+        };
+        let sender = |event: Event| routed_sender(route("whatsapp", Some(me), event));
+
+        assert_eq!(sender(receipt(me)).as_str(), SELF_USER_ID);
+        assert_eq!(sender(receipt(other)), ids::sender_id("whatsapp", other));
+        assert_eq!(sender(message(me, false)).as_str(), SELF_USER_ID);
+        assert_eq!(
+            sender(message(other, false)),
+            ids::sender_id("whatsapp", other)
+        );
+        // A message the account sent from another device is its own, whoever the driver named.
+        assert_eq!(sender(message(other, true)).as_str(), SELF_USER_ID);
+        // Before the account is known, nobody is taken for it.
+        assert_eq!(
+            routed_sender(route("whatsapp", None, receipt(me))),
+            ids::sender_id("whatsapp", me)
+        );
     }
 
     #[tokio::test(start_paused = true)]
