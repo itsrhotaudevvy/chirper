@@ -8,6 +8,8 @@
 //! Layout: `discovery` (instance URLs and endpoints), `api` (REST and the 429 policy), `captcha`
 //! (the ALTCHA proof-of-work), `map` (payloads and their mapping), `gateway` (the WebSocket).
 
+#![forbid(unsafe_code)]
+
 mod api;
 mod captcha;
 mod discovery;

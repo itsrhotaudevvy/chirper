@@ -13,8 +13,26 @@ default = ["sqlite-plain"]
 sqlite-plain = ["rusqlite/bundled"]
 # SQLCipher at rest. Mutually exclusive with `sqlite-plain`; release builds use this one.
 sqlcipher = ["rusqlite/bundled-sqlcipher-vendored-openssl"]
-# The in-app demo network, for UI development and tests.
-mock = []
+# The networks shipped in every build are WhatsApp, Telegram, Discord, Fluxer and SMS. The others
+# are compiled only when their feature is on (or with `more-networks`, which turns on all of them).
+net-signal = ["dep:chirper-net-signal"]
+net-meta = ["dep:chirper-net-meta"]
+net-twitter = ["dep:chirper-net-twitter"]
+net-linkedin = ["dep:chirper-net-linkedin"]
+net-gmessages = ["dep:chirper-net-gmessages"]
+net-gvoice = ["dep:chirper-net-gvoice"]
+net-slack = ["dep:chirper-net-slack"]
+net-bluesky = ["dep:chirper-net-bluesky"]
+more-networks = [
+    "net-signal",
+    "net-meta",
+    "net-twitter",
+    "net-linkedin",
+    "net-gmessages",
+    "net-gvoice",
+    "net-slack",
+    "net-bluesky",
+]
 
 [dependencies]
 chirper-bridge = { path = "../chirper-bridge" }
@@ -24,14 +42,14 @@ chirper-net-fluxer = { path = "../chirper-net-fluxer" }
 chirper-net-telegram = { path = "../chirper-net-telegram" }
 chirper-net-whatsapp = { path = "../chirper-net-whatsapp" }
 chirper-net-sms = { path = "../chirper-net-sms" }
-chirper-net-signal = { path = "../chirper-net-signal" }
-chirper-net-meta = { path = "../chirper-net-meta" }
-chirper-net-twitter = { path = "../chirper-net-twitter" }
-chirper-net-linkedin = { path = "../chirper-net-linkedin" }
-chirper-net-gmessages = { path = "../chirper-net-gmessages" }
-chirper-net-gvoice = { path = "../chirper-net-gvoice" }
-chirper-net-slack = { path = "../chirper-net-slack" }
-chirper-net-bluesky = { path = "../chirper-net-bluesky" }
+chirper-net-signal = { path = "../chirper-net-signal", optional = true }
+chirper-net-meta = { path = "../chirper-net-meta", optional = true }
+chirper-net-twitter = { path = "../chirper-net-twitter", optional = true }
+chirper-net-linkedin = { path = "../chirper-net-linkedin", optional = true }
+chirper-net-gmessages = { path = "../chirper-net-gmessages", optional = true }
+chirper-net-gvoice = { path = "../chirper-net-gvoice", optional = true }
+chirper-net-slack = { path = "../chirper-net-slack", optional = true }
+chirper-net-bluesky = { path = "../chirper-net-bluesky", optional = true }
 aes-gcm = "=0.11.1"
 async-trait = "=0.1.92"
 getrandom = "=0.4.3"

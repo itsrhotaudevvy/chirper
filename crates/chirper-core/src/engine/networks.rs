@@ -28,19 +28,29 @@ pub fn available(demo: bool, host: &HostNetworks) -> Vec<Arc<dyn Network>> {
             out.push(driver);
         }
     };
+    push(Arc::new(chirper_net_whatsapp::WhatsApp::new()));
+    push(Arc::new(chirper_net_telegram::Telegram::new()));
     push(Arc::new(chirper_net_discord::Discord::new()));
     push(Arc::new(chirper_net_fluxer::FluxerNet::new()));
-    push(Arc::new(chirper_net_telegram::Telegram::new()));
-    push(Arc::new(chirper_net_whatsapp::WhatsApp::new()));
     push(Arc::new(chirper_net_sms::Sms::new()));
+    #[cfg(feature = "net-signal")]
     push(Arc::new(chirper_net_signal::Signal::new()));
-    push(Arc::new(chirper_net_meta::Messenger::new()));
-    push(Arc::new(chirper_net_meta::Instagram::new()));
+    #[cfg(feature = "net-meta")]
+    {
+        push(Arc::new(chirper_net_meta::Messenger::new()));
+        push(Arc::new(chirper_net_meta::Instagram::new()));
+    }
+    #[cfg(feature = "net-twitter")]
     push(Arc::new(chirper_net_twitter::Twitter::new()));
+    #[cfg(feature = "net-linkedin")]
     push(Arc::new(chirper_net_linkedin::LinkedIn::new()));
+    #[cfg(feature = "net-gmessages")]
     push(Arc::new(chirper_net_gmessages::GMessages::new()));
+    #[cfg(feature = "net-gvoice")]
     push(Arc::new(chirper_net_gvoice::GVoice::new()));
+    #[cfg(feature = "net-slack")]
     push(Arc::new(chirper_net_slack::Slack::new()));
+    #[cfg(feature = "net-bluesky")]
     push(Arc::new(chirper_net_bluesky::Bluesky::new()));
     if demo {
         push(Arc::new(chirper_net_testnet::TestNet::new()));
@@ -49,8 +59,11 @@ pub fn available(demo: bool, host: &HostNetworks) -> Vec<Arc<dyn Network>> {
 }
 
 /// Networks the app lists but has no driver for. They keep their place in the UI and explain
-/// themselves instead of silently disappearing.
+/// themselves instead of silently disappearing. Not shown in the default build.
+#[cfg(feature = "more-networks")]
 const UNPORTED: &[(&str, &str, &str)] = &[("imessage", "iMessage", "#34C759")];
+#[cfg(not(feature = "more-networks"))]
+const UNPORTED: &[(&str, &str, &str)] = &[];
 
 /// Every network of this build: the drivers first, usable ones before the others, then the
 /// networks without a driver, each with its reason.
@@ -96,11 +109,12 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), count, "a network is listed twice");
         for id in [
-            "discord",
-            "fluxer",
-            "telegram",
-            "whatsapp",
-            "sms",
+            "whatsapp", "telegram", "discord", "fluxer", "sms", "testnet",
+        ] {
+            assert!(ids.contains(&id), "{id} is missing");
+        }
+        #[cfg(feature = "more-networks")]
+        for id in [
             "signal",
             "messenger",
             "instagram",
@@ -113,6 +127,8 @@ mod tests {
         ] {
             assert!(ids.contains(&id), "{id} is missing");
         }
+        #[cfg(not(feature = "more-networks"))]
+        assert_eq!(ids.len(), 6, "the default build lists exactly six networks");
     }
 
     #[test]

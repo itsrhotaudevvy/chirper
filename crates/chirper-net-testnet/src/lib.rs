@@ -4,6 +4,8 @@
 //! tests, in the UI development build (`--features mock`) and, because nothing here does network or
 //! file I/O, on wasm. It also documents the shape a real driver takes.
 
+#![forbid(unsafe_code)]
+
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 

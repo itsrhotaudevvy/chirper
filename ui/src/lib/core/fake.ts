@@ -54,6 +54,30 @@ const DOMAIN = 'chirper.local';
 const CANNED_REPLY_ROOMS = new Set(['!whatsapp.alice:chirper.local', '!signal.jonas:chirper.local']);
 const CANNED_REPLIES = ['Sounds good to me', 'Let me check and get back to you', 'Haha yes 😄', 'Perfect, see you then'];
 
+/** The networks this build offers, as the Rust core does: WhatsApp, Telegram, Discord, Fluxer, SMS. */
+const OFFERED_NETWORKS = ['whatsapp', 'telegram', 'discord', 'fluxer', 'sms'] as const;
+
+/** SMS has no demo data here. It is listed as unavailable, as on any platform without SMS access. */
+const SMS_NETWORK: Network = {
+  id: 'sms',
+  name: 'SMS',
+  color: '',
+  beta: false,
+  loginFlows: [{ id: 'device', name: 'This phone', description: "Read and send SMS with this phone's SIM." }],
+  capabilities: {
+    edits: false,
+    reactions: false,
+    replies: false,
+    redactions: false,
+    typing: false,
+    readReceipts: false,
+    stickers: false,
+    voice: false,
+  },
+  available: false,
+  reason: "SMS works in the Android app, which reads and sends through the phone's own SMS service.",
+};
+
 const MEDIA_KIND_TYPE: Record<MediaKind, string> = {
   image: 'image',
   video: 'video',
@@ -106,10 +130,15 @@ export class FakeCore implements CoreApi {
   constructor(now: () => number = Date.now) {
     this.now = now;
     const world = createDemoWorld(now());
-    this.networkList = world.networks;
-    this.accountList = world.accounts;
-    for (const chat of world.chats) this.chats.set(chat.roomId, chat);
-    for (const [roomId, list] of world.messages) this.messages.set(roomId, list);
+    const offered = new Set<string>(OFFERED_NETWORKS);
+    this.networkList = [...world.networks.filter((n) => offered.has(n.id)), SMS_NETWORK];
+    this.accountList = world.accounts.filter((a) => offered.has(a.network));
+    for (const chat of world.chats) {
+      if (offered.has(chat.network)) this.chats.set(chat.roomId, chat);
+    }
+    for (const [roomId, list] of world.messages) {
+      if (this.chats.has(roomId)) this.messages.set(roomId, list);
+    }
   }
 
   async start(): Promise<void> {
@@ -127,6 +156,9 @@ export class FakeCore implements CoreApi {
   // ---- Login ----------------------------------------------------------------------------------
 
   async startLogin(args: { network: string; flowId: string }): Promise<LoginState> {
+    if (!this.networkList.some((n) => n.id === args.network)) {
+      throw new CoreError('unknown_network', `this build does not offer ${args.network}`);
+    }
     this.loginCount++;
     const loginId = `demo-${args.network}-${this.loginCount}`;
     const processId = crypto.randomUUID();

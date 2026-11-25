@@ -8,6 +8,6 @@
     "build": "cargo tauri build",
     "ui:dev": "pnpm --dir ui dev",
     "ui:build": "pnpm --dir ui build",
-    "check": "pnpm --dir ui check && pnpm --dir ui test && cargo clippy --workspace --all-targets --features chirper-core/mock -- -D warnings"
+    "check": "pnpm --dir ui check && pnpm --dir ui test && cargo clippy --workspace --all-targets -- -D warnings"
   }
 }

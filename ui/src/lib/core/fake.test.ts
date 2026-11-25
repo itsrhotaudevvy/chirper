@@ -5,12 +5,20 @@ import type { CoreEvent } from './types';
 const ALL = { network: '', archived: false, unreadOnly: false, query: '' };
 
 describe('FakeCore', () => {
-  it('serves a demo world across at least 8 networks and 12 chats', async () => {
+  it('offers exactly the five networks of this build, with chats on three of them', async () => {
     const core = new FakeCore();
+    const ids = (await core.networks()).map((n) => n.id);
+    expect(ids).toEqual(['whatsapp', 'telegram', 'discord', 'fluxer', 'sms']);
     const chats = await core.listChats({ filter: { ...ALL, archived: false } });
     const networks = new Set(chats.map((c) => c.network));
-    expect(chats.length).toBeGreaterThanOrEqual(12);
-    expect(networks.size).toBeGreaterThanOrEqual(8);
+    expect(chats.length).toBeGreaterThanOrEqual(6);
+    expect(networks.size).toBeGreaterThanOrEqual(3);
+    expect([...networks].every((id) => ids.includes(id))).toBe(true);
+  });
+
+  it('refuses to log in to a network this build does not offer', async () => {
+    const core = new FakeCore();
+    await expect(core.startLogin({ network: 'signal', flowId: 'qr' })).rejects.toMatchObject({ code: 'unknown_network' });
   });
 
   it('walks a phone login: user_input, user_input, complete, then an account event', async () => {

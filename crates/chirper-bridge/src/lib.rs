@@ -10,6 +10,8 @@
 //!                                                            └── Command (send, edit, react, …)
 //! ```
 
+#![forbid(unsafe_code)]
+
 pub mod ids;
 pub mod model;
 pub mod network;

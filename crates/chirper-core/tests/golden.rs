@@ -68,7 +68,11 @@ fn kind(value: &Value) -> &'static str {
 fn assert_same_shape(name: &str, rust: &Value) {
     let mut diffs = Vec::new();
     shape_diff(name, &golden(name), rust, &mut diffs);
-    assert!(diffs.is_empty(), "{name} differs from the Go contract:\n{}", diffs.join("\n"));
+    assert!(
+        diffs.is_empty(),
+        "{name} differs from the Go contract:\n{}",
+        diffs.join("\n")
+    );
 }
 
 fn temp_dir(name: &str) -> std::path::PathBuf {
@@ -78,7 +82,10 @@ fn temp_dir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-async fn next_events(stream: &mut EventStream, until: impl Fn(&BTreeMap<String, Value>) -> bool) -> BTreeMap<String, Value> {
+async fn next_events(
+    stream: &mut EventStream,
+    until: impl Fn(&BTreeMap<String, Value>) -> bool,
+) -> BTreeMap<String, Value> {
     let mut first = BTreeMap::new();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     while !until(&first) {
@@ -105,6 +112,26 @@ async fn default_settings_match_the_go_core() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// Whether the driver behind a Go network id is compiled into this build (see the `net-*` features
+/// in `Cargo.toml`). The Go networks of the other ids ship in every build.
+fn compiled_in(id: &str) -> bool {
+    let gated = [
+        ("signal", cfg!(feature = "net-signal")),
+        ("messenger", cfg!(feature = "net-meta")),
+        ("instagram", cfg!(feature = "net-meta")),
+        ("twitter", cfg!(feature = "net-twitter")),
+        ("linkedin", cfg!(feature = "net-linkedin")),
+        ("gmessages", cfg!(feature = "net-gmessages")),
+        ("gvoice", cfg!(feature = "net-gvoice")),
+        ("slack", cfg!(feature = "net-slack")),
+        ("bluesky", cfg!(feature = "net-bluesky")),
+    ];
+    gated
+        .iter()
+        .find(|(name, _)| *name == id)
+        .is_none_or(|(_, on)| *on)
+}
+
 #[tokio::test]
 async fn network_rows_match_the_go_core() {
     let dir = temp_dir("networks");
@@ -119,10 +146,40 @@ async fn network_rows_match_the_go_core() {
     // usable Rust driver offers at least the login flows the Go build offered.
     let mut problems = Vec::new();
     let rows = rust_json.as_array().unwrap();
+
+    // The default build ships exactly these networks; `more-networks` adds the rest.
+    let mut listed: Vec<&str> = rows.iter().map(|row| row["id"].as_str().unwrap()).collect();
+    listed.sort_unstable();
+    let mut expected = vec![
+        "discord", "fluxer", "sms", "telegram", "testnet", "whatsapp",
+    ];
+    if cfg!(feature = "more-networks") {
+        expected.extend([
+            "bluesky",
+            "gmessages",
+            "gvoice",
+            "imessage",
+            "instagram",
+            "linkedin",
+            "messenger",
+            "signal",
+            "slack",
+            "twitter",
+        ]);
+    }
+    expected.sort_unstable();
+    assert_eq!(
+        listed, expected,
+        "the build lists other networks than its feature set says"
+    );
+
     for network in golden("networks").as_array().unwrap() {
         let id = network["id"].as_str().unwrap();
         if id == "demo" {
             continue; // the Rust demo network is `testnet`
+        }
+        if !compiled_in(id) {
+            continue; // its driver is behind a feature this build does not enable
         }
         let Some(row) = rows.iter().find(|row| row["id"] == id) else {
             problems.push(format!("{id}: not listed"));
@@ -130,7 +187,10 @@ async fn network_rows_match_the_go_core() {
         };
         for field in ["name", "color"] {
             if row[field] != network[field] {
-                problems.push(format!("{id}: {field} {} != Go {}", row[field], network[field]));
+                problems.push(format!(
+                    "{id}: {field} {} != Go {}",
+                    row[field], network[field]
+                ));
             }
         }
         if row["available"] != true {
@@ -147,7 +207,11 @@ async fn network_rows_match_the_go_core() {
             }
         }
     }
-    assert!(problems.is_empty(), "network rows differ from the Go build:\n{}", problems.join("\n"));
+    assert!(
+        problems.is_empty(),
+        "network rows differ from the Go build:\n{}",
+        problems.join("\n")
+    );
     core.shutdown();
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -160,21 +224,38 @@ async fn envelopes_of_a_demo_session_match_the_go_core() {
     let (core, mut stream) = Core::open(options).unwrap();
 
     let state = core.start_login("testnet", "demo").await.unwrap();
-    assert_same_shape("login_step_complete", &serde_json::to_value(&state).unwrap());
+    assert_same_shape(
+        "login_step_complete",
+        &serde_json::to_value(&state).unwrap(),
+    );
 
-    let events = next_events(&mut stream, |seen| seen.contains_key("chat") && seen.contains_key("account")).await;
+    let events = next_events(&mut stream, |seen| {
+        seen.contains_key("chat") && seen.contains_key("account")
+    })
+    .await;
     assert_same_shape("event_account", &events["account"]);
     assert_same_shape("event_chat", &events["chat"]);
-    assert_same_shape("accounts", &serde_json::to_value(core.accounts().await.unwrap()).unwrap());
+    assert_same_shape(
+        "accounts",
+        &serde_json::to_value(core.accounts().await.unwrap()).unwrap(),
+    );
 
     let chats = core.list_chats(&ChatFilter::default()).await.unwrap();
     assert_same_shape("chats", &serde_json::to_value(&chats).unwrap());
-    let dm = chats.iter().find(|chat| chat.is_dm).unwrap().room_id.clone();
+    let dm = chats
+        .iter()
+        .find(|chat| chat.is_dm)
+        .unwrap()
+        .room_id
+        .clone();
     let chat = core.get_chat(&dm).await.unwrap().unwrap();
     assert_same_shape("chat", &serde_json::to_value(&chat).unwrap());
 
     core.load_older(&dm).await.unwrap();
-    let sent = core.send_text(&dm, "golden hello", None, "txn.golden").await.unwrap();
+    let sent = core
+        .send_text(&dm, "golden hello", None, "txn.golden")
+        .await
+        .unwrap();
     assert!(sent.starts_with('$'));
     let events = next_events(&mut stream, |seen| seen.contains_key("message")).await;
     assert_same_shape("event_message", &events["message"]);
