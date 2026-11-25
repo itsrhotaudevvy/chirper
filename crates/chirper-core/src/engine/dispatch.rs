@@ -107,8 +107,14 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
             edit_target,
             reply_to,
         ),
-        Routed::Redact { chat, target, .. } => {
-            let redaction = inner.store.redact(target.as_str())?;
+        Routed::Redact {
+            chat,
+            target,
+            remote,
+            ..
+        } => {
+            let target_id = local_event_id(inner, chat.as_str(), &remote, target.as_str())?;
+            let redaction = inner.store.redact(&target_id)?;
             if redaction.is_reaction {
                 emit_message(inner, redaction.target_event_id.as_str())?;
                 return Ok(());
@@ -117,7 +123,7 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
                 "message_removed",
                 serde_json::json!({
                     "roomId": chat.as_str(),
-                    "eventId": target.as_str(),
+                    "eventId": target_id,
                 }),
             );
             emit_chat(inner, chat.as_str())?;
@@ -126,8 +132,10 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
         Routed::Reactions {
             chat,
             target,
+            remote,
             reactions,
         } => {
+            let target_id = local_event_id(inner, chat.as_str(), &remote, target.as_str())?;
             let summary = reactions
                 .into_iter()
                 .map(|reaction| {
@@ -141,8 +149,8 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
                 .collect::<Vec<_>>();
             inner
                 .store
-                .set_reaction_summary(chat.as_str(), target.as_str(), &summary)?;
-            emit_message(inner, target.as_str())?;
+                .set_reaction_summary(chat.as_str(), &target_id, &summary)?;
+            emit_message(inner, &target_id)?;
             Ok(())
         }
         Routed::Typing {
@@ -196,9 +204,11 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
             chat,
             sender,
             target,
+            remote,
         } => {
             if sender.as_str() == SELF_USER_ID {
-                let _ = inner.store.mark_read_up_to(chat.as_str(), target.as_str());
+                let target_id = local_event_id(inner, chat.as_str(), &remote, target.as_str())?;
+                let _ = inner.store.mark_read_up_to(chat.as_str(), &target_id);
                 emit_chat(inner, chat.as_str())?;
             }
             Ok(())
@@ -209,19 +219,7 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
             status,
             error,
         } => {
-            let Some(event) = delivery_target(inner, chat.as_str(), &txn_id)? else {
-                return Ok(());
-            };
-            let status = match status {
-                DeliveryStatus::Sent => "sent",
-                DeliveryStatus::Delivered => "delivered",
-                DeliveryStatus::Read => "read",
-                DeliveryStatus::Failed => "failed",
-            };
-            inner
-                .store
-                .set_event_status(&event.event_id, status, &error)?;
-            emit_message(inner, &event.event_id)?;
+            apply_delivery(inner, chat.as_str(), &txn_id, status, &error)?;
             Ok(())
         }
         Routed::State {
@@ -321,8 +319,12 @@ fn message_event(
             &convert::media_dir(&inner.data_dir),
             &inner.store,
         );
-        let target_id =
-            edit_target_id(inner, room_id, message.edit_of.as_deref(), target.as_str())?;
+        let target_id = local_event_id(
+            inner,
+            room_id,
+            message.edit_of.as_deref().unwrap_or_default(),
+            target.as_str(),
+        )?;
         inner
             .store
             .apply_edit(room_id, &target_id, &stored.json, ts)?;
@@ -390,7 +392,12 @@ fn message_event(
         kind: "message".to_owned(),
         content_json: stored.json,
         ts,
-        reply_to: reply_to.map(|id| id.into_inner()).unwrap_or_default(),
+        reply_to: local_event_id(
+            inner,
+            room_id,
+            message.reply_to.as_deref().unwrap_or_default(),
+            &reply_to.map(|id| id.into_inner()).unwrap_or_default(),
+        )?,
         status: "sent".to_owned(),
         remote_id: message.id.clone(),
         ..Default::default()
@@ -426,20 +433,41 @@ fn delivery_target(inner: &Inner, room_id: &str, id: &str) -> Result<Option<Even
         .filter(|event| event.sender == SELF_USER_ID))
 }
 
-/// The local id of the message an edit replaces. The network's id is tried first: an outgoing
-/// message is stored under its optimistic local id, which the network's id does not derive.
-fn edit_target_id(
+/// The local id of the event a driver names by the network's id. An outgoing message is stored
+/// under its optimistic local id, which the network's id does not derive, so the stored event is
+/// looked up first. `derived` is the id that an incoming message with that network id has.
+fn local_event_id(inner: &Inner, room_id: &str, remote: &str, derived: &str) -> Result<String> {
+    if remote.is_empty() {
+        return Ok(derived.to_owned());
+    }
+    Ok(inner
+        .store
+        .event_by_remote(room_id, remote)?
+        .map_or_else(|| derived.to_owned(), |event| event.event_id))
+}
+
+/// Apply a delivery report to the outgoing event it names. Unknown events are ignored.
+fn apply_delivery(
     inner: &Inner,
     room_id: &str,
-    edit_of: Option<&str>,
-    derived: &str,
-) -> Result<String> {
-    let remote = edit_of.filter(|id| !id.is_empty());
-    let by_remote = match remote {
-        Some(id) => inner.store.event_by_remote(room_id, id)?,
-        None => None,
+    id: &str,
+    status: DeliveryStatus,
+    error: &str,
+) -> Result<()> {
+    let Some(event) = delivery_target(inner, room_id, id)? else {
+        return Ok(());
     };
-    Ok(by_remote.map_or_else(|| derived.to_owned(), |event| event.event_id))
+    let status = match status {
+        DeliveryStatus::Sent => "sent",
+        DeliveryStatus::Delivered => "delivered",
+        DeliveryStatus::Read => "read",
+        DeliveryStatus::Failed => "failed",
+    };
+    inner
+        .store
+        .set_event_status(&event.event_id, status, error)?;
+    emit_message(inner, &event.event_id)?;
+    Ok(())
 }
 
 /// Make sure a room row exists, creating a minimal one when a driver reports a chat before its

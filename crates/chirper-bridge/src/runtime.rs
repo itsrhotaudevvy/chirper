@@ -49,10 +49,14 @@ pub enum Routed {
         chat: ChatId,
         portal: PortalRef,
         target: EventId,
+        /// The network's id of the redacted event, for finding an outgoing message by it.
+        remote: String,
     },
     Reactions {
         chat: ChatId,
         target: EventId,
+        /// The network's id of the reacted-to message.
+        remote: String,
         reactions: Vec<crate::model::Reaction>,
     },
     Typing {
@@ -71,6 +75,8 @@ pub enum Routed {
         chat: ChatId,
         sender: SenderId,
         target: EventId,
+        /// The network's id of the message read up to.
+        remote: String,
     },
     Delivery {
         chat: ChatId,
@@ -552,6 +558,7 @@ fn route(network: &str, event: Event) -> Routed {
             let chat = chat_of(&portal);
             Routed::Redact {
                 target: event_of(&chat, &event),
+                remote: event.id.clone(),
                 chat,
                 portal,
             }
@@ -562,10 +569,12 @@ fn route(network: &str, event: Event) -> Routed {
             reactions,
         } => {
             let chat = chat_of(&portal);
+            let remote = target.id.clone();
             let target = event_of(&chat, &target);
             Routed::Reactions {
                 chat,
                 target,
+                remote,
                 reactions,
             }
         }
@@ -608,6 +617,7 @@ fn route(network: &str, event: Event) -> Routed {
             let chat = chat_of(&portal);
             Routed::ReadReceipt {
                 target: event_of(&chat, &event),
+                remote: event.id.clone(),
                 sender: ids::sender_id(network, &user.id),
                 chat,
             }

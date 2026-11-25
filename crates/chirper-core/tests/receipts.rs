@@ -8,7 +8,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use chirper_bridge::model::{
     BackfillPage, Capabilities, ChatMeta, Content, DeliveryStatus, Event, LoginFlow, LoginStep,
-    PortalRef, RemoteMessage, RemoteUser,
+    PortalRef, Reaction, RemoteEventRef, RemoteMessage, RemoteUser,
 };
 use chirper_bridge::{
     Ack, Command, Error, LoginCtx, LoginInput, LoginProcess, Network, Result, Session,
@@ -382,4 +382,107 @@ async fn an_edit_names_an_outgoing_message_by_its_network_id() {
     let message = h.message(&sent).await;
     assert_eq!(message.body, "final text");
     assert!(message.edited);
+}
+
+/// The stored message with this body.
+async fn by_body(h: &Harness, body: &str) -> Message {
+    h.core
+        .list_messages(&h.room, 0, 200)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|message| message.body == body)
+        .unwrap_or_else(|| panic!("no message says {body:?}"))
+}
+
+fn thumbs_up() -> Event {
+    Event::Reactions {
+        portal: portal(),
+        target: RemoteEventRef::new("wa-1"),
+        reactions: vec![Reaction {
+            key: "+1".to_owned(),
+            count: 1,
+            from_me: false,
+            senders: vec![ada()],
+        }],
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reactions_and_redactions_find_our_own_sent_message() {
+    let mut h = Harness::start("own-reaction").await;
+    let sent = h.send("mine").await;
+    h.wait_for_status(&sent, MessageStatus::Sent).await;
+
+    h.feed_and_sync(thumbs_up()).await;
+    let message = h.message(&sent).await;
+    assert_eq!(
+        message.reactions.len(),
+        1,
+        "the reaction missed our message"
+    );
+    assert_eq!(message.reactions[0].key, "+1");
+
+    h.feed_and_sync(Event::Redact {
+        portal: portal(),
+        event: RemoteEventRef::new("wa-1"),
+    })
+    .await;
+    assert!(
+        h.message(&sent).await.redacted,
+        "the redaction missed our message"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reactions_and_redactions_find_an_incoming_message() {
+    let mut h = Harness::start("incoming-reaction").await;
+    h.feed_and_sync(incoming("in-1", None, "hi")).await;
+    let event_id = by_body(&h, "hi").await.event_id;
+
+    h.feed_and_sync(Event::Reactions {
+        portal: portal(),
+        target: RemoteEventRef::new("in-1"),
+        reactions: vec![Reaction {
+            key: "+1".to_owned(),
+            count: 1,
+            from_me: false,
+            senders: vec![ada()],
+        }],
+    })
+    .await;
+    assert_eq!(h.message(&event_id).await.reactions.len(), 1);
+
+    h.feed_and_sync(Event::Redact {
+        portal: portal(),
+        event: RemoteEventRef::new("in-1"),
+    })
+    .await;
+    assert!(h.message(&event_id).await.redacted);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_reply_to_our_own_sent_message_points_at_it() {
+    let mut h = Harness::start("own-reply").await;
+    let sent = h.send("mine").await;
+    h.wait_for_status(&sent, MessageStatus::Sent).await;
+
+    h.feed_and_sync(Event::Message(RemoteMessage {
+        portal: portal(),
+        id: "in-2".to_owned(),
+        part: String::new(),
+        sender: ada(),
+        timestamp_ms: 1_700_000_000_000,
+        content: Content::Text {
+            body: "answer".to_owned(),
+            formatted: None,
+        },
+        reply_to: Some("wa-1".to_owned()),
+        edit_of: None,
+        live: true,
+        from_me: false,
+    }))
+    .await;
+    let answer = by_body(&h, "answer").await;
+    assert_eq!(answer.reply_to.map(|reply| reply.event_id), Some(sent));
 }
