@@ -59,6 +59,14 @@ fresh key per file. The format is compatible with the files the Go build wrote.
 `prefs.json` in the Tauri app data directory is written with mode 0600 (`src-tauri/src/prefs.rs`).
 It holds settings such as the lock timeout and the notification choices, and no secrets.
 
+### Core settings and the Telegram API credentials
+
+`settings.json` in the data directory holds the core settings. It is written as JSON with owner-only
+permissions (`secure::write_private`). It is not encrypted. If the user enters a Telegram API id and
+hash in Settings → Advanced, both are stored there as `telegram.apiId` and `telegram.apiHash`. An API
+hash is an application credential, not a login, but it is private, so it is a known gap (section 9).
+The compiled-in pair (`CHIRPER_TELEGRAM_API_ID` and `CHIRPER_TELEGRAM_API_HASH`) is not stored in files.
+
 ### Sync bundle
 
 Settings → Sync exports a bundle for another device (`ui/src/screens/settings/sync.ts`). The
@@ -126,12 +134,15 @@ default). Secure screen is on by default on Android and iOS and off on desktop
 - Remote error text is redacted before the runtime forwards it (section 2).
 - A driver's rate-limit wait is honoured and capped at 15 minutes; the runtime does not retry an
   authentication failure (`crates/chirper-bridge/src/runtime.rs`).
+- The Discord browser login shows Discord's sign-in page in a window. It reads the token the page
+  keeps, checks it against the API, and stores it as a secret (`crates/chirper-net-discord/src/login.rs`).
 - The live-probe examples (`crates/chirper-net-telegram/examples`, `crates/chirper-net-whatsapp/examples`)
   connect to real networks. They are never run by `cargo test`.
 
 ## 9. Known gaps
 
 - The CSP allows `https:` for images, media and connections (section 5).
+- The Telegram API hash is kept in `settings.json` as plain JSON, not in the secret store (section 3).
 - `#![forbid(unsafe_code)]` is not set in `chirper-bridge`, `chirper-net-testnet` or `chirper-net-fluxer`.
 - No driver has been tested against a live account in this repository, so the behaviour of logins
   and message handling on the real networks is unverified.

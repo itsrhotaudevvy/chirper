@@ -3,8 +3,16 @@
 use std::sync::Arc;
 
 use chirper_bridge::Network;
+use chirper_net_telegram::Telegram;
 
-use crate::model::{Capabilities, Network as WireNetwork};
+use crate::model::{Capabilities, CoreSettings, Network as WireNetwork};
+
+/// The Telegram driver, with the API id and hash the user entered in Settings → Advanced. Without
+/// a valid pair it uses the build's own, as [`Telegram::new`] does.
+pub fn telegram(settings: &CoreSettings) -> Telegram {
+    let (api_id, api_hash) = super::settings::telegram_api(settings);
+    Telegram::with_credentials(api_id, api_hash)
+}
 
 /// Drivers the host application provides, because they need the platform (the Android SMS
 /// provider, for one). A host driver replaces the built-in entry with the same id.
@@ -21,7 +29,7 @@ impl std::fmt::Debug for HostNetworks {
 
 /// Every driver of this build, the host's first. A driver may still report itself unavailable
 /// (see [`Network::unavailable`]); it is listed with its reason then.
-pub fn available(demo: bool, host: &HostNetworks) -> Vec<Arc<dyn Network>> {
+pub fn available(demo: bool, host: &HostNetworks, telegram: Telegram) -> Vec<Arc<dyn Network>> {
     let mut out: Vec<Arc<dyn Network>> = host.0.clone();
     let mut push = |driver: Arc<dyn Network>| {
         if !out.iter().any(|known| known.id() == driver.id()) {
@@ -29,7 +37,7 @@ pub fn available(demo: bool, host: &HostNetworks) -> Vec<Arc<dyn Network>> {
         }
     };
     push(Arc::new(chirper_net_whatsapp::WhatsApp::new()));
-    push(Arc::new(chirper_net_telegram::Telegram::new()));
+    push(Arc::new(telegram));
     push(Arc::new(chirper_net_discord::Discord::new()));
     push(Arc::new(chirper_net_fluxer::FluxerNet::new()));
     push(Arc::new(chirper_net_sms::Sms::new()));
@@ -101,7 +109,7 @@ mod tests {
 
     #[test]
     fn every_network_is_listed_once() {
-        let drivers = available(true, &HostNetworks::default());
+        let drivers = available(true, &HostNetworks::default(), Telegram::new());
         let listed = all(&drivers);
         let mut ids = listed.iter().map(|n| n.id.as_str()).collect::<Vec<_>>();
         let count = ids.len();
@@ -132,8 +140,31 @@ mod tests {
     }
 
     #[test]
+    fn the_settings_credentials_reach_the_telegram_driver() {
+        let hash = "0123456789abcdef0123456789abcdef";
+        let settings = crate::model::CoreSettings {
+            telegram: serde_json::json!({ "apiId": 12345, "apiHash": hash }),
+            ..Default::default()
+        };
+        let listed = all(&[Arc::new(telegram(&settings)) as Arc<dyn Network>]);
+        assert!(
+            listed[0].available,
+            "valid settings left Telegram unavailable"
+        );
+
+        let unset = crate::model::CoreSettings::default();
+        let fallback = telegram(&unset).unavailable().is_none();
+        assert_eq!(
+            fallback,
+            chirper_net_telegram::Telegram::new()
+                .unavailable()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn usable_networks_come_first() {
-        let drivers = available(true, &HostNetworks::default());
+        let drivers = available(true, &HostNetworks::default(), Telegram::new());
         let listed = all(&drivers);
         let first_unusable = listed
             .iter()

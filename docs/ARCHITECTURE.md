@@ -43,19 +43,29 @@ Rules that the code follows:
 | `chirper-app` (`src-tauri/`) | Tauri shell: commands, `core-batch` batching, app lock, preferences, notifications, `chirper-media://`, platform code. |
 | `chirper-core` | Store (SQLCipher or plain SQLite), engine and facade, OCV1 media vault, sealed per-login secrets, log redaction, JSON model. |
 | `chirper-bridge` | The unified bridge runtime and the traits a driver implements (`Network`, `Session`, `LoginProcess`, `Secrets`), the domain model, the id derivation and the error type. |
-| `chirper-net-testnet` | In-process demo network. Used by tests and by the `mock` build. |
-| `chirper-net-discord` | Discord: REST v10 and gateway. |
-| `chirper-net-fluxer` | Fluxer: instance discovery, REST, gateway. |
-| `chirper-net-telegram` | Telegram: MTProto client. Available only with the API id compiled in. |
-| `chirper-net-whatsapp` | WhatsApp: multi-device client. Linking only so far; messaging is not implemented. |
-| `chirper-signal-protocol` | Signal protocol primitives, written for the WhatsApp, Signal and Messenger drivers. No driver depends on it yet. |
-| `chirper-net-signal`, `chirper-net-meta`, `chirper-net-twitter`, `chirper-net-gmessages` | Networks that report `unavailable()` with a reason. |
-| `chirper-net-slack`, `chirper-net-linkedin`, `chirper-net-gvoice`, `chirper-net-bluesky` | Web and app protocol clients for these networks. |
-| `chirper-net-sms` | SMS driver. It has no platform on desktop and iOS, so it reports unavailable there. The Android app provides the platform. |
+| `chirper-net-testnet` | In-process demo network. Registered in demo mode only. |
+| `chirper-net-whatsapp` | WhatsApp: own multi-device client. QR and pairing-code linking, receiving, sending, media, app-state and history sync. |
+| `chirper-net-telegram` | Telegram: own MTProto client. Available when an API id and hash are set, in the build or in Settings → Advanced. |
+| `chirper-net-discord` | Discord: REST v10 and gateway. Browser, QR, user-token and bot logins. |
+| `chirper-net-fluxer` | Fluxer: instance discovery, REST, gateway. Token, bot and password logins. |
+| `chirper-net-sms` | SMS driver. It needs a platform: the Android app provides one. Elsewhere it reports unavailable. |
+| `chirper-signal-protocol` | Signal protocol primitives (X3DH, Double Ratchet, sender keys, sealed sender). The WhatsApp driver uses it. |
+| `chirper-net-signal`, `chirper-net-meta`, `chirper-net-twitter`, `chirper-net-gmessages`, `chirper-net-linkedin`, `chirper-net-gvoice`, `chirper-net-slack`, `chirper-net-bluesky` | Gated networks. Compiled only with their feature; not in the default build. See [NETWORKS.md](NETWORKS.md) section 2. |
 
-`chirper-core` links every driver crate unconditionally: there are no per-network feature flags.
-The `mock` feature of `chirper-app` enables the demo network in the app
-(`Options::demo_network`).
+### Features of `chirper-core`
+
+| Feature | Effect |
+|---|---|
+| `sqlite-plain` (default) | Plain SQLite. For development and tests. |
+| `sqlcipher` | SQLCipher, with vendored OpenSSL. The app builds with it. |
+| `net-signal`, `net-meta`, `net-twitter`, `net-linkedin`, `net-gmessages`, `net-gvoice`, `net-slack`, `net-bluesky` | Each compiles its gated network and registers it. `net-meta` covers Messenger and Instagram. |
+| `more-networks` | Turns on all eight `net-*` features, and lists iMessage with its reason. |
+
+The five networks of the default build (WhatsApp, Telegram, Discord, Fluxer, SMS) are always compiled.
+The demo network is compiled always and registered only in demo mode. The app crate, `chirper-app`,
+has its own `mock` feature, which turns on demo mode (`Options::demo_network`). It does not forward
+`more-networks`: to build the app with the gated networks, the feature has to be passed to
+`chirper-core` directly (see [BUILDING.md](BUILDING.md) section 4).
 
 Plugins: `plugins/chirper-native` holds the Android (Kotlin) and iOS (Swift) code. It provides the
 keystore wrap, biometric prompts, the secure-screen cover, the Android connection service, and the
@@ -135,7 +145,7 @@ Everything is in the app data directory. The core opens these paths (`engine/mod
 | `chirper.db` | Rooms, messages, events, reactions, logins, remote ids, backfill state. Schema version 6. | SQLCipher with a raw 256-bit key (`PRAGMA key = x'…'`). Plain SQLite only in development builds. |
 | `media/` | Media files, sealed one file at a time. | `OCV1` format (`secure::vault`): AES-256-GCM in 64 KiB chunks, a fresh key per file. |
 | `credentials/` | Per-login secrets (tokens, cookies, keys). | Sealed with the database key, owner-only permissions. |
-| `settings.json` | Core settings (`CoreSettings`). | Plain file. Holds no secrets. |
+| `settings.json` | Core settings (`CoreSettings`), written as JSON. Holds the Telegram API id and hash if the user entered them in Settings → Advanced. | Owner-only file (`secure::write_private`). Not encrypted: the API hash is an app credential, not a login. |
 | `prefs.json` | App preferences, in the Tauri app data directory. | Mode 0600. Holds no secrets. |
 
 Schema history: versions 1 to 5 are the schema the Go core wrote, with the same table and column
@@ -165,16 +175,17 @@ A driver is a crate that implements the traits in `chirper-bridge/src/network.rs
 3. `Session`: `next` (the event stream), `command`, `backfill`, `logout_remote`.
 
 To register a driver, add it to `chirper-core/src/engine/networks.rs` (`available()`) and to the
-`[dependencies]` of `chirper-core`. The network id is written to the database and to settings, so
-it must not change once it has shipped.
+`[dependencies]` of `chirper-core`. A driver that is not part of the default build is an optional
+dependency behind a `net-*` feature, and is registered under `#[cfg(feature = ...)]`. The network id is
+written to the database and to settings, so it must not change once it has shipped.
 
 A driver that needs the operating system is provided by the host instead. The host passes a list
 in `Options::host_networks`; an entry with the same id replaces the built-in one. The Android SMS
 driver works this way: `host_networks` in `src-tauri/src/platform/mod.rs` builds it on Android, with
 a platform (`AndroidSms`, in `platform/android.rs`) that calls the `chirper-native` plugin.
 
-Networks with no driver, such as iMessage, come from a fixed list in `engine/networks.rs` and are
-shown as unavailable with a reason.
+Networks with no driver, such as iMessage, come from a fixed list in `engine/networks.rs`. That list
+is compiled only with `more-networks`, and its entries are shown as unavailable with a reason.
 
 ## 8. Testing
 
@@ -184,6 +195,7 @@ shown as unavailable with a reason.
 - `chirper-core/examples/smoke.rs` logs into the demo network, sends a message, and reopens the
   encrypted database with the same key.
 - Each driver tests its codecs, crypto steps and state machines with fixed vectors and fake
-  transports. No test in the workspace uses the network.
+  transports. The live probes in the drivers' `examples/` directories connect to real servers; they
+  are examples, not tests, and `cargo test` does not run them.
 
 See [BUILDING.md](BUILDING.md) for the commands.

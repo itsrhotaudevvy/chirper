@@ -299,7 +299,8 @@ impl Core {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let backlog = Arc::new(Backlog::default());
         let (routed_tx, routed_rx) = mpsc::channel(chirper_bridge::runtime::EVENT_QUEUE);
-        let drivers = networks::available(options.demo_network, &options.host_networks);
+        let telegram = networks::telegram(&settings);
+        let drivers = networks::available(options.demo_network, &options.host_networks, telegram);
         let runtime = Arc::new(Runtime::new(drivers.clone(), routed_tx));
 
         let inner = Arc::new(Inner {
@@ -411,9 +412,11 @@ impl Core {
         Ok(self.inner.settings.lock().expect("settings").clone())
     }
 
-    /// `setSettings`. The demo network follows `demoNetwork`, and a change is stored immediately.
+    /// `setSettings`. A change is validated and stored immediately. The Telegram API id and hash
+    /// apply at the next start, because the network registry is built once per start.
     pub async fn set_settings(&self, settings: &CoreSettings) -> Result<()> {
         self.inner.require_open()?;
+        settings::validate(settings)?;
         *self.inner.settings.lock().expect("settings") = settings.clone();
         settings::save(&self.inner.data_dir, settings)?;
         Ok(())

@@ -1,12 +1,14 @@
 # Supported networks
 
-Every fact here comes from the driver code in this repository: the `unavailable()`, `login_flows()`,
-`capabilities()` and `color()` methods of each `chirper-net-*` crate, and the module documentation of
-the crate. Where a driver is still being written, the table shows what `unavailable()` reports now.
+This build ships five networks, plus the demo network when demo mode is on. Every fact here comes
+from the driver code: the `unavailable()`, `login_flows()`, `capabilities()` and `color()` methods
+of each `chirper-net-*` crate, the crate documentation, and the registry in
+`crates/chirper-core/src/engine/networks.rs`.
 
-None of the drivers has been verified against a live account in this repository. "Available" means
-that `unavailable()` returns no reason; it does not mean that login, receiving and sending have been
-tested end to end. See [PLAN.md](PLAN.md) section 5.
+None of these drivers has been tested against live servers. The drivers' own tests use fake
+transports and fixed vectors, and those are the only exercise they have had. "Available" means that
+`unavailable()` returns no reason. It does not mean that login, receiving and sending work on the
+real network.
 
 Capability names are the ones the UI reads (`Capabilities` in `crates/chirper-bridge/src/model.rs`):
 `edits`, `reactions`, `replies`, `redactions`, `typing`, `readReceipts`, `stickers`, `voice`. The
@@ -14,188 +16,143 @@ runtime refuses a command whose capability is off, before the driver sees it.
 
 ---
 
-## 1. Summary
+## 1. Networks in this build
 
 | Network | Id | Driver crate | Status | Login flows (id) | Capabilities |
 |---|---|---|---|---|---|
-| Discord | `discord` | `chirper-net-discord` | Available | `token`, `qr` | all but `readReceipts`, `voice` |
+| WhatsApp | `whatsapp` | `chirper-net-whatsapp` | Available | `qr`, `phone` | all |
+| Telegram | `telegram` | `chirper-net-telegram` | Available when an API id and hash are set; otherwise unavailable | `phone`, `qr`, `bot` | all |
+| Discord | `discord` | `chirper-net-discord` | Available | `browser`, `qr`, `token`, `bot` | all but `readReceipts`, `voice` |
 | Fluxer | `fluxer` | `chirper-net-fluxer` | Available | `token`, `bot`, `password` | all but `stickers`, `voice` |
-| Telegram | `telegram` | `chirper-net-telegram` | Available only when built with the API id; otherwise unavailable | `phone`, `qr`, `bot` | all (as `Capabilities::ALL`) |
 | SMS | `sms` | `chirper-net-sms` | Available on Android; unavailable elsewhere | `device` | none |
-| WhatsApp | `whatsapp` | `chirper-net-whatsapp` | Unavailable: "WhatsApp messaging lands in the next phase" | `qr` | none |
-| Signal | `signal` | `chirper-net-signal` | Unavailable: "Signal is being ported to the unified Rust runtime." | none | none |
-| Messenger | `messenger` | `chirper-net-meta` | Unavailable: "Messenger is being ported to the unified Rust runtime." | none | none |
-| Instagram | `instagram` | `chirper-net-meta` | Unavailable: "Instagram is being ported to the unified Rust runtime." | none | none |
-| X (Twitter) | `twitter` | `chirper-net-twitter` | Unavailable: "X is being ported to the unified Rust runtime." | none | none |
-| Google Messages | `gmessages` | `chirper-net-gmessages` | Unavailable: "Google Messages is being ported to the unified Rust runtime." | none | none |
-| LinkedIn | `linkedin` | `chirper-net-linkedin` | Available | `cookies` | all but `stickers`, including `voice` |
-| Google Voice | `gvoice` | `chirper-net-gvoice` | Available | `cookies` | `readReceipts` |
-| Slack | `slack` | `chirper-net-slack` | Available | `email`, `token`, `app` | all but `stickers`, `voice` |
-| Bluesky | `bluesky` | `chirper-net-bluesky` | Available | `password` | `reactions`, `redactions`, `readReceipts` |
-| iMessage | `imessage` | none | Listed with a reason; no driver | none | none |
-| Demo | `testnet` | `chirper-net-testnet` | Available in builds with the demo network enabled | `demo` | all |
+| Demo | `testnet` | `chirper-net-testnet` | Only in demo mode | `demo` | all |
 
-"None" for capabilities means `Capabilities::default()`: every capability is off. The unavailable
-drivers report that today; their capabilities will be set when they are finished.
+"None" means `Capabilities::default()`: every capability is off.
 
-The demo network is registered only when the core is opened with `demo_network` (the `mock` build).
-iMessage is listed by `engine/networks.rs` from a fixed table, not by a driver.
+### WhatsApp
+
+- **Login:** `qr` links Chirper as a companion device: the user scans the code in WhatsApp under
+  Settings → Linked devices. `phone` links with a pairing code that the user types on the phone, under
+  Link with phone number.
+- **Protocol:** the crate's own multi-device client. It runs the Noise XX handshake over WebSocket,
+  the binary node codec and the protobuf messages. It uses `chirper-signal-protocol` for the
+  end-to-end sessions. It covers receiving, sending, media, app-state sync and history sync. Remote
+  ids follow the Go bridge (`ids`).
+
+### Telegram
+
+- **Credentials:** the driver needs a Telegram API id and hash. It takes them from two places:
+  - the user's settings, entered in **Settings → Advanced** and stored as `telegram.apiId` and
+    `telegram.apiHash` in the core settings. A valid pair (an id above zero, and a 32-character hex
+    hash) takes precedence;
+  - the build, from `CHIRPER_TELEGRAM_API_ID` and `CHIRPER_TELEGRAM_API_HASH`, read at compile time.
+
+  If neither is valid, the network is unavailable with the reason "Telegram needs an API id. Enter
+  yours in Settings → Advanced". The core reads the settings when it opens, so a change takes effect
+  after a restart, and the Settings screen says so.
+- **Login:** `phone` (login code, then the two-step password when the account has one), `qr`, and `bot`.
+- **Protocol:** MTProto 2.0 over TCP with the obfuscated transport, a TL schema code generator (schema
+  in `tl/`), SRP for the two-step password, the update stream, dialogs, messages, media and backfill
+  (`src/client`, `src/login`, `src/session`, `src/backfill.rs`, `src/media.rs`).
+
+### Discord
+
+- **Login:** `browser` opens Discord's own sign-in page in a web view, and Chirper reads the token the
+  web app keeps. `qr` scans a QR code with the Discord mobile app, for a user account. `token` takes a
+  user token. `bot` takes a bot token. Each flow ends by checking the token against the API, and the
+  account type must match the flow.
+- **Protocol:** the v10 REST API and the gateway over WebSocket, with resume (`api`, `gateway`,
+  `remoteauth`, `login`).
+- **Capabilities:** edits, reactions, replies, redactions, typing, stickers. The driver reports no
+  read receipts and no voice.
+
+### Fluxer
+
+- **Login:** `token` takes a session token; `bot` takes a bot token; `password` takes an e-mail or
+  username and a password, plus an authenticator code when the account asks for one. The flow's
+  `instance` field takes the origin of the instance; the default is `https://fluxer.app`.
+- **Protocol:** instance discovery (`discovery`), REST with the 429 policy (`api`), the ALTCHA
+  proof-of-work that instances use (`captcha`), and the gateway with resume (`gateway`).
+- **Capabilities:** edits, reactions, replies, redactions, typing, read receipts. Stickers and voice are off.
+
+### SMS
+
+- **Availability:** the driver needs a platform. On Android the app passes one (`AndroidSms` in
+  `src-tauri/src/platform/android.rs`, built on the `chirper-native` plugin). Elsewhere the network is
+  unavailable, with the reason "SMS works in the Android app, which reads and sends through the
+  phone's own SMS service."
+- **Login:** `device` (the "This phone" flow). It asks for the SMS permissions in a `permissions` step.
+- **Behaviour:** Chirper is not the default SMS app. The driver reads, receives and sends plain text.
+  It cannot mark messages read, delete them or write to the provider. Its capabilities are all off, so
+  the UI offers no edits, reactions, replies or receipts.
+
+### Demo
+
+- An in-process network with two chats and no I/O. It is registered only when the core is opened
+  in demo mode, which the app's `mock` feature turns on. It is the reference driver for the runtime
+  and the UI in development.
 
 ---
 
-## 2. Colours
+## 2. Not in this build
+
+These networks are compiled only with their Cargo feature in `chirper-core` (see
+[ARCHITECTURE.md](ARCHITECTURE.md) section 2). They are not registered in the default build and are
+not listed in the app. Their unfinished work is on the branch `wip/more-networks`. The table gives the
+state of each crate on the current branch and on that branch.
+
+| Network | Id | Feature | On this branch | On `wip/more-networks` |
+|---|---|---|---|---|
+| Signal | `signal` | `net-signal` | Placeholder: unavailable, no login flow | Same |
+| Messenger | `messenger` | `net-meta` | Placeholder: unavailable, no login flow | Same |
+| Instagram | `instagram` | `net-meta` | Placeholder: unavailable, no login flow | Same |
+| X (Twitter) | `twitter` | `net-twitter` | Placeholder: unavailable, no login flow | Cookies and password flows; reports available |
+| LinkedIn | `linkedin` | `net-linkedin` | Cookies flow; reports available | Cookies and password flows |
+| Google Messages | `gmessages` | `net-gmessages` | Placeholder: unavailable, no login flow | Same |
+| Google Voice | `gvoice` | `net-gvoice` | Cookies flow; reports available | Same |
+| Slack | `slack` | `net-slack` | E-mail, token and app flows; reports available | Same |
+| Bluesky | `bluesky` | `net-bluesky` | Password flow; reports available | Same |
+| iMessage | `imessage` | `more-networks` | Listed with a reason; no driver | Same: no crate; listed with a reason |
+
+- `more-networks` turns on all eight features above, and also lists iMessage.
+- `net-meta` covers two networks, Messenger and Instagram.
+- A feature-gated driver that reports available has not been tested against live servers either.
+- "Placeholder" means the crate has the network description and the `unavailable()` reason, and no login flow.
+
+---
+
+## 3. Colours
 
 Each driver's `color()` is the colour the UI uses for the network. These are the values in the code:
 
-| Network | Colour |
-|---|---|
-| Telegram | `#26A5E4` |
-| WhatsApp | `#25D366` |
-| Signal | `#3A76F0` |
-| Messenger | `#FF2542` |
-| Instagram | `#E1306C` |
-| X (Twitter) | `#7C5CFF` |
-| LinkedIn | `#FF2D7A` |
-| Google Messages | `#1A73E8` |
-| Google Voice | `#34A853` |
-| Slack | `#4A154B` |
-| Bluesky | `#1185FE` |
-| Discord | `#5865F2` |
-| Fluxer | `#FF77A9` |
-| SMS | `#8E8E93` |
-| Demo | `#8E8E93` |
+| Network | Colour | | Network | Colour |
+|---|---|---|---|---|
+| WhatsApp | `#25D366` | | Slack | `#4A154B` |
+| Telegram | `#26A5E4` | | Bluesky | `#1185FE` |
+| Discord | `#5865F2` | | Fluxer | `#FF77A9` |
+| SMS | `#8E8E93` | | Demo | `#8E8E93` |
+| Signal | `#3A76F0` | | Messenger | `#FF2542` |
+| Instagram | `#E1306C` | | X (Twitter) | `#7C5CFF` |
+| LinkedIn | `#FF2D7A` | | Google Messages | `#1A73E8` |
+| Google Voice | `#34A853` | | iMessage | `#34C759` |
 
 ---
 
-## 3. Per network
+## 4. Login flows against the Go build
 
-Notes are taken from each crate's module documentation and its code. Protocol detail is in the
-crate's own modules.
+The Go build's login flows are in the parity table in `docs/specs/README.md`. The five networks in
+this build offer the flow ids of that table: WhatsApp (`qr`, `phone`), Telegram (`phone`, `qr`,
+`bot`), Discord (`browser`, `qr`, `token`, `bot`) and Fluxer (`token`, `bot`, `password`). The golden
+tests pin the network ids, colours and flow ids that the UI depends on.
 
-### Discord (`discord`)
-
-- **Login:** `token` takes a user token, or a bot token that starts with `Bot `. `qr` uses the
-  Discord mobile app's remote-auth flow.
-- **Protocol:** REST v10 and the gateway over WebSocket (`api`, `gateway`, `remoteauth`).
-- **Capabilities:** edits, reactions, replies, redactions, typing, stickers. Discord has no read
-  receipts in this driver, and voice is off.
-
-### Fluxer (`fluxer`)
-
-- **Login:** `token` takes a session token; `bot` takes a bot token; `password` takes an e-mail or
-  username with a password, and an authenticator code when the account asks for one.
-- **Protocol:** instance discovery (`discovery`), REST with the 429 policy (`api`), the ALTCHA
-  proof-of-work used by the instance (`captcha`), and the gateway with resume (`gateway`). The
-  driver can talk to any Fluxer instance; the default is set in `discovery`.
-- **Capabilities:** edits, reactions, replies, redactions, typing, read receipts. Stickers and voice are off.
-
-### Telegram (`telegram`)
-
-- **Availability:** `unavailable()` returns a reason unless the build has both
-  `CHIRPER_TELEGRAM_API_ID` and `CHIRPER_TELEGRAM_API_HASH`. The release workflow supplies them from
-  secrets.
-- **Login:** `phone` (login code, then the two-step password when the account has one), `qr`, and `bot`.
-- **Protocol:** MTProto 2.0 over TCP, with a TL schema code generator (schema in `tl/`), the client in
-  `src/client`, the logins in `src/login` and the encrypted session in `src/session`. The driver is
-  still being completed; see
-  [rust-core-port.md](rust-core-port.md).
-- **Capabilities:** the driver returns `Capabilities::ALL`. The runtime enforces the flags, but the
-  driver has not yet been verified for each of them.
-
-### SMS (`sms`)
-
-- **Availability:** the driver needs a platform. On Android the app passes a platform built on the
-  `chirper-native` plugin (`src-tauri/src/platform/android.rs`). Elsewhere it reports unavailable with
-  the reason "SMS works in the Android app, which reads and sends through the phone's own SMS service."
-- **Login:** `device` (the "This phone" flow). It asks for the SMS permissions in a `permissions`
-  step, then starts the account.
-- **Behaviour:** the app is not the default SMS application. The driver reads, receives and sends
-  plain text. It cannot mark messages read, delete them or write to the provider. The capabilities
-  are all off, so the UI does not offer edits, reactions, replies or receipts.
-
-### WhatsApp (`whatsapp`)
-
-- **Login:** `qr` links the app as a companion device. The flow runs the Noise XX handshake over
-  WebSocket, uses the binary node codec, and shows the pairing QR code.
-- **Availability:** unavailable. The module documentation says the phase-one work is the transport and
-  the linking; messaging, the Signal protocol (through `chirper-signal-protocol`), media and history
-  sync come next.
-- **Capabilities:** none.
-
-### Signal, Messenger, Instagram, X, Google Messages
-
-These five networks have no working driver in this repository. Each crate's `lib.rs` contains the
-network description and the `unavailable()` reason, and no login flow; the crate documentation says
-they are work in progress. Some of these crates have modules under construction in the working tree
-that the `lib.rs` does not use yet. The Messenger and Instagram drivers share `chirper-net-meta`.
-
-### LinkedIn (`linkedin`)
-
-- **Login:** `cookies`. The UI reads the session cookies from the sign-in page.
-- **Protocol:** LinkedIn's own web messaging API, with its realtime stream (server-sent events with a
-  heartbeat) (`api`, `realtime`, `session`). The ids match the Go bridge's.
-- **Capabilities:** edits, reactions, replies, redactions, typing, read receipts, and voice. Stickers are off.
-
-### Google Voice (`gvoice`)
-
-- **Login:** `cookies`. The sign-in page is voice.google.com; the UI reads the listed cookies.
-- **Protocol:** the Voice thread list and the realtime channel, with a pblite codec (`api`,
-  `realtime`, `wire`, `schema`). The behaviour follows mautrix-gvoice (AGPL-3.0), named in the module
-  documentation. Sends do not use the Electron helper of the reference; they carry the default
-  tracking data.
-- **Capabilities:** read receipts only. The driver handles text and image messages.
-
-### Slack (`slack`)
-
-- **Login:** `email` (address, a CAPTCHA when Slack asks for one, the confirmation code, a workspace
-  choice, and two-factor or browser sign-in where a workspace needs it); `token` (an auth token,
-  with a cookie when the token comes from a browser); and `app` (a bot or user token pasted by hand).
-- **Protocol:** the Web API, and the real-time websocket (`rtm`). The message conversions follow the
-  mautrix Slack bridge (AGPL-3.0), named in the module documentation.
-- **Capabilities:** edits, reactions, replies, redactions, typing, read receipts. Slack has no stickers
-  in this driver (they arrive as images), and voice is off.
-
-### Bluesky (`bluesky`)
-
-- **Login:** `password`, with a handle and an app password. The server defaults to `bsky.social`.
-- **Protocol:** AT Protocol XRPC. The session comes from `com.atproto.server.createSession`, is
-  refreshed when it expires, and is deleted on logout. `chat.bsky` calls go through the PDS proxy to
-  the chat service. The session polls the event log: it waits 5 seconds between polls and doubles the
-  wait after each empty poll, up to a maximum.
-- **Capabilities:** reactions, redactions and read receipts. Edits, replies and typing are off.
-
-### Demo (`testnet`)
-
-- An in-process network with two chats and no I/O. It is the reference driver for the runtime and
-  the UI in development. It is registered only in the `mock` build.
-
----
-
-## 4. Differences from the Go build's login flows
-
-The Go build's login flows are in the parity table in `docs/specs/README.md`. Where the Rust driver
-exposes a different set, the table below says so. The golden tests pin the network ids, colours
-and login flow ids that the UI depends on, so a missing flow is a gap to close, not a rename.
-
-| Network | Go build | Rust driver in this repository |
-|---|---|---|
-| Discord | `browser`, `qr`, `token`, `bot` | `token` (which also accepts a bot token), `qr` |
-| WhatsApp | `qr`, `phone` | `qr` |
-| LinkedIn | `cookies`, `password` | `cookies` |
-| Google Messages | `google`, `qr` | none (unavailable) |
-| Signal | `qr` (link, in mautrix) | none (unavailable) |
-| Messenger | `facebook`, `messenger`, `messenger-lite`, `messenger-lite-android` | none (unavailable) |
-| Instagram | `android`, `instagram`, `instagram-password` | none (unavailable) |
-| X (Twitter) | `cookies`, `password` | none (unavailable) |
-| Telegram, Fluxer, Slack, Bluesky, Google Voice | as in the Go build | as in section 1 |
+The gated networks do not yet offer every Go flow. Signal, Messenger, Instagram and Google Messages
+have no flows, and X has its flows only on `wip/more-networks`.
 
 ---
 
 ## 5. Registration
 
-`crates/chirper-core/src/engine/networks.rs` builds the list. Drivers are added in this order; the
-UI shows the available ones first:
-
-Discord, Fluxer, Telegram, WhatsApp, SMS, Signal, Messenger, Instagram, X, LinkedIn, Google Messages,
-Google Voice, Slack, Bluesky, and the demo network in the `mock` build. A host can replace the SMS
-entry on Android. iMessage is added from a fixed table, with its reason.
+`crates/chirper-core/src/engine/networks.rs` builds the list. The usable networks come first, in this
+order: WhatsApp, Telegram, Discord, Fluxer, SMS, then the demo network in demo mode. The gated
+networks are added only under their features. A host can replace the SMS entry on Android. In a
+`more-networks` build, iMessage is listed last, with its reason.

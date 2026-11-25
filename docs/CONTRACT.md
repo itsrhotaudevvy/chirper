@@ -66,6 +66,11 @@ Rust method takes the same values.
 | `settings` | `{}` | `CoreSettings` |
 | `setSettings` | `{"settings":CoreSettings}` | `null` |
 
+`CoreSettings` includes `telegram: {"apiId","apiHash"}`, which defaults to `{"apiId":0,"apiHash":""}`.
+`setSettings` rejects an `apiId` that is not a whole number from 0 to 2147483647, and an `apiHash`
+that is neither empty nor 32 hexadecimal characters. The Telegram driver reads the pair when the core
+opens, so a change applies after a restart.
+
 Input is checked in `crates/chirper-core/src/engine/validate.rs` before it reaches the store or a
 driver. Text is capped at 64 KiB and a list page at 500 messages.
 

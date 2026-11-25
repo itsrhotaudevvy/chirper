@@ -45,19 +45,18 @@ device, because the key stays in this device's keystore. Section 4 of
 
    | Network | Flows |
    |---|---|
-   | Discord | Account token, or QR code (scan with the Discord mobile app) |
+   | WhatsApp | QR code (Settings → Linked devices → Link a device), or a pairing code typed on the phone (Link with phone number) |
+   | Telegram | Phone number with login code and two-step password, QR code, or bot token. Needs an API id and hash: from the build, or entered in Settings → Advanced, then restart Chirper |
+   | Discord | Browser sign-in on Discord's own page, QR code (scan with the Discord mobile app), a user token, or a bot token |
    | Fluxer | Session token, bot token, or e-mail or username and password |
-   | Telegram (in builds with the API id) | Phone number with login code and two-step password, QR code, or bot token |
-   | Slack | E-mail (with a code), an auth token with a cookie, or an app token |
-   | Bluesky | Handle and an app password |
-   | LinkedIn | Browser cookies: sign in on linkedin.com, and the app reads the session cookies |
-   | Google Voice | Browser cookies: sign in on voice.google.com, and the app reads the session cookies |
    | SMS (Android) | This phone: the app asks for SMS permission |
 
-   The full list, with the capabilities of each network, is in [NETWORKS.md](NETWORKS.md).
-3. For a QR code, scan it with the network's app as the screen describes. For a cookie flow, the
-   sign-in page opens in a window inside Chirper and the app reads the listed cookies once you are
-   signed in.
+   The full list, with the capabilities of each network, is in [NETWORKS.md](NETWORKS.md). Signal,
+   Messenger, Instagram, X, LinkedIn, Google Messages, Google Voice, Slack and Bluesky are not in this
+   build.
+3. For a QR code, scan it with the network's app as the screen describes. For the Discord browser
+   flow, Discord's sign-in page opens in a window inside Chirper, and the app reads the token the page
+   keeps once you are signed in.
 4. When the account is connected, the app syncs the recent chats in the background. **Settings →
    Accounts** shows each account's state. **Sync history** and **Log out** are on the account's page.
 

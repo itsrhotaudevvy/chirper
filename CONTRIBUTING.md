@@ -31,7 +31,7 @@ Tauri CLI is 2.12.5.
 | `crates/chirper-core/` | Store, engine, facade, media vault, secrets, JSON model |
 | `crates/chirper-bridge/` | The unified bridge runtime and the traits a driver implements |
 | `crates/chirper-net-*/` | One protocol client per network |
-| `crates/chirper-signal-protocol/` | Signal protocol primitives used by the messaging drivers |
+| `crates/chirper-signal-protocol/` | Signal protocol primitives, used by the WhatsApp driver |
 | `plugins/chirper-native/` | Kotlin and Swift code for mobile-only platform features |
 | `scripts/` | `build-android.sh`, `fetch-third-party.sh` |
 | `third_party/` | `pins.txt` (committed) and the reference clones it names (not committed) |
@@ -46,8 +46,9 @@ same pull request.
 
 ## Code style
 
-- **Rust:** `cargo fmt`, and `cargo clippy --workspace --all-targets --features chirper-core/mock -- -D warnings`
-  must be clean. Do not use `unwrap()` or `expect()` on data that comes from the network, the
+- **Rust:** `cargo fmt`, and `cargo clippy --workspace --all-targets -- -D warnings` must be clean.
+  A change to a gated network must also keep `cargo check -p chirper-core --features more-networks`
+  passing (see [docs/BUILDING.md](docs/BUILDING.md) section 4). Do not use `unwrap()` or `expect()` on data that comes from the network, the
   webview or the disk; return an error. New crates use `#![forbid(unsafe_code)]`. Keep functions
   small.
 - **TypeScript and Svelte:** `strict` mode, no `any`. Use the tokens in `ui/src/styles/` rather
@@ -98,6 +99,8 @@ subject under 72 characters and write the body in the imperative mood.
 - [ ] New dependencies are pinned, licensed under AGPL-compatible terms, and pass `cargo deny check`.
 - [ ] Docs and the changelog are updated where behaviour changed, including
       [docs/NETWORKS.md](docs/NETWORKS.md) when a driver's status, login flows or capabilities change.
+- [ ] A network that moves into or out of the default build updates `engine/networks.rs`, the feature
+      list in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) section 2 and the README.
 
 ## Reference sources and third-party code
 

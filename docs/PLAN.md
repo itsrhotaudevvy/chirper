@@ -40,9 +40,12 @@ docs/                      these documents, DESIGN.md, specs/ (briefs for driver
 
 ## 2. Driver work
 
-Each network is a separate crate that implements the traits in `chirper-bridge`. Their state is
-listed in [NETWORKS.md](NETWORKS.md) and [rust-core-port.md](rust-core-port.md). A driver is listed
-as unavailable, with its reason, until its login, receive and send paths work end to end.
+Each network is a separate crate that implements the traits in `chirper-bridge`. The default build
+ships five: WhatsApp, Telegram, Discord, Fluxer and SMS. Their state is in [NETWORKS.md](NETWORKS.md)
+section 1. The other nine networks are behind eight Cargo features of `chirper-core` and are not in the
+app; their state is in [NETWORKS.md](NETWORKS.md) section 2, and their unfinished work is on the
+branch `wip/more-networks`. A driver reports unavailable, with its reason, until its login, receive
+and send paths are in place.
 
 ## 3. Platform integration
 
@@ -80,17 +83,18 @@ describes the code and the checks that CI runs.
 
 What CI checks on every push to `main` and on every pull request (`.github/workflows/ci.yml`):
 
-- `cargo fmt --check` and `cargo clippy --workspace --all-targets -- -D warnings`, with the
-  `chirper-core/mock` feature;
-- `cargo test --workspace --features chirper-core/mock`, which includes the golden wire-contract tests, the end-to-end demo tests,
-  the bridge runtime tests and the per-driver id and codec tests;
+- `cargo fmt --all --check` and `cargo clippy --workspace --all-targets -- -D warnings`;
+- `cargo test --workspace`, which includes the golden wire-contract tests, the end-to-end demo tests,
+  the bridge runtime tests and the per-driver id, codec and fake-server tests;
+- `cargo check -p chirper-core --features more-networks`, so the gated registry keeps compiling;
 - `cargo deny check`;
 - `pnpm -C ui check`, `pnpm -C ui test` and `pnpm -C ui build`.
 
 Not verified in the repository, and only checked by hand or not at all:
 
-- Live logins, receiving and sending on any network. No driver has been run against a real account
-  in the repository's checks. Discord is the first to be exercised next (see
+- Live logins, receiving and sending on any network. WhatsApp, Telegram, Discord and Fluxer report
+  available, and each has been tested only with fake servers and fixed vectors. None has been run
+  against a live server. The next step is to exercise them against real accounts (see
   [rust-core-port.md](rust-core-port.md)).
 - Android and iOS device runtime: the key wrap, the connection service, notification reply,
   `FLAG_SECURE`, the app-switcher cover and background refresh.

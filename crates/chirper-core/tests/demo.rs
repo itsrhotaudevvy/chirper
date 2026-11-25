@@ -63,10 +63,12 @@ async fn demo_login_stores_chats_and_sends_a_message() {
     let testnet = networks.iter().find(|n| n.id == "testnet").unwrap();
     assert!(testnet.available);
     assert!(!testnet.login_flows.is_empty());
-    // Networks that are not ported are still listed, and explain themselves.
+    // Telegram is listed, and explains itself unless this build carries API credentials.
     let telegram = networks.iter().find(|n| n.id == "telegram").unwrap();
-    assert!(!telegram.available);
-    assert!(!telegram.reason.is_empty());
+    if option_env!("CHIRPER_TELEGRAM_API_ID").is_none() {
+        assert!(!telegram.available);
+        assert!(!telegram.reason.is_empty());
+    }
 
     let state = core.start_login("testnet", "demo").await.unwrap();
     assert_eq!(state.step.complete.as_ref().unwrap().login_id, "demo");

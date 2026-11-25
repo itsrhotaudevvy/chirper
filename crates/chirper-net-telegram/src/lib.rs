@@ -43,11 +43,19 @@ use crate::store::Store;
 /// The network id used in settings, account ids and every stored row. Never changes.
 pub const NETWORK_ID: &str = "telegram";
 
+/// The reason shown when neither the user's settings nor the build carry an API id.
+const NO_CREDENTIALS_REASON: &str = "Telegram needs an API id. Enter yours in Settings → Advanced";
+
 /// The Telegram API id and hash this build was compiled with, if both were set.
-pub fn api_credentials() -> Option<(i32, &'static str)> {
+fn compiled_credentials() -> Option<(i32, &'static str)> {
     let id = option_env!("CHIRPER_TELEGRAM_API_ID")?.parse().ok()?;
     let hash = option_env!("CHIRPER_TELEGRAM_API_HASH")?;
     Some((id, hash))
+}
+
+/// Whether `hash` has the shape of a Telegram API hash: 32 hexadecimal characters.
+pub fn is_valid_api_hash(hash: &str) -> bool {
+    hash.len() == 32 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 /// The application credentials a login uses.
@@ -66,24 +74,56 @@ impl std::fmt::Debug for Credentials {
     }
 }
 
-/// The Telegram driver.
+/// The Telegram driver. It logs in with the API id and hash the user entered in Settings when those
+/// are valid, and with the pair the build was compiled with otherwise.
 #[derive(Debug, Default, Clone)]
-pub struct Telegram {}
+pub struct Telegram {
+    /// The user's pair, present only when it is valid.
+    user: Option<Credentials>,
+}
 
 impl Telegram {
+    /// A driver that uses the build's compiled-in credentials.
     pub fn new() -> Self {
-        Self {}
+        Self { user: None }
+    }
+
+    /// A driver that prefers the user's API id and hash. A pair that is not valid (an id that is
+    /// not positive, or a hash that is not 32 hexadecimal characters) is ignored, and the
+    /// compiled-in pair is used instead.
+    pub fn with_credentials(api_id: i32, api_hash: String) -> Self {
+        Self {
+            user: user_credentials(api_id, &api_hash),
+        }
+    }
+
+    /// The credentials of this instance, if any are available.
+    fn active_credentials(&self) -> Option<Credentials> {
+        resolve(self.user.clone(), compiled_credentials())
+    }
+
+    /// The credentials, or the reason this build cannot log in.
+    fn credentials(&self) -> Result<Credentials> {
+        self.active_credentials()
+            .ok_or(Error::Unsupported(NO_CREDENTIALS_REASON))
     }
 }
 
-/// The credentials, or the reason this build cannot log in.
-fn credentials() -> Result<Credentials> {
-    let (api_id, api_hash) = api_credentials().ok_or(Error::Unsupported(
-        "Telegram login in a build without CHIRPER_TELEGRAM_API_ID",
-    ))?;
-    Ok(Credentials {
+/// The user's pair as credentials, when it is valid.
+fn user_credentials(api_id: i32, api_hash: &str) -> Option<Credentials> {
+    (api_id > 0 && is_valid_api_hash(api_hash)).then(|| Credentials {
         api_id,
         api_hash: api_hash.to_owned(),
+    })
+}
+
+/// The user's credentials when present, otherwise the compiled-in pair.
+fn resolve(user: Option<Credentials>, compiled: Option<(i32, &str)>) -> Option<Credentials> {
+    user.or_else(|| {
+        compiled.map(|(api_id, api_hash)| Credentials {
+            api_id,
+            api_hash: api_hash.to_owned(),
+        })
     })
 }
 
@@ -159,17 +199,13 @@ impl Network for Telegram {
     }
 
     fn unavailable(&self) -> Option<String> {
-        if api_credentials().is_none() {
-            return Some(
-                "This build has no Telegram API id (set CHIRPER_TELEGRAM_API_ID and CHIRPER_TELEGRAM_API_HASH)"
-                    .to_owned(),
-            );
-        }
-        None
+        self.active_credentials()
+            .is_none()
+            .then(|| NO_CREDENTIALS_REASON.to_owned())
     }
 
     async fn start_login(&self, flow_id: &str, ctx: LoginCtx) -> Result<Box<dyn LoginProcess>> {
-        let credentials = credentials()?;
+        let credentials = self.credentials()?;
         let store = Arc::new(Store::open(ctx.clone()));
         let (client, frames) = Client::new(store, credentials.api_id, None);
         match flow_id {
@@ -186,7 +222,7 @@ impl Network for Telegram {
     }
 
     async fn connect(&self, ctx: LoginCtx) -> Result<Box<dyn BridgeSession>> {
-        let credentials = credentials()?;
+        let credentials = self.credentials()?;
         let store = Arc::new(Store::open(ctx));
         let home = store.home_dc()?.unwrap_or(client::DEFAULT_DC);
         if store.auth_key(home)?.is_none() {
@@ -219,7 +255,88 @@ mod tests {
         let telegram = Telegram::new();
         assert_eq!(
             telegram.unavailable().is_none(),
-            api_credentials().is_some()
+            compiled_credentials().is_some()
         );
+    }
+
+    const HASH: &str = "0123456789abcdef0123456789ABCDEF";
+
+    fn user(id: i32, hash: &str) -> Credentials {
+        Credentials {
+            api_id: id,
+            api_hash: hash.to_owned(),
+        }
+    }
+
+    #[test]
+    fn the_user_pair_overrides_the_compiled_in_pair() {
+        let resolved = resolve(
+            Some(user(7, HASH)),
+            Some((2, "ffffffffffffffffffffffffffffffff")),
+        );
+        let resolved = resolved.expect("a credential");
+        assert_eq!((resolved.api_id, resolved.api_hash.as_str()), (7, HASH));
+    }
+
+    #[test]
+    fn the_compiled_in_pair_is_used_when_the_user_has_none() {
+        let compiled = "ffffffffffffffffffffffffffffffff";
+        let resolved = resolve(None, Some((2, compiled))).expect("a credential");
+        assert_eq!((resolved.api_id, resolved.api_hash.as_str()), (2, compiled));
+    }
+
+    #[test]
+    fn there_are_no_credentials_when_neither_source_has_them() {
+        assert!(resolve(None, None).is_none());
+    }
+
+    #[test]
+    fn invalid_user_values_are_ignored() {
+        assert!(user_credentials(0, HASH).is_none(), "an id of zero");
+        assert!(user_credentials(-5, HASH).is_none(), "a negative id");
+        assert!(user_credentials(12, "").is_none(), "an empty hash");
+        assert!(user_credentials(12, &HASH[1..]).is_none(), "a short hash");
+        assert!(
+            user_credentials(12, &format!("{HASH}0")).is_none(),
+            "a long hash"
+        );
+        let not_hex = "g123456789abcdef0123456789abcdef";
+        assert!(user_credentials(12, not_hex).is_none(), "a non-hex hash");
+        assert!(user_credentials(12, HASH).is_some());
+    }
+
+    #[test]
+    fn a_valid_user_pair_makes_the_driver_available() {
+        let telegram = Telegram::with_credentials(12345, HASH.to_owned());
+        assert!(telegram.unavailable().is_none());
+        let credentials = telegram.credentials().expect("a credential");
+        assert_eq!(credentials.api_id, 12345);
+        assert_eq!(credentials.api_hash, HASH);
+    }
+
+    #[test]
+    fn an_invalid_user_pair_falls_back_to_the_build() {
+        let telegram = Telegram::with_credentials(0, String::new());
+        assert_eq!(
+            telegram.active_credentials().map(|c| c.api_id),
+            compiled_credentials().map(|(id, _)| id)
+        );
+        assert_eq!(
+            telegram.unavailable().is_none(),
+            compiled_credentials().is_some()
+        );
+    }
+
+    #[test]
+    fn the_hash_shape_is_32_hex_characters() {
+        assert!(is_valid_api_hash(HASH));
+        assert!(!is_valid_api_hash(""));
+        assert!(!is_valid_api_hash(&HASH[..31]));
+        assert!(!is_valid_api_hash("0123456789abcdef0123456789abcdeg"));
+    }
+
+    #[test]
+    fn the_missing_credentials_reason_names_the_settings_page() {
+        assert!(NO_CREDENTIALS_REASON.contains("Settings → Advanced"));
     }
 }

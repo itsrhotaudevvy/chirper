@@ -61,27 +61,25 @@ Windows and Linux, an Android APK set, and an iOS build for App Store Connect an
 
 ## Supported networks
 
-The list below is what each driver's `unavailable()` reports in this repository. A network marked
-available has no reason attached; it has not been verified against live accounts (see
-[docs/PLAN.md](docs/PLAN.md) section 6).
+The default build ships five networks, and the demo network in demo mode. The status below is what
+each driver's `unavailable()` reports in this repository. None of these networks has been tested
+against live servers: the drivers' tests use fake servers, so login, receiving and sending on the
+real networks are unverified (see [docs/PLAN.md](docs/PLAN.md) section 5).
 
 | Network | Status in this build |
 |---|---|
-| Discord | Available. Account token or QR code. |
+| WhatsApp | Available. Scan a QR code, or enter a pairing code on the phone. |
+| Telegram | Available once an API id and hash are set, at build time or in Settings → Advanced. Phone number with login code, QR code, or bot token. Otherwise listed as unavailable. |
+| Discord | Available. Browser sign-in, QR code, user token, or bot token. |
 | Fluxer | Available. Session token, bot token, or e-mail or username with password. |
-| Slack | Available. E-mail, browser token, or app token. |
-| Bluesky | Available. Handle and app password. |
-| Google Voice | Available. Browser cookies. |
-| LinkedIn | Available. Browser cookies. |
-| Telegram | Available only in builds compiled with `CHIRPER_TELEGRAM_API_ID` and `CHIRPER_TELEGRAM_API_HASH`. Otherwise listed as unavailable. |
 | SMS | Available on Android only, through the phone's own SMS service. Listed as unavailable elsewhere. |
-| WhatsApp | Unavailable: messaging is not implemented yet. The QR link flow exists. |
-| Signal | Unavailable. |
-| Messenger | Unavailable. |
-| Instagram | Unavailable. |
-| X (Twitter) | Unavailable. |
-| Google Messages | Unavailable. |
-| iMessage | Listed with a reason. There is no driver. |
+
+Nine more networks (Signal, Messenger, Instagram, X, LinkedIn, Google Messages, Google Voice, Slack
+and Bluesky) and iMessage are not in the default build. The nine are compiled by eight Cargo features
+of `chirper-core`; `net-meta` covers Messenger and Instagram. They are behind Cargo features of
+`chirper-core`, and their unfinished work is on the branch `wip/more-networks`. See
+[docs/NETWORKS.md](docs/NETWORKS.md) section 2 for their state and [docs/BUILDING.md](docs/BUILDING.md)
+section 4 for building them.
 
 Each network's login flows, capabilities and protocol notes are in [docs/NETWORKS.md](docs/NETWORKS.md).
 
@@ -126,14 +124,15 @@ Release bundles, Android builds and the iOS path are in [docs/BUILDING.md](docs/
 
 ### Tests and checks
 
-These are the commands CI runs:
+These are the commands CI runs (see [docs/BUILDING.md](docs/BUILDING.md) section 9):
 
 ```sh
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --features chirper-core/mock -- -D warnings
-cargo test --workspace --features chirper-core/mock
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo check -p chirper-core --features more-networks
 cargo deny check
-pnpm -C ui check && pnpm -C ui test && pnpm -C ui build
+pnpm -C ui install --frozen-lockfile && pnpm -C ui check && pnpm -C ui test && pnpm -C ui build
 ```
 
 ## Privacy
