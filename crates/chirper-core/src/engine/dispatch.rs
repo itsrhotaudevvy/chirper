@@ -209,8 +209,7 @@ fn apply(inner: &Inner, network: &str, login_id: &str, routed: Routed) -> Result
             status,
             error,
         } => {
-            let found = inner.store.event_by_txn(chat.as_str(), &txn_id)?;
-            let Some(event) = found else {
+            let Some(event) = delivery_target(inner, chat.as_str(), &txn_id)? else {
                 return Ok(());
             };
             let status = match status {
@@ -322,10 +321,12 @@ fn message_event(
             &convert::media_dir(&inner.data_dir),
             &inner.store,
         );
+        let target_id =
+            edit_target_id(inner, room_id, message.edit_of.as_deref(), target.as_str())?;
         inner
             .store
-            .apply_edit(room_id, target.as_str(), &stored.json, ts)?;
-        emit_message(inner, target.as_str())?;
+            .apply_edit(room_id, &target_id, &stored.json, ts)?;
+        emit_message(inner, &target_id)?;
         return Ok(());
     }
 
@@ -407,6 +408,38 @@ fn message_event(
     }
     let _ = stored.kind;
     Ok(())
+}
+
+/// The outgoing event a delivery report is about. A driver echoes the engine's transaction id, or
+/// the network's id of the message once it has one, so both are tried. The network id can only
+/// name this device's own messages, so it never changes the status of someone else's message.
+fn delivery_target(inner: &Inner, room_id: &str, id: &str) -> Result<Option<Event>> {
+    if id.is_empty() {
+        return Ok(None);
+    }
+    if let Some(event) = inner.store.event_by_txn(room_id, id)? {
+        return Ok(Some(event));
+    }
+    Ok(inner
+        .store
+        .event_by_remote(room_id, id)?
+        .filter(|event| event.sender == SELF_USER_ID))
+}
+
+/// The local id of the message an edit replaces. The network's id is tried first: an outgoing
+/// message is stored under its optimistic local id, which the network's id does not derive.
+fn edit_target_id(
+    inner: &Inner,
+    room_id: &str,
+    edit_of: Option<&str>,
+    derived: &str,
+) -> Result<String> {
+    let remote = edit_of.filter(|id| !id.is_empty());
+    let by_remote = match remote {
+        Some(id) => inner.store.event_by_remote(room_id, id)?,
+        None => None,
+    };
+    Ok(by_remote.map_or_else(|| derived.to_owned(), |event| event.event_id))
 }
 
 /// Make sure a room row exists, creating a minimal one when a driver reports a chat before its

@@ -390,21 +390,32 @@ impl Store {
         Ok(out)
     }
 
-    /// Update the send status of an outgoing event. A late "sent" never downgrades a "delivered"
-    /// or "read", and a failure always wins over an unconfirmed status.
+    /// Update the send status of an outgoing event. Statuses only move forward: sending, sent,
+    /// delivered, read. A late "delivered" never downgrades a "read", and a late "sent" never
+    /// downgrades a "delivered". `failed` is outside that order: it replaces an unconfirmed send
+    /// but never a delivered or read one, and only a later success (sent, delivered or read)
+    /// replaces it.
     pub fn set_event_status(&self, event_id: &str, status: &str, error: &str) -> Result<()> {
-        const RANK: &str = "CASE {value} WHEN 'sending' THEN 0 WHEN 'sent' THEN 1 \
-                            WHEN 'delivered' THEN 2 WHEN 'read' THEN 3 ELSE -1 END";
+        const UNCONFIRMED: &str = "('sending', 'sent', 'failed')";
+        const SUCCESS: &str = "('sent', 'delivered', 'read')";
         let conn = self.conn();
         conn.execute(
             &format!(
                 "UPDATE event SET
-                     status = CASE WHEN ?2 = 'failed' THEN 'failed'
-                         WHEN {} >= {} THEN ?2 ELSE status END,
-                     error = CASE WHEN ?2 = 'failed' THEN ?3 ELSE error END
+                     status = CASE
+                         WHEN ?2 = 'failed' THEN
+                             CASE WHEN status IN {UNCONFIRMED} THEN 'failed' ELSE status END
+                         WHEN status = 'failed' THEN
+                             CASE WHEN ?2 IN {SUCCESS} THEN ?2 ELSE status END
+                         WHEN {} >= {} THEN ?2
+                         ELSE status END,
+                     error = CASE
+                         WHEN ?2 = 'failed' AND status IN {UNCONFIRMED} THEN ?3
+                         WHEN status = 'failed' AND ?2 IN {SUCCESS} THEN ''
+                         ELSE error END
                  WHERE event_id = ?1",
-                RANK.replace("{value}", "?2"),
-                RANK.replace("{value}", "status"),
+                status_rank("?2"),
+                status_rank("status"),
             ),
             params![event_id, status, error],
         )?;
@@ -457,6 +468,14 @@ fn scan_reaction(row: &rusqlite::Row<'_>) -> rusqlite::Result<Reaction> {
         key: row.get(4)?,
         ts: row.get(5)?,
     })
+}
+
+/// The SQL rank of a send status in the forward order (`failed` ranks below every other status).
+fn status_rank(column: &str) -> String {
+    format!(
+        "CASE {column} WHEN 'sending' THEN 0 WHEN 'sent' THEN 1 WHEN 'delivered' THEN 2 \
+         WHEN 'read' THEN 3 ELSE -1 END"
+    )
 }
 
 fn null_if_empty(value: &str) -> Option<&str> {
