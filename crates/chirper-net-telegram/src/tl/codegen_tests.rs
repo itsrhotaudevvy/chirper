@@ -128,3 +128,36 @@ fn truncated_struct_is_an_error_not_a_panic() {
         );
     }
 }
+
+/// Serialise a value, read it back and compare: the responses the session parses must round-trip.
+fn round_trip<T>(value: &T)
+where
+    T: crate::tl::Serializable + crate::tl::Deserializable + PartialEq + std::fmt::Debug,
+{
+    let mut bytes = Vec::new();
+    value.serialize(&mut bytes);
+    let back = T::deserialize(&mut crate::tl::Cursor::new(&bytes)).expect("the bytes parse");
+    assert_eq!(&back, value);
+}
+
+#[test]
+fn responses_the_session_parses_round_trip() {
+    use crate::tl::enums;
+    use crate::tl::types;
+    round_trip(&enums::updates::State::State(types::updates::State {
+        pts: 1,
+        qts: 2,
+        date: 3,
+        seq: 4,
+        unread_count: 0,
+    }));
+    round_trip(&enums::updates::Difference::DifferenceEmpty(
+        types::updates::DifferenceEmpty { date: 5, seq: 6 },
+    ));
+    round_trip(&enums::messages::Dialogs::DialogsNotModified(
+        types::messages::DialogsNotModified { count: 7 },
+    ));
+    round_trip(&enums::messages::Messages::MessagesNotModified(
+        types::messages::MessagesNotModified { count: 8 },
+    ));
+}

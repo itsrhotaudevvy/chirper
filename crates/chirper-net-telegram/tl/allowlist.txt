@@ -13,6 +13,7 @@ auth.importLoginToken
 auth.logOut
 auth.exportAuthorization
 auth.importAuthorization
+auth.importBotAuthorization
 users.getUsers
 users.getFullUser
 updates.getState
