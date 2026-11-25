@@ -11,7 +11,7 @@ publish = false
 chirper-bridge = { path = "../chirper-bridge" }
 async-trait = "=0.1.92"
 base64 = "=0.23.1"
-futures-util = "=0.3.31"
+futures-util = "=0.3.34"
 getrandom = "=0.4.3"
 log = "=0.4.35"
 percent-encoding = "=2.3.2"

@@ -12,10 +12,10 @@ chirper-bridge = { path = "../chirper-bridge" }
 async-trait = "=0.1.92"
 log = "=0.4.35"
 tokio = { version = "=1.54.1", features = ["net", "sync", "time", "macros", "rt"] }
-futures-util = "=0.3.31"
+futures-util = "=0.3.34"
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
 zeroize = "=1.9.2"
-prost = "=0.14.4"
+prost = "=0.14.6"
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls"] }
 aes-gcm = "=0.11.1"
 curve25519-dalek = "=4.1.3"

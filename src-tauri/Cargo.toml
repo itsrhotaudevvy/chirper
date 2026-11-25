@@ -65,7 +65,7 @@ windows = { version = "=0.62.2", features = [
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus = "=6.3.0"
+zbus = "=6.5.0"
 
 # One plain Rust crate: no C ABI, no dlopen, no static archive to fold in.
 [dependencies.chirper-core]
@@ -74,4 +74,4 @@ default-features = false
 features = ["sqlcipher"]
 
 [build-dependencies]
-tauri-build = { version = "=2.7.5", features = [] }
+tauri-build = { version = "=2.7.6", features = [] }
